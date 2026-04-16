@@ -1,0 +1,16 @@
+[Unit]
+Description=NDPi Monitor Boot Splash Overlay
+DefaultDependencies=no
+After=local-fs.target
+Before=lightdm.service
+
+[Service]
+Type=forking
+ExecStart=/bin/sh -c '/usr/bin/fbi -d /dev/fb0 -T 1 --noverbose -a /home/ndpi-server/ndpi-monitor/Assets/NLC_Logo.png </dev/null &'
+ExecStop=/usr/bin/killall fbi
+StandardOutput=journal
+StandardError=journal
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

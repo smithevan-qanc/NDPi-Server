@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Group | NDPi Monitor</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<script src="/modal.js"></script>
+	<script src="/functions.js"></script>
+	<script src="/auth.js"></script>
+	<script src="/ws-client.js"></script>
+	<script src="/screen-saver.js"></script>
+	<script src="/rokuControl.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="customMenu-source" class="context-menu"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="back-btn" onclick="history.back()">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
+  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+				</svg>
+			</div>
+			<div class="topbar-spacer"></div>
+			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
+				<span id="navAccount"></span>
+			</button-->
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+
+		<div class="card" style="max-width:1200px;margin:0 auto;width:100%;">
+			<div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+				<div style="display:flex;align-items:center;gap:12px;">
+					<div style="width: 28px;"></div>
+					<h2 id="groupName" style="font-size:26px;margin:0;">Loading Display Group...</h2>
+					<div id="changeName" style="width:28px;"></div>
+				</div>
+				<div id="groupStats" class="stats-page-header">
+					<div style="display:flex; flex-direction:column; align-items:center; gap:2px; justify-content:space-between; flex: 1;">
+						<span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Devices</span>
+						<div style="display:flex; align-items:center;">
+							<div id="deviceCount" style="color:#4ade80; font-weight:600; font-size:16px;">0</div>
+						</div>
+					</div>
+					<div style="display:flex; flex-direction:column; align-items:center; gap:2px; flex:9;">
+						<span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Source</span>
+						<div id="currentSourceDisplay" style="color:#888; font-weight:400; font-size:16px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; letter-spacing: -1px;"> ⸻⸻⸻ </div>
+					</div>
+				</div>
+			</div>
+			<div id="groupContent">
+				<p style="color: #888; padding: 20px;">Loading group...</p>
+			</div>
+		</div>
+	</div>
+
+<script>
+	// Check authentication
+	/*
+	const accountData = localStorage.getItem('ndpi_account');
+	if (!accountData) {
+		sessionStorage.setItem('signin_return', window.location.pathname + window.location.search);
+		window.location.href = '/signin.html';
+	}
+
+	const account = JSON.parse(accountData);
+	setNavigationButtons();
+	*/
+
+	setScale();
+	let account = {};
+	(async () => {
+		account = await loadUserAccount();
+		setNavigationButtons();
+	})();
+
+	function setNavigationButtons() {
+		// NAVIGATION BUTTONS
+		const dashboardNavEl = document.getElementById('navDashboard');
+		dashboardNavEl.textContent = `Dashboard`;
+		dashboardNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/';
+		});
+		const devicesNavEl = document.getElementById('navDevices');
+		devicesNavEl.textContent = `Devices`;
+		devicesNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/devices.html';
+		});
+		const groupsNavEl = document.getElementById('navGroups');
+		groupsNavEl.textContent = `Groups`;
+		groupsNavEl.classList.add('active');
+		groupsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/groups.html';
+		});
+		const settingsNavEl = document.getElementById('navSettings');
+		settingsNavEl.textContent = `Settings`;
+		settingsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/settings.html';
+		});
+		const userAccountNavEl = document.getElementById('navAccount');
+		userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
+		userAccountNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href ='/account-settings.html';
+		});
+	}
+
+	// Display account name in topbar
+	//document.getElementById('navAccount').innerHTML = `${account.firstName}&nbsp;<br><font style="font-weight:800; font-size:65%;">@</font><font style="font-weight:400; font-size:85%;">${account.username}</font>`;
+
+	/*
+	// Initialize UI scale from saved setting
+	const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+	const scaleDecimal = savedScale / 100;
+	document.body.style.zoom = scaleDecimal;
+	if (!document.body.style.zoom) {
+		document.body.style.transform = `scale(${scaleDecimal})`;
+		document.body.style.transformOrigin = 'top left';
+	}
+
+	// Redirect to set PIN if first time login
+	if (account.firstTimeLogin) {
+		sessionStorage.setItem('signin_return', window.location.pathname + window.location.search);
+		window.location.href = '/set-pin.html';
+	}
+	*/
+
+	let group = null;
+	let sources = [];
+	let allDevices = [];
+	let isInitialLoad = true;
+	let groupRokuTvs = []; // Roku TVs for current group
+
+	async function loadGroup() {
+		const params = new URLSearchParams(window.location.search);
+		const groupId = params.get('id');
+		
+		if (!groupId) {
+			window.location.href = '/';
+			return;
+		}
+
+		try {
+			const [grpRes, srcRes, devRes, rokuRes] = await Promise.all([
+				fetch('/api/groups'),
+				fetch('/api/ndi-sources'),
+				fetch('/api/devices'),
+				fetch('/api/roku-tvs')
+			]);
+			
+			const grpData = await grpRes.json();
+			sources = await srcRes.json();
+			const devData = await devRes.json();
+			const rokuData = await rokuRes.json();
+			allDevices = devData.devices || [];
+			
+			group = grpData.groups.find(g => g.id === groupId);
+			
+			if (!group) {
+				document.getElementById('groupContent').innerHTML = '<p style="color: #dc5050;">Group not found</p>';
+				return;
+			}
+			
+			// Filter Roku TVs for this group
+			const allRokuTvs = rokuData.rokuTvs || [];
+			groupRokuTvs = allRokuTvs.filter(tv => tv.groupId === groupId);
+			
+			// Enrich group devices with full device data
+			group.devices = group.devices.map(gDev => {
+				const fullDevice = allDevices.find(d => (d.id || d.deviceId) === (gDev.id || gDev.deviceId));
+				return fullDevice ? { ...gDev, ...fullDevice } : gDev;
+			});
+			
+			if (isInitialLoad) {
+				renderGroup();
+				startWave();
+				isInitialLoad = false;
+			} else {
+				updateGroupDisplay();
+			}
+		} catch (e) {
+			console.error('Error loading group:', e);
+			document.getElementById('groupContent').innerHTML = '<p style="color: #dc5050;">Error loading group</p>';
+		}
+	}
+
+	function parseNdiUrl(url) {
+		if (!url) return { ip: 'Unknown', port: 'Unknown' };
+		const match = url.match(/^(?:ndi:\/\/)?([^:\/]+)(?::(\d+))?/);
+		if (match) {
+			return { ip: match[1], port: match[2] || '5961' };
+		}
+		return { ip: url, port: '5961' };
+	}
+
+	function parseSourceName(name) {
+		const match = name.match(/^(.+?)\s*\((.+)\)$/);
+		if (match) {
+			return { hostname: match[1], sourceName: match[2] };
+		}
+		return { hostname: name, sourceName: 'Default' };
+	}
+
+	/*
+	const customMenu = document.getElementById("customMenu");
+
+	function showCustomMenu(e) {
+		e.preventDefault();
+		customMenu.style.top = `${e.pageY}px`;
+		customMenu.style.left = `${e.pageX}px`;
+		customMenu.classList.add('active');
+	}
+
+	function hideCustomMenu() {
+		customMenu.classList.remove('active');
+	}
+
+	document.addEventListener("click", function(e) {
+		if (!customMenu.contains(e.target)) {
+			hideCustomMenu();
+		}
+	});
+	*/
+	function updateGroupHeaderStats() {
+		document.getElementById('groupName').textContent = group.name;
+		document.getElementById('deviceCount').textContent = group.devices.length;
+		
+		const curSource = group.currentSource || 'None';
+		const curSourceEl = document.getElementById('currentSourceDisplay');
+		if (curSource !== 'None') {
+			curSourceEl.style.color = 'rgb(129, 193, 39)';
+			curSourceEl.style.fontWeight = 600;
+			curSourceEl.style.letterSpacing = 'inherit';
+			curSourceEl.textContent = curSource || '';
+		} else {
+			curSourceEl.style.color = '#888';
+			curSourceEl.style.fontWeight = 400;
+			curSourceEl.style.letterSpacing = '-1px';
+			curSourceEl.textContent = '⸻⸻⸻';
+		}
+	}
+	function updateGroupDisplay() {
+		updateGroupHeaderStats();
+
+		const curSource = group.currentSource || 'None';
+
+		// Update source selection highlights
+		document.querySelectorAll('.source-card').forEach(card => {
+
+			const sourceName = card.dataset.source;
+
+			const isSelected = (sourceName === '' && curSource == 'None') || sourceName === group.currentSource;
+
+			card.classList.toggle('selected', isSelected);
+			
+			const badge = card.querySelector('.source-selected-badge');
+			if (badge) badge.remove();
+			
+			if (isSelected) {
+				const newBadge = document.createElement('div');
+				newBadge.className = 'source-selected-badge';
+				newBadge.style.background = sourceName === '' ? '#666' : 'rgb(129, 193, 39)';
+				newBadge.textContent = 'Current';
+				card.appendChild(newBadge);
+			}
+		});
+		
+		// Update devices list
+		updateDevicesList();
+	}
+
+	function updateDevicesList() {
+		const container = document.getElementById('devicesContainer');
+		if (!container) return;
+		
+		if (group.devices.length === 0) {
+			container.innerHTML = '<p style="color:#888;">No devices in this group</p>';
+			return;
+		}
+		
+		// Check if we need to rebuild or just update stats
+		const existingTiles = container.querySelectorAll('.device-tile');
+		const deviceIds = group.devices.map(d => d.id || d.deviceId);
+		const existingIds = Array.from(existingTiles).map(t => t.dataset.deviceId);
+		
+		// If device list changed, rebuild
+		const needsRebuild = existingTiles.length !== group.devices.length || 
+			!deviceIds.every((id, i) => id === existingIds[i]);
+		
+		if (needsRebuild) {
+			container.innerHTML = group.devices.map(dev => buildDeviceTileHtml(dev)).join('');
+		} else {
+			// Just update stats in place
+			group.devices.forEach(dev => {
+				const tile = container.querySelector(`[data-device-id="${dev.id || dev.deviceId}"]`);
+				if (tile) {
+					const statsContainer = tile.querySelector('.device-stats');
+					
+					if (dev.status === 'online') {
+						tile.classList.add('active');
+					} else {
+						tile.classList.remove('active');
+					}
+
+					if (dev.systemStats && dev.status === 'online') {
+						const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
+						const tempColor = dev.systemStats.temperature > 78 ? '#f87171' : dev.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
+						const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
+						const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
+						const statsHtml = `
+							<span style="color:${cpuColor};">CPU ${dev.systemStats.cpu}%</span>
+							<span style="color:${tempColor};">TEMP ${tempF}°F</span>
+							<span style="color:${memColor};">MEM ${dev.systemStats.memory.percent}%</span>
+						`;
+						if (statsContainer) {
+							statsContainer.innerHTML = statsHtml;
+						} else {
+							// Add stats container if it doesn't exist
+							const main = tile.querySelector('.devices-grid');
+							if (main) {
+								const newStats = document.createElement('div');
+								newStats.className = 'device-stats';
+								newStats.innerHTML = statsHtml;
+								main.appendChild(newStats);
+							}
+						}
+					} else if (statsContainer) {
+						statsContainer.remove();
+					}
+
+					const statusSpan = tile.querySelector('.device-tile-name span:nth-child(1)');
+					if (statusSpan) {
+						statusSpan.style.color = dev.status == 'online' ? 'rgb(129, 193, 39)' : '#888';
+						statusSpan.textContent = dev.status;
+					}
+				}
+			});
+		}
+	}
+
+	function buildDeviceTileHtml(dev) {
+		const statusColor = dev.status === 'online' ? 'rgb(129, 193, 39)' : '#888';
+		let statsHtml = '';
+		let removeButton = '';
+		if (dev.systemStats && dev.status === 'online') {
+			const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
+			const tempColor = dev.systemStats.temperature > 70 ? '#f87171' : dev.systemStats.temperature > 55 ? '#fbbf24' : '#4ade80';
+			const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
+			const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
+			statsHtml = `
+				<div class="device-stats">
+					<span style="color:${cpuColor};">CPU ${dev.systemStats.cpu}%</span>
+					<span style="color:${tempColor};">TEMP ${tempF}°F</span>
+					<span style="color:${memColor};">MEM ${dev.systemStats.memory.percent}%</span>
+				</div>
+			`;
+		}
+		if (account.isAdmin) {
+			removeButton = `<button class="device-tile-remove" onclick="event.stopPropagation(); removeDeviceFromGroup('${dev.id || dev.deviceId}', '${dev.name.replace(/'/g, "\\'")}')">Remove</button>`;
+		}
+		
+		return `
+			<div class="device-tile${dev.status === 'online' ? ' active' : ''}" data-device-id="${dev.id || dev.deviceId}" onclick="window.location.href='/device.html?id=${encodeURIComponent(dev.id || dev.deviceId)}'">
+				<div class="device-tile-main">
+					<div class="device-tile-name">
+						<span style="text-transform:capitalize; color:${statusColor};">${dev.status}</span> 
+						⌇ ${dev.name}
+					</div>
+					<div class="device-tile-info mono">
+						<div style='flex:2;'><code>${dev.ip}</code></div>
+						<div style='flex:4; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; ' title='${dev.currentSource || 'No Active Source'}'>
+							${dev.currentSource || 'No Active Source'}
+						</div>
+					</div>
+					${statsHtml}
+				</div>
+				${removeButton}
+				<button class="device-tile-remove" onclick="cecPowerOn('${dev.ipAddress}')">
+					TV Power |
+					<span style="font-weight: 800;">ON</span>
+				</button>
+				<button class="device-tile-remove" onclick="cecPowerOff('${dev.ipAddress}')">
+					TV Power |
+					<span style="font-weight: 800;">OFF</span>
+				</button>
+			</div>
+		`;
+	}
+
+	function renderGroup() {
+		updateGroupHeaderStats();
+		
+		// Build source grid
+		let admAddDeviceButtonHtml = '';
+		let admGroupActionGroupHtml = '';
+		let rokuActionButtons = '';
+
+		/*	moved to append children elements
+
+		const sourceGrid = sources.length > 0 ? sources.map(s => {
+			const parsed = parseSourceName(s.name);
+			const urlInfo = parseNdiUrl(s.url);
+			const isSelected = group.currentSource === s.name;
+
+
+			if (card.addEventListener ?? customMenu) {
+				console.log('Adding event listener');
+				card.addEventListener('contextmenu', showCustomMenu(e), false);
+			} else {
+				console.log('Could not add event listener');
+			}
+			return `
+				<div id="${s.url}" class="source-card ${isSelected ? 'selected' : ''}" data-source="${s.name}" onclick="selectSource('${s.name.replace(/'/g, "\\'")}')">
+					<div class="source-name">${parsed.sourceName}</div>
+					<div class="source-host">${parsed.hostname}</div>
+					<div class="source-info">
+						<span>IP: ${urlInfo.ip}</span>
+						<span>Port: ${urlInfo.port}</span>
+					</div>
+					${isSelected ? '<div class="source-selected-badge">Current</div>' : ''}
+				</div>
+			`;
+		}).join('') : '<p style="color:#888;grid-column:1/-1;">No NDI sources found on network</p>';
+
+		*/
+
+		if (account.isAdmin) {
+			admAddDeviceButtonHtml = '<button onclick="addDevicesToGroup()" class="button-subtle">+ Add Device</button>';
+			admGroupActionGroupHtml = `
+			<div class="group-spacer"></div>
+			<div class="group-actions">
+				<button onclick="rebootGroup()" class="button-danger">Reboot All</button>
+				<button onclick="shutdownGroup()" class="button-danger">Shutdown All</button>
+				<button onclick="deleteGroup()" class="button-danger">Delete Group</button>
+			</div>`;
+			document.getElementById('changeName').innerHTML = `
+			<button
+				onclick="renameGroup()"
+				style="background:none; border:none; cursor:pointer; padding:4px; opacity:0.5; transition:opacity 0.2s;"
+				onmouseover="this.style.opacity='1'"
+				onmouseout="this.style.opacity='0.5'"
+				title="Rename Group"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+					<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+				</svg>
+			</button>`;
+		}
+
+		if (groupRokuTvs.length > 0) {
+			rokuActionButtons = `
+				<div style="width:-webkit-fill-available;"></div>
+				<button onclick="powerDisplaysInGroup('Power')" style="flex:1;" class="roku-button-power">
+					${group.name} Roku TVs | Power |
+					<span style="font-weight: 800;">TOGGLE</span>
+				</button>
+				<button onclick="powerDisplaysInGroup('poweroff')" style="flex:1;" class="roku-button-power">
+					${group.name} Roku TVs | Power |
+					<span style="font-weight: 800;">OFF</span>
+				</button>
+			`;
+		}
+
+		const curSource = group.currentSource || 'None';
+		
+		document.getElementById('groupContent').innerHTML = `
+			<div class="group-page-container">
+				<div>
+					<h3 style="margin-bottom:8px;">Select NDI Source</h3>
+					<div id="groupSourceGrid" class="source-grid">
+						<div>
+							<div class="source-card ${curSource == 'None' ? 'selected' : ''}" data-source="" onclick="selectSource('')">
+								<div class="source-name">None</div>
+								<div class="source-host">No source assigned</div>
+								<div class="source-info">
+									<div style="display:flex; flex-direction:row;">
+										<div class="n-src-a">░░░</div>
+										<div class="n-src-b">░░░</div>
+										<div class="n-src-c">░░░</div>
+										<div class="n-src-a">░░░</div>
+										<div class="n-src-b">░░░</div>
+										<div class="n-src-c">░░░</div>
+										<div class="n-src-a">░░░</div>
+										<div class="n-src-b">░░░</div>
+										<div class="n-src-c">░░░</div>
+										<div class="n-src-a">░░░</div>
+									</div>
+									<div style="display:flex; flex-direction:row;">
+										<div class="n-src-b">░░░</div>
+										<div class="n-src-c">░░░</div>
+										<div class="n-src-a">░░░</div>
+										<div class="n-src-b">░░░</div>
+										<div class="n-src-c">░░░</div>
+										<div class="n-src-a">░░░</div>
+										<div class="n-src-b">░░░</div>
+										<div class="n-src-c">░░░</div>
+										<div class="n-src-a">░░░</div>
+										<div class="n-src-b">░░░</div>
+									</div>
+								</div>
+								${curSource == 'None' ? '<div class="source-selected-badge" style="background:#666;">Current</div>' : ''}
+							</div>
+						</div>
+						<!-- $ {sourceGrid} -->
+					</div>
+				</div>
+				
+				<div style="margin-top:24px;">
+					<h3 style="margin-bottom:8px;">Display Controls</h3>
+					<p style="font-size:12px;color:#888;margin-bottom:12px;">These actions apply to all ${group.devices.length} device(s) in this group</p>
+					<div class="display-controls">
+						<button onclick="showGroupOverlay()" style="flex:5;" class="display-btn display-btn-overlay">Display Overlay</button>
+						<button onclick="showGroupBlank()" style="flex:2;" class="display-btn display-btn-overlay">Blank Display</button>
+						${rokuActionButtons}
+					</div>
+				</div>
+				
+				<div style="margin-top:24px;">
+					<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+						<h3 style="margin:0;">Devices in this Group</h3>
+						${admAddDeviceButtonHtml}
+					</div>
+					<div id="devicesContainer" class="devices-grid"></div>
+				</div>
+				${admGroupActionGroupHtml}
+			</div>
+		`;
+
+		const sourceGridEl = document.getElementById('groupSourceGrid');
+		const noSourcesEl = document.createElement('div').innerHTML = `<p style="color:#888;grid-column:1/-1;">No NDI sources found on network</p>`;
+		
+		if (sources.length > 0) {
+			sources.map(src => {
+				const parsed = parseSourceName(src.name);
+				const urlInfo = parseNdiUrl(src.url);
+
+				const isSelected = group.currentSource === src.name;
+				const sourceCard = document.createElement('div');
+
+				if (sourceCard.addEventListener ?? customMenu) {
+					sourceCard.addEventListener('contextmenu', function(e) {
+						buildContext_Source(e, src.name.replace(/'/g, "\\'"));
+					}, false);
+				} else {
+					console.error(`Could not add event listener to ${src.name}`);
+				}
+				const favSrcBadge = `
+				<div class="source-info favorite">
+					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-star-fill" viewBox="0 0 16 16">
+						<path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path>
+					</svg>
+				</div>`;
+
+				sourceCard.innerHTML = `
+				<div id="${src.url}" class="source-card ${isSelected ? 'selected' : ''}" data-source="${src.name}" onclick="selectSource('${src.name.replace(/'/g, "\\'")}')">
+					${src.favorite ? favSrcBadge : ''}
+					<div class="source-name">${parsed.sourceName}</div>
+					<div class="source-host">${parsed.hostname}</div>
+					<div class="source-info">
+						<span>IP: ${urlInfo.ip}</span>
+						<span>Port: ${urlInfo.port}</span>
+					</div>
+					${isSelected ? '<div class="source-selected-badge">Current</div>' : ''}
+				</div>
+				`;
+				sourceGridEl.appendChild(sourceCard);
+			})
+		} else {
+			// ** GROUP DIDN'T LOAD WITH THE FOLLOWING LINE **
+			//sourceGridEl.appendChild(noSourcesEl);
+		}
+
+		// Populate devices list
+		updateDevicesList();
+		startWave();
+	}
+
+	let waveStarted = false;
+
+	function startWave() {
+		if (waveStarted) return;
+		waveStarted = true;
+		setInterval(() => {
+			const elemA = document.querySelectorAll('.n-src-a').forEach(function (el) {
+				el.style.opacity = 0.5
+			});
+			const elemB = document.querySelectorAll('.n-src-b').forEach(function (el) {
+				el.style.opacity = 0.5
+			});
+			const elemC = document.querySelectorAll('.n-src-c').forEach(function (el) {
+				el.style.opacity = 0.5
+			});
+			setTimeout(() => {
+				const elemA = document.querySelectorAll('.n-src-a').forEach(function (el) {
+					el.style.opacity = 0.2
+				});
+				const elemB = document.querySelectorAll('.n-src-b').forEach(function (el) {
+					el.style.opacity = 0.2
+				});
+				const elemV = document.querySelectorAll('.n-src-c').forEach(function (el) {
+					el.style.opacity = 0.2
+				});
+			}, 2250);
+		}, 4500);
+	}
+
+	async function cecPowerOn(deviceIp) {
+		if (!deviceIp) return;
+		try {
+			const resDevice = await fetch(`http://${device.ip}:3001/api/cec/on`, {
+				method: 'POST',
+			});
+			if (resDevice.ok) {
+				toast.success('Powered On - Connected TV');
+			} else {
+				toast.warning('Failed to Power On - Connected TV');
+			}
+		} catch (e) {
+			toast.error('Error Powerering On - Connected TV');
+		}
+	}
+	async function cecPowerOff(deviceIp) {
+		if (!deviceIp) return;
+		try {
+			const resDevice = await fetch(`http://${device.ip}:3001/api/cec/standby`, {
+				method: 'POST',
+			});
+			if (resDevice.ok) {
+				toast.success('Powered Off - Connected TV');
+			} else {
+				toast.warning('Failed to Power Off - Connected TV');
+			}
+		} catch (e) {
+			toast.error('Error Powerering Off - Connected TV');
+		}
+	}
+
+	async function selectSource(sourceName) {
+		try {
+			const res = await fetch(`/api/group/${group.id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ currentSource: sourceName })
+			});
+			if (res.ok) {
+				group.currentSource = sourceName;
+				updateGroupDisplay();
+				if (sourceName !== '') {
+					toast.success(`Source set to ${sourceName}`);
+				}
+			} else {
+				toast.error('Failed to assign source to group');
+			}
+		} catch (e) {
+			toast.error('Error assigning source to group');
+		}
+	}
+
+	async function showGroupOverlay() {
+		try {
+			selectSource('');
+			const res = await fetch(`/api/group/${group.id}/overlay`, { method: 'POST' });
+			if (res.ok) {
+				toast.info('Showing overlay on all devices');
+			} else {
+				toast.error('Failed to show overlay');
+			}
+		} catch (e) {
+			toast.error('Error showing overlay');
+		}
+	}
+
+	async function showGroupBlank() {
+		try {
+			selectSource('');
+			const res = await fetch(`/api/group/${group.id}/blank`, { method: 'POST' });
+			if (res.ok) {
+				toast.info('Blanking all devices');
+			} else {
+				toast.error('Failed to blank displays');
+			}
+		} catch (e) {
+			toast.error('Error blanking displays');
+		}
+	}
+
+	async function shutdownGroup() {
+		const confirmed = await modal.confirm(
+			`Are you sure you want to shutdown all ${group.devices.length} device(s) in this group?`,
+			'Shutdown Group',
+			{ danger: true, confirmText: 'Shutdown All' }
+		);
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/group/${group.id}/shutdown`, { method: 'POST' });
+			if (res.ok) {
+				toast.info('Shutdown command sent to group');
+			} else {
+				toast.error('Failed to send shutdown command to group');
+			}
+		} catch (e) {
+			toast.error('Error sending shutdown command to group');
+		}
+	}
+
+	async function rebootGroup() {
+		const confirmed = await modal.confirm(
+			`Are you sure you want to reboot all ${group.devices.length} device(s) in this group?`,
+			'Reboot Group',
+			{ danger: true, confirmText: 'Reboot All' }
+		);
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/group/${group.id}/reboot`, { method: 'POST' });
+			if (res.ok) {
+				toast.info('Reboot command sent to group');
+			} else {
+				toast.error('Failed to send reboot command to group');
+			}
+		} catch (e) {
+			toast.error('Error sending reboot command to group');
+		}
+	}
+
+	async function removeDeviceFromGroup(deviceId, deviceName) {
+		const confirmed = await modal.confirm(
+			`Remove "${deviceName}" from this group?`,
+			'Remove Device',
+			{ danger: true, confirmText: 'Remove' }
+		);
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/group/${group.id}/remove-device`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ deviceId })
+			});
+			
+			if (res.ok) {
+				// Update local state and refresh display
+				group.devices = group.devices.filter(d => (d.id || d.deviceId) !== deviceId);
+				document.getElementById('deviceCount').textContent = group.devices.length;
+				updateDevicesList();
+				toast.success('Device removed from group');
+			} else {
+				toast.error('Failed to remove device');
+			}
+		} catch (e) {
+			toast.error('Error removing device');
+		}
+	}
+
+	// Roku TV control functions
+	async function powerDisplaysInGroup(action) {
+		if (groupRokuTvs.length === 0) {
+			toast.warning('No Roku TVs configured for this group');
+			return;
+		}
+		
+		const ipAddresses = groupRokuTvs.map(tv => tv.ipAddress);
+		await rokuBulkKeypress(ipAddresses, action);
+		
+		toast.info(`Sent ${action} command to ${groupRokuTvs.length} Roku TV(s)`);
+	}
+
+	async function addDevicesToGroup() {
+		try {
+			// Get all devices from the server
+			const devRes = await fetch('/api/devices');
+			const devData = await devRes.json();
+			const allDevs = devData.devices || [];
+			
+			// Filter out devices already in this group
+			const groupDeviceIds = group.devices.map(d => d.id || d.deviceId);
+			const availableDevices = allDevs.filter(device => 
+				!groupDeviceIds.includes(device.id || device.deviceId)
+			);
+			
+			if (availableDevices.length === 0) {
+				toast.warning('No available devices to add');
+				return;
+			}
+			
+			// Create options list with value/label
+			const options = availableDevices.map(device => ({
+				value: device.id || device.deviceId,
+				label: `${device.name} (${device.ip})`
+			}));
+			
+			const selectedDeviceId = await modal.select('Select a device to add to this group:', options, null, 'Add Device');
+			if (selectedDeviceId === null || selectedDeviceId === undefined) return;
+			
+			// Add device to group via API
+			const res = await fetch(`/api/group/${group.id}/add-device`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ deviceId: selectedDeviceId })
+			});
+			
+			if (res.ok) {
+				toast.success('Device added to group');
+				// WebSocket will update the group, triggering updateGroupDisplay
+			} else {
+				toast.error('Failed to add device to group');
+			}
+		} catch (e) {
+			console.error('Error adding device to group:', e);
+			toast.error('Error adding device to group');
+		}
+	}
+
+	async function renameGroup() {
+		const newName = await modal.prompt('Enter new group name:', group.name, 'Rename Group');
+		if (!newName || newName === group.name) return;
+		
+		try {
+			const res = await fetch(`/api/group/${group.id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: newName })
+			});
+			if (res.ok) {
+				group.name = newName;
+				document.getElementById('groupName').textContent = newName;
+				toast.success('Group renamed');
+			} else {
+				toast.error('Failed to rename group');
+			}
+		} catch (e) {
+			toast.error('Error renaming group');
+		}
+	}
+
+	async function deleteGroup() {
+		const confirmed = await modal.confirm(
+			`Are you sure you want to delete the group "${group.name}"? This action cannot be undone.`,
+			'Delete Group',
+			{ danger: true, confirmText: 'Delete', cancelText: 'Cancel' }
+		);
+		
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/group/${group.id}`, { method: 'DELETE' });
+			
+			if (res.ok) {
+				toast.success('Group deleted');
+				setTimeout(() => window.location.href = '/groups.html', 500);
+			} else {
+				toast.error('Failed to delete group');
+			}
+		} catch (e) {
+			console.error('Error deleting group:', e);
+			toast.error('Error deleting group');
+		}
+	}
+
+	loadGroup();
+
+	// Initialize WebSocket connection
+	const ws = initWebSocket();
+
+	const pageLogo = document.getElementById('topbarLogo');
+	const topbarHeight = document.querySelector('.topbar').clientHeight;
+	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+	// Handle groups updates from WebSocket - only update display, don't rebuild
+	ws.onGroupsUpdate = (groupList) => {
+		const updatedGroup = groupList.find(g => g.id === group?.id);
+		if (updatedGroup) {
+			// Preserve enriched device data
+			const enrichedDevices = group.devices;
+			group = { ...group, ...updatedGroup };
+			// Re-enrich with device data
+			group.devices = group.devices.map(gDev => {
+				const fullDevice = allDevices.find(d => (d.id || d.deviceId) === (gDev.id || gDev.deviceId));
+				return fullDevice ? { ...gDev, ...fullDevice } : gDev;
+			});
+			updateGroupDisplay();
+		}
+	};
+
+	ws.onNDISourceUpdate = (sourcesUpdate) => {
+		if (JSON.stringify(sources) !== JSON.stringify(sourcesUpdate)) {
+			sources = sourcesUpdate;
+			renderGroup();
+		}
+	};
+
+	// Handle device updates from WebSocket - update device stats without page reload
+	ws.onDevicesUpdate = (devices) => {
+		allDevices = devices;
+		if (group) {
+			// Update group devices with latest data (preserves scroll position)
+			group.devices = group.devices.map(gDev => {
+				const fullDevice = devices.find(d => (d.id || d.deviceId) === (gDev.id || gDev.deviceId));
+				return fullDevice ? { ...gDev, ...fullDevice } : gDev;
+			});
+			updateDevicesList();
+		}
+	};
+
+</script>
+</body>
+</html>

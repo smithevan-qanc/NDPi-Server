@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Manage Accounts | NDPi Monitor</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+	<script src="/modal.js"></script>
+	<script src="/functions.js"></script>
+	<script src="/auth.js"></script>
+	<script src="/ws-client.js"></script>
+	<script src="/screen-saver.js"></script>
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="back-btn" onclick="window.location.href='/settings.html'">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
+  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+				</svg>
+			</div>
+			<div class="topbar-spacer"></div>
+			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
+				<span id="navAccount"></span>
+			</button-->
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+
+		<section class="dashboard">
+			<div class="card">
+				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+					<h2 style="margin: 0;">All Accounts</h2>
+					<button onclick="window.location.href='/create-account.html'" class="button-primary">+ Create Account</button>
+				</div>
+				<div class="card-content" id="accountsList">
+					<!-- Account list will be rendered here -->
+				</div>
+			</div>
+		</section>
+	</div>
+
+<script>
+	//let accounts = [];
+	let selectedAccountId = null;
+
+	setScale();
+	let account = {};
+	(async () => {
+		account = await loadUserAccount();
+		if (!account.isAdmin) {
+			alert('Access denied. Admin privileges required.');
+			window.location.href = '/';
+		}
+		setNavigationButtons();
+	})();
+
+	function setNavigationButtons() {
+		// NAVIGATION BUTTONS
+		const dashboardNavEl = document.getElementById('navDashboard');
+		dashboardNavEl.textContent = `Dashboard`;
+		dashboardNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/';
+		});
+		const devicesNavEl = document.getElementById('navDevices');
+		devicesNavEl.textContent = `Devices`;
+		devicesNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/devices.html';
+		});
+		const groupsNavEl = document.getElementById('navGroups');
+		groupsNavEl.textContent = `Groups`;
+		groupsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/groups.html';
+		});
+		const settingsNavEl = document.getElementById('navSettings');
+		settingsNavEl.textContent = `Settings`;
+		settingsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/settings.html';
+		});
+		const userAccountNavEl = document.getElementById('navAccount');
+		userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
+		userAccountNavEl.classList.add('active');
+		userAccountNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href ='/account-settings.html';
+		});
+	}
+
+	async function loadAccounts() {
+		/*
+		// Check if user is admin
+
+		const accountData = localStorage.getItem('ndpi_account');
+		if (!accountData) {
+			window.location.href = '/signin.html';
+			return;
+		}
+		
+		const account = JSON.parse(accountData);
+		setNavigationButtons();
+		
+		// Display account name in topbar
+		//document.getElementById('navAccount').textContent = account.firstName;
+		
+		// Initialize UI scale from saved setting
+		const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+		const scaleDecimal = savedScale / 100;
+		document.body.style.zoom = scaleDecimal;
+		if (!document.body.style.zoom) {
+			document.body.style.transform = `scale(${scaleDecimal})`;
+			document.body.style.transformOrigin = 'top left';
+		}
+		
+		// Redirect to set PIN if first time login
+		if (account.firstTimeLogin) {
+			sessionStorage.setItem('signin_return', '/advanced-account-settings.html');
+			window.location.href = '/set-pin.html';
+			return;
+		}
+
+		*/
+		
+		try {
+			const res = await fetch('/api/admin/accounts');
+			if (!res.ok) {
+				throw new Error(`HTTP ${res.status}`);
+			}
+			const data = await res.json();
+			console.log('Loaded accounts:', data);
+			accounts = data.accounts || [];
+			renderAccounts();
+		} catch (e) {
+			console.error('Error loading accounts:', e);
+			toast.error('Error loading accounts: ' + e.message);
+		}
+	}
+
+	function renderAccounts() {
+		const container = document.getElementById('accountsList');
+		
+		if (accounts.length === 0) {
+			container.innerHTML = '<p style="color:rgba(255,255,255,0.5);">No accounts found</p>';
+			return;
+		}
+		
+		container.innerHTML = accounts.map(acc => `
+			<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 16px; margin-bottom: 12px;">
+				<div style="display: flex; justify-content: space-between; align-items: flex-start;">
+					<div style="flex: 1;">
+						<div style="font-size: 16px; color: #eee; margin-bottom: 4px;">
+							${acc.firstName} ${acc.lastName}
+							${acc.isAdmin ? '<span style="background:rgb(129, 193, 39); color:#002b3f; padding:2px 8px; border-radius:6px; font-size:11px; margin-left:8px;">ADMIN</span>' : ''}
+						</div>
+						<div style="font-size: 14px; color: rgba(255,255,255,0.6);">@${acc.username}</div>
+						<div style="font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px;">
+							Created: ${new Date(acc.createdAt).toLocaleDateString()}
+						</div>
+					</div>
+					<div style="display: flex; gap: 8px;">
+						<button onclick="editAccount('${acc.id}')" class="button-primary">
+							Edit
+						</button>
+						<button onclick="openChangePinModal('${acc.id}', '${acc.username}')" class="button-subtle">
+							Change PIN
+						</button>
+						<button onclick="deleteAccount('${acc.id}', '${acc.username}')" class="button-danger">
+							Delete
+						</button>
+					</div>
+				</div>
+			</div>
+		`).join('');
+	}
+
+	async function editAccount(accountId) {
+		const selectedAccount = accounts.find(acc => acc.id === accountId);
+		if (!selectedAccount) return;
+		
+		let firstName = selectedAccount.firstName;
+		let lastName = selectedAccount.lastName;
+		let username = selectedAccount.username;
+		let isAdmin = selectedAccount.isAdmin;
+		
+		const html = `
+			<div style="display:flex; flex-direction:column; gap:12px;">
+				<div>
+					<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">First Name</label>
+					<input type="text" id="editFirstName" value="${selectedAccount.firstName}" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px; box-sizing:border-box;">
+				</div>
+				<div>
+					<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">Last Name</label>
+					<input type="text" id="editLastName" value="${selectedAccount.lastName}" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px; box-sizing:border-box;">
+				</div>
+				<div>
+					<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">Username</label>
+					<input type="text" id="editUsername" value="${selectedAccount.username}" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px; box-sizing:border-box;">
+				</div>
+				<div>
+					<label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#eee; cursor:pointer; padding:8px; background:#1a1a1a; border-radius:8px;">
+						<input type="checkbox" id="editIsAdmin" ${selectedAccount.isAdmin ? 'checked' : ''} style="cursor:pointer;">
+						Administrator Privileges
+					</label>
+				</div>
+			</div>
+		`;
+		
+		const confirmed = await modal.custom(html, `Edit Account: ${selectedAccount.username}`, { 
+			confirmText: 'Save Changes',
+			onOpen: () => {
+				document.getElementById('editFirstName').addEventListener('input', (e) => {
+					firstName = e.target.value;
+				});
+				document.getElementById('editLastName').addEventListener('input', (e) => {
+					lastName = e.target.value;
+				});
+				document.getElementById('editUsername').addEventListener('input', (e) => {
+					username = e.target.value;
+				});
+				document.getElementById('editIsAdmin').addEventListener('change', (e) => {
+					isAdmin = e.target.checked;
+				});
+			}
+		});
+		if (!confirmed) return;
+		
+		firstName = firstName.trim();
+		lastName = lastName.trim();
+		username = username.trim();
+		
+		if (!firstName || !lastName || !username) {
+			toast.error('All fields are required');
+			return;
+		}
+		
+		// Get current user's account info to send as requestor
+		/*
+		const accountData = localStorage.getItem('ndpi_account');
+		const currentUser = accountData ? JSON.parse(accountData) : null;
+		*/
+
+		if (!account || !account.isAdmin) {
+			toast.error('Only admin users can manage privileges');
+			return;
+		}
+		
+		try {
+			const res = await fetch(`/api/account/${accountId}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ 
+					firstName, 
+					lastName, 
+					username, 
+					isAdmin,
+					requestorId: account.id 
+				})
+			});
+			
+			if (res.ok) {
+				toast.success('Account updated successfully');
+				loadAccounts();
+			} else {
+				const data = await res.json();
+				toast.error(data.error || 'Failed to update account');
+			}
+		} catch (e) {
+			toast.error('Error updating account');
+		}
+	}
+
+	async function deleteAccount(accountId, username) {
+		const confirmed = await modal.confirm(
+			`Are you sure you want to delete the account "@${username}"? This action cannot be undone.`,
+			'Delete Account',
+			{ danger: true, confirmText: 'Delete' }
+		);
+		
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/account/${accountId}`, {
+				method: 'DELETE'
+			});
+			
+			if (res.ok) {
+				toast.success('Account deleted successfully');
+				loadAccounts();
+			} else {
+				const data = await res.json();
+				toast.error(data.error || 'Failed to delete account');
+			}
+		} catch (e) {
+			toast.error('Error deleting account');
+		}
+	}
+
+	async function openChangePinModal(accountId, username) {
+		selectedAccountId = accountId;
+		
+		let newPin = '';
+		let confirmPin = '';
+		
+		const html = `
+			<div style="display:flex; flex-direction:column; gap:12px;">
+				<div>
+					<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">New PIN (4 or 6 digits)</label>
+					<input type="password" id="modalNewPin" inputmode="numeric" maxlength="6" pattern="[0-9]*" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px; box-sizing:border-box;">
+				</div>
+				<div>
+					<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">Confirm New PIN</label>
+					<input type="password" id="modalConfirmPin" inputmode="numeric" maxlength="6" pattern="[0-9]*" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px; box-sizing:border-box;">
+				</div>
+			</div>
+		`;
+		
+		const confirmed = await modal.custom(html, `Change PIN for @${username}`, { 
+			confirmText: 'Save PIN',
+			onOpen: () => {
+				document.getElementById('modalNewPin').addEventListener('input', (e) => {
+					newPin = e.target.value;
+				});
+				document.getElementById('modalConfirmPin').addEventListener('input', (e) => {
+					confirmPin = e.target.value;
+				});
+			}
+		});
+		if (!confirmed) return;
+		
+		if (!newPin || !confirmPin) {
+			toast.error('Please enter and confirm the new PIN');
+			return;
+		}
+		
+		if (newPin !== confirmPin) {
+			toast.error('PINs do not match');
+			return;
+		}
+		
+		if (newPin.length !== 4 && newPin.length !== 6) {
+			toast.error('PIN must be 4 or 6 digits');
+			return;
+		}
+		
+		try {
+			const res = await fetch(`/api/account/${selectedAccountId}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ pin: newPin })
+			});
+			
+			if (res.ok) {
+				toast.success('PIN changed');
+			} else {
+				const data = await res.json();
+				toast.error(data.error || 'Failed to change PIN');
+			}
+		} catch (e) {
+			toast.error('Error changing PIN');
+		}
+	}
+
+	loadAccounts();
+
+	// Initialize WebSocket
+	const ws = initWebSocket();
+
+	const pageLogo = document.getElementById('topbarLogo');
+	const topbarHeight = document.querySelector('.topbar').clientHeight;
+	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+</script>
+</body>
+</html>

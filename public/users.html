@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Users | NDPi Monitor</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<script src="/modal.js"></script>
+	<script src="/functions.js"></script>
+	<script src="/auth.js"></script>
+	<script src="/ws-client.js"></script>
+	<script src="/screen-saver.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="topbar-spacer"></div>
+			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
+				<span id="navAccount"></span>
+			</button-->
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+
+		<section class="dashboard">
+			<div class="card" style="grid-column: 1 / -1;">
+				<h2>User Management</h2>
+				<div class="card-content">
+					<div class="devices-grid" id="usersList"></div>
+					
+					<!-- No Users Message -->
+					<div id="noUsersMessage" style="text-align: center; padding: 40px; color: #888; display: none;">
+						<p>No users found</p>
+						<p style="font-size: 14px; margin-top: 8px;">Click the "+" button to create a new user</p>
+					</div>
+				</div>
+			</div>
+		</section>
+		
+		<!-- Floating Action Button -->
+		<div class="floating-actions">
+			<button class="fab" id="add-button" title="Create User">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+					<path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
+				</svg>
+			</button>
+		</div>
+	</div>
+
+<script>
+	// Check authentication
+	/*
+	const accountData = localStorage.getItem('ndpi_account');
+	if (!accountData) {
+		sessionStorage.setItem('signin_return', window.location.pathname);
+		window.location.href = '/signin.html';
+	}
+
+	const account = JSON.parse(accountData);
+	setNavigationButtons();
+	*/
+
+	setScale();
+	let account = {};
+	(async () => {
+		account = await loadUserAccount();
+		setNavigationButtons();
+	})();
+
+	function setNavigationButtons() {
+		// NAVIGATION BUTTONS
+		const dashboardNavEl = document.getElementById('navDashboard');
+		dashboardNavEl.textContent = `Dashboard`;
+		dashboardNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/';
+		});
+		const devicesNavEl = document.getElementById('navDevices');
+		devicesNavEl.textContent = `Devices`;
+		devicesNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/devices.html';
+		});
+		const groupsNavEl = document.getElementById('navGroups');
+		groupsNavEl.textContent = `Groups`;
+		groupsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/groups.html';
+		});
+		const settingsNavEl = document.getElementById('navSettings');
+		settingsNavEl.textContent = `Settings`;
+		settingsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/settings.html';
+		});
+		const userAccountNavEl = document.getElementById('navAccount');
+		userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
+		userAccountNavEl.classList.add('active');
+		userAccountNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href ='/account-settings.html';
+		});
+	}
+
+	/*
+	// Redirect to set PIN if first time login
+	if (account.firstTimeLogin) {
+		sessionStorage.setItem('signin_return', window.location.pathname);
+		window.location.href = '/set-pin.html';
+	}
+
+	// Display account name
+	//document.getElementById('navAccount').textContent = account.firstName;
+
+	// Initialize UI scale from saved setting
+	const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+	const scaleDecimal = savedScale / 100;
+	document.body.style.zoom = scaleDecimal;
+	if (!document.body.style.zoom) {
+		document.body.style.transform = `scale(${scaleDecimal})`;
+		document.body.style.transformOrigin = 'top left';
+	}
+	
+	*/
+
+	// Global variables
+	let users = [];
+	let currentUser = null;
+
+	// Load current user info
+	/*
+	async function loadCurrentUser() {
+		try {
+			const accountId = localStorage.getItem('accountId');
+			if (accountId) {
+				const res = await fetch(`/api/account/${accountId}`);
+				if (res.ok) {
+					currentUser = await res.json();
+				}
+			}
+		} catch (e) {
+			console.error('Error loading current user:', e);
+		}
+	}
+		*/
+
+	// Toggle admin privileges
+	/*
+	async function toggleAdminPrivileges(userId, isCurrentlyAdmin) {
+		if (!account || !account.isAdmin) {
+			toast.error('Only admin users can manage privileges');
+			return;
+		}
+		
+		const action = isCurrentlyAdmin ? 'revoke' : 'grant';
+		const confirmMessage = `Are you sure you want to ${action} admin privileges ${isCurrentlyAdmin ? 'from' : 'to'} this user?`;
+		
+		const confirmed = await modal.confirm(confirmMessage, 'Change Admin Privileges', { danger: isCurrentlyAdmin, confirmText: isCurrentlyAdmin ? 'Revoke' : 'Grant' });
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/account/${userId}`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ 
+					isAdmin: !isCurrentlyAdmin,
+					requestorId: currentUser.id
+				})
+			});
+			
+			const result = await res.json();
+			
+			if (res.ok) {
+				toast.success(`Admin privileges ${action}ed`);
+				fetchUsers(); // Refresh the users list
+			} else {
+				toast.error(result.error || 'Failed to update privileges');
+			}
+		} catch (e) {
+			console.error('Error updating admin privileges:', e);
+			toast.error('Error updating privileges');
+		}
+	}
+		*/
+
+	document.getElementById('add-button').addEventListener('click', () => {
+		this.onclick = null;
+		showCreateUserModal();
+	});
+
+	// Simple toast notification
+	function showToast(message, type = 'info') {
+		const toast = document.createElement('div');
+		toast.className = `toast ${type}`;
+		toast.textContent = message;
+		toast.style.cssText = `
+			position: fixed;
+			top: 80px;
+			right: 20px;
+			padding: 12px 16px;
+			border-radius: 6px;
+			color: white;
+			background: ${type === 'error' ? '#dc5050' : type === 'success' ? 'rgb(129, 193, 39)' : '#888'};
+			z-index: 10000;
+			max-width: 300px;
+			box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+		`;
+		
+		document.body.appendChild(toast);
+		setTimeout(() => {
+			toast.remove();
+		}, 4000);
+	}
+
+	// Show offline overlay
+	function showOfflineOverlay() {
+		document.getElementById('offlineOverlay').style.display = 'block';
+	}
+
+	// Hide offline overlay
+	function hideOfflineOverlay() {
+		document.getElementById('offlineOverlay').style.display = 'none';
+	}
+
+	// Fetch Users
+	async function fetchUsers() {
+		try {
+			const res = await fetch('/api/admin/accounts');
+			const data = await res.json();
+			users = data.accounts || [];
+			renderUsers();
+		} catch (e) {
+			console.error('Error fetching users:', e);
+			users = [];
+			renderUsers();
+		}
+	}
+
+	// Render Users
+	function renderUsers() {
+		const list = document.getElementById('usersList');
+		const noUsersMsg = document.getElementById('noUsersMessage');
+		
+		list.innerHTML = '';
+		
+		if (users.length === 0) {
+			noUsersMsg.style.display = 'block';
+			return;
+		}
+		
+		noUsersMsg.style.display = 'none';
+		
+		users.forEach(user => {
+			const tile = document.createElement('div');
+			tile.className = 'user-tile' + (user.isAdmin ? ' admin' : '');
+			
+			const createdDate = new Date(user.createdAt).toLocaleDateString();
+			
+			tile.innerHTML = `
+				<strong>${user.firstName} ${user.lastName}</strong>
+				${user.isAdmin ? '<span class="admin-badge">ADMIN</span>' : ''}
+				<div class="user-info">
+					<div>Username: ${user.username}</div>
+					<div>Created: ${createdDate}</div>
+				</div>
+				${currentUser && currentUser.isAdmin && user.id !== currentUser.id ? `
+					<div class="admin-actions">
+						<button onclick="toggleAdminPrivileges('${user.id}', ${user.isAdmin})" 
+								class="admin-toggle-btn ${user.isAdmin ? 'revoke' : 'grant'}">
+							${user.isAdmin ? 'Revoke Admin' : 'Grant Admin'}
+						</button>
+					</div>
+				` : ''}
+			`;
+			
+			list.appendChild(tile);
+		});
+	}
+
+	// Create User Modal
+	const showCreateUserModal = async () => {
+		try {
+			const firstName = await modal.prompt('Enter first name:', '', 'Create User', { placeholder: 'First name' });
+			if (!firstName) return;
+			
+			const lastName = await modal.prompt('Enter last name:', '', 'Create User', { placeholder: 'Last name' });
+			if (!lastName) return;
+			
+			const username = await modal.prompt('Enter username:', '', 'Create User', { placeholder: 'Username' });
+			if (!username) return;
+			
+			const pin = await modal.prompt('Enter PIN (4 digits):', '', 'Create User', { 
+				placeholder: '1234',
+				inputMode: 'numeric'
+			});
+			if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+				toast.error('PIN must be exactly 4 digits');
+				return;
+			}
+			
+			const isAdmin = await modal.confirm('Should this user have admin privileges?', 'Admin Access');
+			
+			const response = await fetch('/api/account', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					firstName,
+					lastName,
+					username,
+					pin,
+					isAdmin
+				})
+			});
+			
+			if (response.ok) {
+				toast.success('User created');
+				await fetchUsers();
+			} else {
+				const error = await response.json();
+				toast.error(error.error || 'Failed to create user');
+			}
+		} catch (e) {
+			console.error('Error creating user:', e);
+			toast.error('Error creating user');
+		}
+	};
+
+	// Initialize WebSocket connection
+	const ws = initWebSocket();
+
+	const pageLogo = document.getElementById('topbarLogo');
+	const topbarHeight = document.querySelector('.topbar').clientHeight;
+	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+	// Handle viewer updates from WebSocket
+	ws.onViewersUpdate = (viewers) => {
+		// Handle viewer updates if needed
+		// No viewer display elements on this page, so just store the data
+		activeViewers = viewers;
+	};
+
+	// Initial load
+	fetchUsers();
+
+</script>
+</body>
+</html>

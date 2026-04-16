@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Device Discovery | NDPi Monitor</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<script src="/modal.js"></script>
+	<script src="/functions.js"></script>
+	<script src="/auth.js"></script>
+	<script src="/ws-client.js"></script>
+	<script src="/screen-saver.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="back-btn" onclick="history.back()">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
+  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+				</svg>
+			</div>
+			<div class="topbar-spacer"></div>
+			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
+				<span id="navAccount"></span>
+			</button-->
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+
+		<section class="dashboard">
+			<div class="card" style="grid-column: 1 / -1;">
+				<h2>Discover Devices</h2>
+				<div class="card-content">
+					
+					<div class="discovery-card" id="discoveryCard">
+						<div class="discovery-status" id="discoveryStatus">
+							Click "Scan for Devices" to discover NDI clients on your network
+						</div>
+						
+						<button class="discovery-button" id="scanBtn" onclick="startDiscovery()">
+							Scan for Devices
+						</button>
+						
+						<button class="discovery-button" id="refreshBtn" onclick="refreshDiscovery()" style="display: none;">
+							Refresh Scan
+						</button>
+					</div>
+					
+					<div id="discoveredDevices" style="margin-top: 20px;"></div>
+					
+				</div>
+			</div>
+		</section>
+	</div>
+
+<script>
+	// Check authentication
+	/*
+	const accountData = localStorage.getItem('ndpi_account');
+	if (!accountData) {
+		sessionStorage.setItem('signin_return', window.location.pathname);
+		window.location.href = '/signin.html';
+	}
+
+	const account = JSON.parse(accountData);
+	setNavigationButtons();
+	*/
+
+	setScale();
+	let account = {};
+	(async () => {
+		account = await loadUserAccount();
+		setNavigationButtons();
+	})();
+
+	function setNavigationButtons() {
+		// NAVIGATION BUTTONS
+		const dashboardNavEl = document.getElementById('navDashboard');
+		dashboardNavEl.textContent = `Dashboard`;
+		dashboardNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/';
+		});
+		const devicesNavEl = document.getElementById('navDevices');
+		devicesNavEl.textContent = `Devices`;
+		devicesNavEl.classList.add('active');
+		devicesNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/devices.html';
+		});
+		const groupsNavEl = document.getElementById('navGroups');
+		groupsNavEl.textContent = `Groups`;
+		groupsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/groups.html';
+		});
+		const settingsNavEl = document.getElementById('navSettings');
+		settingsNavEl.textContent = `Settings`;
+		settingsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/settings.html';
+		});
+		const userAccountNavEl = document.getElementById('navAccount');
+		userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
+		userAccountNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href ='/account-settings.html';
+		});
+	}
+
+	// Display account name in topbar
+	//document.getElementById('navAccount').textContent = account.firstName;
+
+	/*
+	// Initialize UI scale from saved setting
+	const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+	const scaleDecimal = savedScale / 100;
+	document.body.style.zoom = scaleDecimal;
+	if (!document.body.style.zoom) {
+		document.body.style.transform = `scale(${scaleDecimal})`;
+		document.body.style.transformOrigin = 'top left';
+	}
+
+	// Redirect to set PIN if first time login
+	if (account.firstTimeLogin) {
+		sessionStorage.setItem('signin_return', window.location.pathname);
+		window.location.href = '/set-pin.html';
+	}
+	*/
+
+	let isScanning = false;
+	let discoveredDevices = [];
+
+	async function startDiscovery() {
+		if (isScanning) return;
+		
+		isScanning = true;
+		document.getElementById('scanBtn').disabled = true;
+		document.getElementById('scanBtn').textContent = 'Scanning...';
+		document.getElementById('discoveryStatus').textContent = 'Scanning network for NDI devices...';
+		
+		try {
+			// Clear previous results
+			document.getElementById('discoveredDevices').innerHTML = '';
+			
+			// Wait a moment for the UI to update
+			await new Promise(resolve => setTimeout(resolve, 500));
+			
+			// Fetch discovered devices
+			const response = await fetch('/api/discovered-devices');
+			const data = await response.json();
+			discoveredDevices = data.devices || [];
+			
+			// Update UI
+			isScanning = false;
+			document.getElementById('scanBtn').disabled = false;
+			document.getElementById('scanBtn').style.display = 'none';
+			document.getElementById('refreshBtn').style.display = 'inline-block';
+			
+			if (discoveredDevices.length === 0) {
+				document.getElementById('discoveryStatus').textContent = 
+					'No devices found. Make sure NDI client devices are powered on and connected to the network.';
+			} else {
+				document.getElementById('discoveryStatus').textContent = 
+					`Found ${discoveredDevices.length} device${discoveredDevices.length === 1 ? '' : 's'}. Click on a device to add it.`;
+				renderDiscoveredDevices();
+			}
+			
+		} catch (error) {
+			console.error('Discovery error:', error);
+			isScanning = false;
+			document.getElementById('scanBtn').disabled = false;
+			document.getElementById('scanBtn').textContent = 'Scan for Devices';
+			document.getElementById('discoveryStatus').textContent = 'Error during discovery. Please try again.';
+		}
+	}
+
+	async function refreshDiscovery() {
+		document.getElementById('refreshBtn').textContent = 'Refreshing...';
+		document.getElementById('refreshBtn').disabled = true;
+		
+		try {
+			const response = await fetch('/api/discovered-devices');
+			const data = await response.json();
+			discoveredDevices = data.devices || [];
+			
+			if (discoveredDevices.length === 0) {
+				document.getElementById('discoveryStatus').textContent = 
+					'No devices found. Make sure NDI client devices are powered on and connected to the network.';
+				document.getElementById('discoveredDevices').innerHTML = '';
+			} else {
+				document.getElementById('discoveryStatus').textContent = 
+					`Found ${discoveredDevices.length} device${discoveredDevices.length === 1 ? '' : 's'}. Click on a device to add it.`;
+				renderDiscoveredDevices();
+			}
+			
+		} catch (error) {
+			console.error('Refresh error:', error);
+			document.getElementById('discoveryStatus').textContent = 'Error refreshing devices. Please try again.';
+		}
+		
+		document.getElementById('refreshBtn').textContent = 'Refresh Scan';
+		document.getElementById('refreshBtn').disabled = false;
+	}
+
+	function renderDiscoveredDevices() {
+		const container = document.getElementById('discoveredDevices');
+		container.innerHTML = '';
+		
+		discoveredDevices.forEach(device => {
+			const deviceElement = document.createElement('div');
+			deviceElement.className = 'device-tile discovered-device';
+			deviceElement.innerHTML = `
+				<div class="device-tile-info mono">
+					<div class="device-details">
+						<strong>${device.deviceName}</strong><br>
+						<span style="font-family: monospace; font-size: 12px; color: #888;">${device.deviceId}</span><br>
+						<span style="font-size: 12px; color: #aaa;">IP: ${device.ip}</span>
+					</div>
+					<button class="add-device-btn" onclick="addDevice('${device.deviceId}', '${device.deviceName}', '${device.ip}')">
+						Add Device
+					</button>
+				</div>
+			`;
+			container.appendChild(deviceElement);
+		});
+	}
+
+	async function addDevice(deviceId, deviceName, ip) {
+		try {
+			const response = await fetch(`/api/device/${deviceId}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					deviceId: deviceId,
+					deviceName: deviceName,
+					ip: ip
+				})
+			});
+			
+			if (response.ok) {
+				toast.success('Device added');
+				// Navigate back to devices page
+				setTimeout(() => window.location.href = '/devices.html', 500);
+			} else {
+				toast.error('Failed to add device');
+			}
+		} catch (e) {
+			toast.error('Error adding device');
+		}
+	}
+
+	// Initialize WebSocket for real-time updates
+	const ws = initWebSocket();
+
+	const pageLogo = document.getElementById('topbarLogo');
+	const topbarHeight = document.querySelector('.topbar').clientHeight;
+	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+	ws.onDiscoveredDevicesUpdate = (devices) => {
+		if (isScanning) return; // Don't update during scan
+		discoveredDevices = devices;
+		if (discoveredDevices.length > 0) {
+			document.getElementById('discoveryStatus').textContent = 
+				`Found ${discoveredDevices.length} device${discoveredDevices.length === 1 ? '' : 's'}. Click on a device to add it.`;
+			renderDiscoveredDevices();
+		}
+	};
+</script>
+</body>
+</html>

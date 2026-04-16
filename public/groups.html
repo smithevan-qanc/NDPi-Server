@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>NDPi Monitor - Groups</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<script src="/modal.js"></script>
+	<script src="/functions.js"></script>
+	<script src="/auth.js"></script>
+	<script src="/ws-client.js"></script>
+	<script src="/screen-saver.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+	<style>
+		.group-devices {
+			font-size: 100%;
+			color: rgb(129, 193, 39);
+		}
+	</style>
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="topbar-spacer"></div>
+			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
+				<span id="navAccount"></span>
+			</button-->
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+
+		<section class="dashboard">
+			<div class="card" style="grid-column: 1 / -1;">
+				<h2>Device Groups</h2>
+				<div class="card-content">
+					<div class="devices-grid" id="groupsList"></div>
+					
+					<!-- No Groups Message -->
+					<div id="noGroupsMessage" style="text-align: center; padding: 40px; color: #888; display: none;">
+						<p>No groups created yet</p>
+						<p style="font-size: 14px; margin-top: 8px;">Click the "+" button to create your first group</p>
+					</div>
+				</div>
+			</div>
+		</section>
+		
+		<!-- Floating Action Button -->
+		<div class="floating-actions">
+			<button class="fab" id="add-button" title="Create Group">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+					<path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
+				</svg>
+			</button>
+		</div>
+	</div>
+
+<script>
+
+	/* EVENT LISTENER FOR CONTEXT MENU
+
+	if (document.addEventListener) {
+	document.addEventListener('contextmenu', function(e) {
+		alert("You've tried to open context menu"); //here you draw your own menu
+		e.preventDefault();
+	}, false);
+	} else {
+	document.attachEvent('oncontextmenu', function() {
+		alert("You've tried to open context menu false");
+		window.event.returnValue = false;
+	});
+	}
+
+	*/
+
+	// Check authentication
+	/*
+	const accountData = localStorage.getItem('ndpi_account');
+	if (!accountData) {
+		sessionStorage.setItem('signin_return', window.location.pathname);
+		window.location.href = '/signin.html';
+	}
+
+	const account = JSON.parse(accountData);
+	setNavigationButtons();
+	*/
+
+	setScale();
+	let account = {};
+	(async () => {
+		account = await loadUserAccount();
+		setNavigationButtons();
+	})();
+
+	function setNavigationButtons() {
+		// NAVIGATION BUTTONS
+		const dashboardNavEl = document.getElementById('navDashboard');
+		dashboardNavEl.textContent = `Dashboard`;
+		dashboardNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/';
+		});
+		const devicesNavEl = document.getElementById('navDevices');
+		devicesNavEl.textContent = `Devices`;
+		devicesNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/devices.html';
+		});
+		const groupsNavEl = document.getElementById('navGroups');
+		groupsNavEl.textContent = `Groups`;
+		groupsNavEl.classList.add('active');
+		groupsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/groups.html';
+		});
+		const settingsNavEl = document.getElementById('navSettings');
+		settingsNavEl.textContent = `Settings`;
+		settingsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/settings.html';
+		});
+		const userAccountNavEl = document.getElementById('navAccount');
+		userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
+		userAccountNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href ='/account-settings.html';
+		});
+	}
+
+	/*
+	// Redirect to set PIN if first time login
+	if (account.firstTimeLogin) {
+		sessionStorage.setItem('signin_return', window.location.pathname);
+		window.location.href = '/set-pin.html';
+	}
+
+	// Display account name
+	//document.getElementById('navAccount').textContent = account.firstName;
+
+	// Initialize UI scale from saved setting
+	const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+	const scaleDecimal = savedScale / 100;
+	document.body.style.zoom = scaleDecimal;
+	if (!document.body.style.zoom) {
+		document.body.style.transform = `scale(${scaleDecimal})`;
+		document.body.style.transformOrigin = 'top left';
+	}
+	*/
+
+	// Global variables
+	let groups = [];
+
+	document.getElementById('add-button').addEventListener('click', () => {
+		this.onclick = null;
+		showCreateGroupModal();
+	});
+
+	// Show offline overlay
+	function showOfflineOverlay() {
+		document.getElementById('offlineOverlay').style.display = 'block';
+	}
+
+	// Hide offline overlay
+	function hideOfflineOverlay() {
+		document.getElementById('offlineOverlay').style.display = 'none';
+	}
+
+	// Fetch Groups
+	async function fetchGroups() {
+		try {
+			const res = await fetch('/api/groups');
+			const data = await res.json();
+			groups = data.groups || [];
+			renderGroups();
+		} catch (e) {
+			groups = [];
+			renderGroups();
+		}
+	}
+
+	// Render Groups
+	function renderGroups() {
+		const list = document.getElementById('groupsList');
+		const noGroupsMsg = document.getElementById('noGroupsMessage');
+		
+		list.innerHTML = '';
+		
+		if (groups.length === 0) {
+			noGroupsMsg.style.display = 'block';
+			return;
+		}
+		
+		noGroupsMsg.style.display = 'none';
+		
+		groups.forEach(group => {
+			const tile = document.createElement('div');
+			tile.className = 'group-tile';
+			const deviceCount = group.devices ? group.devices.length : 0;
+			const deviceText = deviceCount === 1 ? '1 device' : `${deviceCount} devices`;
+			tile.innerHTML = `
+				<h2 style='flex: 1;'>
+					${group.name}
+				</h2>
+				<div class="group-devices" style="flex: 1; text-align: center;">
+					${deviceText}
+				</div>
+				<div style="font-size:100%; overflow:hidden; flex: 3; text-align: right; max-width: 100%; display: flex; flex-direction: column; gap: 5px;">
+					<font style="color:#888; text-align: right;">
+						Current Source
+					</font>
+					<font class="mono">
+						${group.currentSource || 'None'}
+					</font>
+				</div>
+			`;
+			
+			tile.onclick = () => window.location.href = `/group.html?id=${encodeURIComponent(group.id)}`;
+			list.appendChild(tile);
+		});
+	}
+
+	// Create Group Modal
+	const showCreateGroupModal = async () => {
+		const name = await modal.prompt('Enter new group name:', '', 'Create Group', { placeholder: 'Group name' });
+		if (!name) return;
+		try {
+			const res = await fetch('/api/group', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name, devices: [] })
+			});
+			if (res.ok) {
+				await fetchGroups();
+				toast.success('Group created');
+			} else {
+				toast.error('Failed to create group');
+			}
+		} catch (e) {
+			toast.error('Error creating group');
+		}
+	};
+
+	// Initialize WebSocket connection
+	const ws = initWebSocket();
+
+	const pageLogo = document.getElementById('topbarLogo');
+	const topbarHeight = document.querySelector('.topbar').clientHeight;
+	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+	// Handle groups updates from WebSocket
+	ws.onGroupsUpdate = (groupList) => {
+		groups = groupList;
+		renderGroups();
+	};
+
+	// Handle viewer updates from WebSocket
+	ws.onViewersUpdate = (viewers) => {
+		// Handle viewer updates if needed
+		// No viewer display elements on this page, so just store the data
+		activeViewers = viewers;
+	};
+
+	// Initial load
+	fetchGroups();
+
+</script>
+</body>
+</html>

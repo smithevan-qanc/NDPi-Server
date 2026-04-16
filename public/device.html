@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Device | NDPi Monitor</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<script src="/modal.js"></script>
+	<script src="/functions.js"></script>
+	<script src="/auth.js"></script>
+	<script src="/ws-client.js"></script>
+	<script src="/screen-saver.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="back-btn" onclick="history.back()">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
+  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+				</svg>
+			</div>
+			<div class="topbar-spacer"></div>
+			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
+				<span id="navAccount"></span>
+			</button-->
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+
+		<div class="card" style="max-width:1200px;margin:0 auto;width:100%;">
+			<div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+				<div style="display:flex;align-items:center;gap:12px;">
+					<h2 id="deviceName" style="font-size:32px;margin:0;">Loading...</h2>
+					<div id="changeName"></div>
+				</div>
+				<div id="systemStatsHeader" class="stats-page-header"></div>
+			</div>
+			<div id="deviceContent">
+				<p style="color: #888; padding: 20px;">Loading device information...</p>
+			</div>
+		</div>
+	</div>
+
+<script>
+	// Check authentication
+	/*
+	const accountData = localStorage.getItem('ndpi_account');
+	if (!accountData) {
+		sessionStorage.setItem('signin_return', window.location.pathname + window.location.search);
+		window.location.href = '/signin.html';
+	}
+
+	const account = JSON.parse(accountData);
+	setNavigationButtons();
+	*/
+
+	setScale();
+	let account = {};
+	(async () => {
+		account = await loadUserAccount();
+		setNavigationButtons();
+	})();
+
+	function setNavigationButtons() {
+		// NAVIGATION BUTTONS
+		const dashboardNavEl = document.getElementById('navDashboard');
+		dashboardNavEl.textContent = `Dashboard`;
+		dashboardNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/';
+		});
+		const devicesNavEl = document.getElementById('navDevices');
+		devicesNavEl.textContent = `Devices`;
+		devicesNavEl.classList.add('active');
+		devicesNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/devices.html';
+		});
+		const groupsNavEl = document.getElementById('navGroups');
+		groupsNavEl.textContent = `Groups`;
+		groupsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/groups.html';
+		});
+		const settingsNavEl = document.getElementById('navSettings');
+		settingsNavEl.textContent = `Settings`;
+		settingsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/settings.html';
+		});
+		const userAccountNavEl = document.getElementById('navAccount');
+		userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
+		userAccountNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href ='/account-settings.html';
+		});
+	}
+
+	// Display account name in topbar
+	//document.getElementById('navAccount').textContent = account.firstName;
+
+	/*
+	// Initialize UI scale from saved setting
+	const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+	const scaleDecimal = savedScale / 100;
+	document.body.style.zoom = scaleDecimal;
+	if (!document.body.style.zoom) {
+		document.body.style.transform = `scale(${scaleDecimal})`;
+		document.body.style.transformOrigin = 'top left';
+	}
+
+	// Redirect to set PIN if first time login
+	if (account.firstTimeLogin) {
+		sessionStorage.setItem('signin_return', window.location.pathname + window.location.search);
+		window.location.href = '/set-pin.html';
+	}
+	*/
+
+	let device = null;
+	let sources = [];
+	let groups = [];
+
+	async function loadDevice() {
+		const params = new URLSearchParams(window.location.search);
+		const deviceId = params.get('id');
+		
+		if (!deviceId) {
+			window.location.href = '/';
+			return;
+		}
+
+		try {
+			const [devRes, srcRes, grpRes] = await Promise.all([
+				fetch('/api/devices'),
+				fetch('/api/ndi-sources'),
+				fetch('/api/groups')
+			]);
+			
+			const devData = await devRes.json();
+			sources = await srcRes.json();
+			const grpData = await grpRes.json();
+			groups = grpData.groups || [];
+			
+			device = devData.devices.find(d => d.id === deviceId || d.deviceId === deviceId);
+			
+			if (!device) {
+				document.getElementById('deviceContent').innerHTML = '<p style="color: #dc5050;">Device not found</p>';
+				return;
+			}
+			renderDevice();
+		} catch (e) {
+			console.error('Error loading device:', e);
+			document.getElementById('deviceContent').innerHTML = '<p style="color: #dc5050;">Error loading device</p>';
+		}
+	}
+
+	function formatUptime(seconds) {
+		if (!seconds || seconds < 0) return '0s';
+		const hours = Math.floor(seconds / 3600);
+		const minutes = Math.floor((seconds % 3600) / 60);
+		const secs = seconds % 60;
+		
+		if (hours > 0) {
+			return `${hours}h ${minutes}m ${secs}s`;
+		} else if (minutes > 0) {
+			return `${minutes}m ${secs}s`;
+		}
+		return `${secs}s`;
+	}
+
+	function parseNdiUrl(url) {
+		// Parse NDI URL like "192.168.1.100:5961" or "ndi://hostname/source"
+		if (!url) return { ip: 'Unknown', port: 'Unknown' };
+		const match = url.match(/^(?:ndi:\/\/)?([^:\/]+)(?::(\d+))?/);
+		if (match) {
+			return { ip: match[1], port: match[2] || '5961' };
+		}
+		return { ip: url, port: '5961' };
+	}
+
+	function parseSourceName(name) {
+		// Parse source name like "HOSTNAME (SourceName)" 
+		const match = name.match(/^(.+?)\s*\((.+)\)$/);
+		if (match) {
+			return { hostname: match[1], sourceName: match[2] };
+		}
+		return { hostname: name, sourceName: 'Default' };
+	}
+
+	function renderDevice() {
+		document.getElementById('deviceName').textContent = device.name;
+
+		let admDeviceActionsHtml = '';
+
+		if (account.isAdmin) {
+			admDeviceActionsHtml = `
+			<!-- Spacer to push buttons to bottom -->
+			<div class="device-spacer"></div>
+		
+			<!-- Action Buttons at Bottom -->
+			<div class="device-actions">
+				<button onclick="rebootDevice()" class="button-danger">Reboot</button>
+				<button onclick="shutdownDevice()" class="button-danger">Shutdown</button>
+				<button onclick="forgetDevice()" class="button-danger">Forget Device</button>
+			</div>
+			`;
+			document.getElementById('changeName').innerHTML = `
+			<button
+				onclick="renameDevice()"
+				style="
+					background:none;
+					border:none;
+					cursor:pointer;
+					padding:4px;
+					opacity:0.5;
+					transition:opacity 0.2s;
+				"
+				onmouseover="this.style.opacity='1'"
+				onmouseout="this.style.opacity='0.5'" 
+				title="Rename Device"
+			>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+					<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+				</svg>
+			</button>`;
+		}
+
+		// Build static page shell — dynamic content filled by renderSources() and updateDevice()
+		document.getElementById('deviceContent').innerHTML = `
+			<div class="device-page-container">
+				<!-- NDI Source Selection -->
+				<div>
+					<h3 style="margin-bottom:8px;">Select NDI Source</h3>
+					<div id="deviceSourceGrid" class="source-grid"></div>
+				</div>
+			
+				<!-- Display Controls -->
+				<div style="margin-top:24px;">
+					<h3 style="margin-bottom:8px;">Display Controls</h3>
+					<div class="display-controls">
+						<button onclick="showOverlay()" style="flex:5;" class="display-btn display-btn-overlay">Display Overlay</button>
+						<button onclick="showBlank()" style="flex:2;" class="display-btn display-btn-overlay">Blank Display</button>
+
+						<div style="width:-webkit-fill-available;"></div>
+
+						<button onclick="cecPowerOn()" style="flex:1;" class="roku-button-power">
+							TV Power |
+							<span style="font-weight: 800;">ON</span>
+						</button>
+						<button onclick="cecPowerOff()" style="flex:1;" class="roku-button-power">
+							TV Power |
+							<span style="font-weight: 800;">OFF</span>
+						</button>
+					</div>
+				</div>
+				
+				<!-- Device Status Information -->
+				<div style="margin-top:24px;">
+					<h3 style="margin-bottom:12px;">Device Information</h3>
+					<div id="infoGrid" class="info-grid"></div>
+				</div>
+				${admDeviceActionsHtml}
+			</div>
+		`;
+
+		// Fill dynamic sections
+		renderSources();
+		updateDevice();
+	}
+
+	function renderSources() {
+		const sourceGrid = document.getElementById('deviceSourceGrid');
+		if (!sourceGrid || !device) return;
+
+		const curSource = device.currentSource || 'None';
+
+		const noneCard = `
+			<div>
+				<div class="source-card ${curSource == 'None' ? 'selected' : ''}" data-source="" onclick="selectSource('')">
+					<div class="source-name">None</div>
+					<div class="source-host">No source assigned</div>
+					<div class="source-info">
+						<div>░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</div>
+						<div>░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</div>
+					</div>
+					${curSource == 'None' ? '<div class="source-selected-badge" style="background:#666;">Current</div>' : ''}
+				</div>
+			</div>
+		`;
+
+		const favSrcBadge = `
+			<div class="source-info favorite">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-star-fill" viewBox="0 0 16 16">
+					<path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path>
+				</svg>
+			</div>
+		`;
+
+		const sourceCards = sources.length > 0 ? sources.map(src => {
+			const parsed = parseSourceName(src.name);
+			const urlInfo = parseNdiUrl(src.url);
+			const isSelected = device.currentSource === src.name;
+			return `
+				<div>
+					<div class="source-card ${isSelected ? 'selected' : ''}" onclick="selectSource('${src.name.replace(/'/g, "\\'")}')">
+						${src.favorite ? favSrcBadge : ''}
+						<div class="source-name">${parsed.sourceName}</div>
+						<div class="source-host">${parsed.hostname}</div>
+						<div class="source-info">
+							<span>IP: ${urlInfo.ip}</span>
+							<span>Port: ${urlInfo.port}</span>
+						</div>
+						${isSelected ? '<div class="source-selected-badge">Current</div>' : ''}
+					</div>
+				</div>
+			`;
+		}).join('') : '<p style="color:#888;grid-column:1/-1;">No NDI sources found on network</p>';
+
+		sourceGrid.innerHTML = noneCard + sourceCards;
+	}
+
+	function updateDevice() {
+		if (!device) return;
+
+		// Update device name
+		document.getElementById('deviceName').textContent = device.name;
+
+		const statusColor = (device.status === 'online' || device.status === 'connected') ? 'rgb(129, 193, 39)' : '#888';
+
+		// Update system stats header
+		const statsHeader = document.getElementById('systemStatsHeader');
+		if (device.systemStats && statsHeader) {
+			const cpuColor = device.systemStats.cpu > 80 ? '#f87171' : device.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
+			const memColor = device.systemStats.memory.percent > 80 ? '#f87171' : device.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
+			const tempColor = device.systemStats.temperature > 78 ? '#f87171' : device.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
+			const tempF = ((device.systemStats.temperature * 9/5) + 32).toFixed(0);
+			
+			statsHeader.innerHTML = `
+				<!--div style="display:flex;gap:24px;align-items:flex-start;font-size:14px;background:rgba(255,255,255,0.03);padding:12px 20px;border-radius:12px;"-->
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">CPU</span>
+						<span style="color:${cpuColor};font-weight:600;font-size:16px;">${device.systemStats.cpu}%</span>
+					</div>
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">TEMP</span>
+						<span style="color:${tempColor};font-weight:600;font-size:16px;">${tempF}°F</span>
+					</div>
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">MEM</span>
+						<span style="color:${memColor};font-weight:600;font-size:16px;">${device.systemStats.memory.percent}%</span>
+					</div>
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Uptime</span>
+						<span style="color:#4ade80;font-weight:600;font-size:16px;">${formatUptime(device.systemStats.uptime)}</span>
+					</div>
+				<!--/div-->
+			`;
+		}
+
+		// Update info grid
+		const infoGrid = document.getElementById('infoGrid');
+		if (infoGrid) {
+			infoGrid.innerHTML = `
+				<div class="info-item">
+					<span class="info-label">Device ID</span>
+					<span class="info-value mono" style="text-transform: uppercase;">${device.id}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">IP Address</span>
+					<span class="info-value mono">${device.ip}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Group</span>
+					<span class="info-value" style="display:flex;align-items:center;gap:8px;">
+						${device.group || 'None'}
+						<button onclick="changeGroup()" style="background:none;border:none;cursor:pointer;padding:2px;opacity:0.5;transition:opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'" title="Change Group">
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+							</svg>
+						</button>
+					</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Current Source</span>
+					<span class="info-value">${device.currentSource || 'None'}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Status</span>
+					<span class="info-value" style="color:${statusColor};text-transform: uppercase;">${device.status}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Stream Status</span>
+					<span class="info-value" style="text-transform: capitalize;color:${device.streamStatus === 'streaming' ? '#4ade80' : '#888'};">${device.streamStatus || 'idle'}</span>
+				</div>
+				${device.ndiInfo && device.ndiInfo.resolution ? `
+				<div class="info-item">
+					<span class="info-label">Source Resolution</span>
+					<span class="info-value mono">${device.ndiInfo.resolution}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Display</span>
+					<span class="info-value">${device.ndiInfo.displayName || 'Unknown'} (${device.ndiInfo.displayResolution || 'Unknown'})</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Framerate</span>
+					<div>
+						<span class="info-value mono">${device.ndiInfo.framerate ? device.ndiInfo.framerate.toFixed(2) : 'Unknown'}</span>
+						<span style="font-size: 70%;"> fps</span>
+					</div>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Stream Uptime</span>
+					<span class="info-value" id="streamUptime">${formatUptime(device.ndiInfo.uptime)}</span>
+				</div>
+				` : ''}
+			`;
+		}
+	}
+
+	async function selectSource(sourceName) {
+		try {
+			const res = await fetch(`/api/device/${device.id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ currentSource: sourceName })
+			});
+			if (res.ok) {
+				// Update local state immediately for responsive UI
+				device.currentSource = sourceName;
+				renderSources();
+				updateDevice();
+				if (sourceName !== '') {
+					toast.success(`Source set to ${sourceName}`);
+				}
+			} else {
+				toast.error('Failed to assign source');
+			}
+		} catch (e) {
+			toast.error('Error assigning source');
+		}
+	}
+
+	async function showOverlay() {
+		try {
+			selectSource('');
+			const res = await fetch(`/api/device/${device.id}/overlay`, { method: 'POST' });
+			if (res.ok) {
+				toast.success('Overlay displayed');
+			} else {
+				toast.error('Failed to show overlay');
+			}
+		} catch (e) {
+			toast.error('Error showing overlay');
+		}
+	}
+
+	async function showBlank() {
+		try {
+			selectSource('');
+			const res = await fetch(`/api/device/${device.id}/blank`, { method: 'POST' });
+			if (res.ok) {
+				toast.success('Screen blanked');
+			} else {
+				toast.error('Failed to blank screen');
+			}
+		} catch (e) {
+			toast.error('Error blanking screen');
+		}
+	}
+
+	async function cecPowerOn() {
+		try {
+			const resDevice = await fetch(`http://${device.ip}:3001/api/cec/on`, {
+				method: 'POST',
+			});
+			if (resDevice.ok) {
+				toast.success('Powered On - Connected TV');
+			} else {
+				toast.warning('Failed to Power On - Connected TV');
+			}
+		} catch (e) {
+			toast.error('Error Powerering On - Connected TV');
+		}
+	}
+	async function cecPowerOff() {
+		try {
+			const resDevice = await fetch(`http://${device.ip}:3001/api/cec/standby`, {
+				method: 'POST',
+			});
+			if (resDevice.ok) {
+				toast.success('Powered Off - Connected TV');
+			} else {
+				toast.warning('Failed to Power Off - Connected TV');
+			}
+		} catch (e) {
+			toast.error('Error Powerering Off - Connected TV');
+		}
+	}
+
+	async function renameDevice() {
+		const newName = await modal.prompt('Enter new device name:', device.name, 'Rename Device');
+		if (!newName || newName === device.name) {
+			toast.info('Device name will remain unchanged.');
+			return;
+		}
+		
+		try {
+			const resDevice = await fetch(`http://${device.ip}:3001/api/deviceName`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ deviceName: newName })
+			});
+			if (!resDevice.ok) {
+				toast.warning('Failed to update device name.');
+				return;
+			}
+			const res = await fetch(`/api/device/${device.id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ deviceName: newName })
+			});
+			if (res.ok) {
+				toast.success('Device renamed');
+				loadDevice();
+			} else {
+				toast.error('Failed to rename device');
+			}
+		} catch (e) {
+			toast.error('Error renaming device');
+		}
+	}
+
+	async function changeGroup() {
+		// Build options list
+		const options = [{ value: '', label: 'None (No Group)' }];
+		groups.forEach(g => {
+			options.push({ value: g.id, label: g.name });
+		});
+		
+		// Find current group ID
+		const currentGroup = groups.find(g => g.name === device.group);
+		const currentGroupId = currentGroup ? currentGroup.id : '';
+		
+		const selected = await modal.select('Select a group for this device:', options, currentGroupId, 'Change Group');
+		if (selected === null || selected === undefined) return;
+		
+		try {
+			// If device was in a group, remove it
+			if (currentGroup) {
+				await fetch(`/api/group/${currentGroup.id}/remove-device`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ deviceId: device.id })
+				});
+			}
+			
+			// If new group selected (not 'None'), add device to it
+			if (selected) {
+				const res = await fetch(`/api/group/${selected}/add-device`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ deviceId: device.id })
+				});
+				
+				if (res.ok) {
+					const newGroup = groups.find(g => g.id === selected);
+					toast.success(`Added to group "${newGroup.name}"`);
+				} else {
+					toast.error('Failed to add to group');
+				}
+			} else {
+				toast.success('Removed from group');
+			}
+			
+			loadDevice();
+		} catch (e) {
+			toast.error('Error changing group');
+		}
+	}
+
+	async function shutdownDevice() {
+		const confirmed = await modal.confirm('Are you sure you want to shutdown this device?', 'Shutdown Device', { danger: true, confirmText: 'Shutdown' });
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/device/${device.id}/shutdown`, { method: 'POST' });
+			if (res.ok) {
+				toast.info('Shutdown command sent');
+			} else {
+				toast.error('Failed to send shutdown command');
+			}
+		} catch (e) {
+			toast.error('Error sending shutdown command');
+		}
+	}
+
+	async function rebootDevice() {
+		const confirmed = await modal.confirm('Are you sure you want to reboot this device?', 'Reboot Device', { danger: true, confirmText: 'Reboot' });
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/device/${device.id}/reboot`, { method: 'POST' });
+			if (res.ok) {
+				toast.info('Reboot command sent');
+			} else {
+				toast.error('Failed to send reboot command');
+			}
+		} catch (e) {
+			toast.error('Error sending reboot command');
+		}
+	}
+
+	async function forgetDevice() {
+		const confirmed = await modal.confirm('Are you sure you want to forget this device? It can be re-added later.', 'Forget Device', { danger: true, confirmText: 'Forget' });
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/device/${device.id}`, { method: 'DELETE' });
+			if (res.ok) {
+				toast.success('Device forgotten');
+				setTimeout(() => window.location.href = '/', 500);
+			} else {
+				toast.error('Failed to forget device');
+			}
+		} catch (e) {
+			toast.error('Error forgetting device');
+		}
+	}
+
+	async function showNetworkSettings() {
+		const config = await modal.prompt(
+			'Network Configuration (JSON format)',
+			JSON.stringify({
+				mode: 'dhcp',
+				staticIP: '',
+				subnet: '255.255.255.0',
+				gateway: '',
+				dns: '8.8.8.8',
+				wifiSSID: '',
+				wifiPassword: ''
+			}, null, 2),
+			'Configure Network'
+		);
+		
+		if (!config) return;
+		
+		try {
+			const networkConfig = JSON.parse(config);
+			const res = await fetch(`/api/device/${device.id}/network`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(networkConfig)
+			});
+			
+			if (res.ok) {
+				toast.success('Network settings sent to device. Device may reconnect with new IP.');
+			} else {
+				toast.error('Failed to apply network settings');
+			}
+		} catch (e) {
+			toast.error('Invalid JSON format');
+		}
+	}
+
+	loadDevice();
+
+	// Initialize WebSocket connection
+	const ws = initWebSocket();
+
+	const pageLogo = document.getElementById('topbarLogo');
+	const topbarHeight = document.querySelector('.topbar').clientHeight;
+	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+	// Handle device updates from WebSocket - update stats and info only
+	ws.onDevicesUpdate = (devices) => {
+		if (!device) return;
+		const updatedDevice = devices.find(d => d.id === device.id);
+		let curDeviceInfo = device;
+		let updateDeviceInfo = updatedDevice;
+		if (updatedDevice) {
+			if (JSON.stringify(device.systemStats) !== JSON.stringify(updatedDevice.systemStats)) {
+				console.log('updating system stats');
+			}
+			curDeviceInfo.systemStats = null
+			updateDeviceInfo.systemStats = null;
+			if (JSON.stringify(curDeviceInfo) !== JSON.stringify(updateDeviceInfo)) {
+				console.log('updating device info');
+			}
+			if (JSON.stringify(device) !== JSON.stringify(updatedDevice)) {
+				device = updatedDevice;
+				updateDevice();
+			}
+		}
+	};
+
+	// Handle NDI source updates from WebSocket
+	ws.onNDISourceUpdate = (sourcesUpdate) => {
+		if (JSON.stringify(sources) !== JSON.stringify(sourcesUpdate)) {
+			sources = sourcesUpdate;
+			renderSources();
+		}
+	};
+
+</script>
+</body>
+</html>

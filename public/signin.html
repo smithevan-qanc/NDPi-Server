@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Sign In | NDPi Monitor</title>
+	<script src="/screen-saver.js"></script>
+	<script src="/auth.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+	<link rel="stylesheet" href="/styles_ii.css">
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div class="auth-container">
+		<div class="auth-card">
+			<img src="/assets/nlcsvg-square-outline-light-fill.svg" alt="NLC Logo" style="width: 120px; height: 120px; display: block; margin: 0 auto 10px auto;">
+			<h1 class="auth-title">Sign In</h1>
+			<p class="auth-subtitle">Enter your PIN to access NDPi Monitor</p>
+			
+			<div class="pin-dots" id="pinDots"></div>
+			
+			<form id="signinForm">
+				<div class="form-group">
+					<input type="password" id="pin" class="form-input" required pattern="[0-9]{4}|[0-9]{6}" inputmode="numeric" maxlength="6" autocomplete="one-time-code" autofocus>
+				</div>
+				
+				<p class="error-message" id="formError"></p>
+				
+				<button type="submit" class="button-primary" style="width: 100%;">Sign In</button>
+			</form>
+		</div>
+	</div>
+
+	<script>
+		///**/
+		// Initialize UI scale from saved setting
+		const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+		const scaleDecimal = savedScale / 100;
+		document.body.style.zoom = scaleDecimal;
+		if (!document.body.style.zoom) {
+			document.body.style.transform = `scale(${scaleDecimal})`;
+			document.body.style.transformOrigin = 'top left';
+		}
+		
+		const form = document.getElementById('signinForm');
+		const pinInput = document.getElementById('pin');
+		const formError = document.getElementById('formError');
+		const pinDots = document.getElementById('pinDots');
+
+		// Update PIN dots
+		pinInput.addEventListener('input', () => {
+			const length = pinInput.value.length;
+			const maxDots = 6;
+			
+			pinDots.innerHTML = '';
+			for (let i = 0; i < maxDots; i++) {
+				const dot = document.createElement('div');
+				dot.className = 'dot' + (i < length ? ' filled' : '');
+				pinDots.appendChild(dot);
+			}
+			
+			formError.style.display = 'none';
+		});
+
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			
+			formError.style.display = 'none';
+			
+			const attempt = await signIn(pinInput.value);
+
+			if (!attempt.success) {
+				formError.textContent = attempt.message;
+				formError.style.display = 'block';
+			}
+			if (attempt.reset) {
+				pinInput.value = '';
+				pinDots.innerHTML = '';
+				for (let i = 0; i < 6; i++) {
+					const dot = document.createElement('div');
+					dot.className = 'dot';
+					pinDots.appendChild(dot);
+				}
+			}
+
+			/*
+			const pin = pinInput.value;
+			
+			if (pin.length !== 4 && pin.length !== 6) {
+				formError.textContent = 'PIN must be 4 or 6 digits';
+				formError.style.display = 'block';
+				return;
+			}
+			
+			try {
+				const res = await fetch('/api/account/signin', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ pin })
+				});
+				
+				const data = await res.json();
+				
+				if (res.ok) {
+					// Save account info to localStorage
+					localStorage.setItem('ndpi_account_id', data.account.id);
+					localStorage.setItem('ndpi_account', JSON.stringify(data.account));
+					
+					// Check if first time login
+					if (data.account.firstTimeLogin) {
+						// Redirect to set new PIN
+						window.location.href = '/set-pin.html';
+					} else {
+						// Redirect to intended page or dashboard
+						const returnUrl = sessionStorage.getItem('signin_return') || '/';
+						sessionStorage.removeItem('signin_return');
+						window.location.href = returnUrl;
+					}
+				} else {
+					formError.textContent = data.error || 'Invalid PIN';
+					formError.style.display = 'block';
+					pinInput.value = '';
+					pinDots.innerHTML = '';
+					for (let i = 0; i < 6; i++) {
+						const dot = document.createElement('div');
+						dot.className = 'dot';
+						pinDots.appendChild(dot);
+					}
+				}
+			} catch (error) {
+				formError.textContent = 'Network error. Please try again.';
+				formError.style.display = 'block';
+			}
+				*/
+		});
+
+		// Initialize dots
+		for (let i = 0; i < 6; i++) {
+			const dot = document.createElement('div');
+			dot.className = 'dot';
+			pinDots.appendChild(dot);
+		}
+	</script>
+</body>
+</html>

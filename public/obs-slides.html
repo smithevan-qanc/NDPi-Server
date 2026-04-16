@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OBS Splitscreen</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+        /*
+         *  
+         *  NOTE:
+         *  When calculating the radius for a container (inner) inside another container (outer):
+         *  Border Radius(inner) = Border Radius(outer) - Border Width(outer)
+         *  
+         */
+        .radius-inner {
+            border-radius: 35px;
+            border-width: 7px; /* thickness */
+            border-color: rgb(220, 220, 220);
+            border-style: solid;
+            box-sizing: border-box;
+            box-shadow: 0px 0px 30px rgba(255, 255, 255, 0.9) inset, 0px 0px 10px rgba(0, 0, 0, 0.45);
+            animation: color-shift-b 50s infinite alternate;
+        }
+        /* Radius Outer Is The Black Outer Ring */
+        .radius-outer {
+            border-radius: 55px;
+            border-width: 20px; /* thickness */
+            border-color: rgb(0, 0, 0);
+            border-style: solid;
+            box-sizing: border-box;
+            box-shadow: 0 0 10px 10px black;
+            /* animation: color-shift-a 50s infinite alternate; */
+        }
+        .radius-single {
+            border-radius: 45px;
+            border-width: 8px; /* thickness */
+            border-color: rgb(220, 220, 220);
+            border-style: solid;
+            box-sizing: border-box;
+            /* box-shadow: 0px 0px 30px rgba(255, 255, 255, 0.7) inset, 0px 0px 50px rgba(255, 255, 255, 0.8); */
+            box-shadow: 0px 0px 30px rgba(0, 0, 0, 0.7) inset, 0px 0px 50px rgba(255, 255, 255, 0.8);
+            animation: color-shift-a 50s infinite alternate;
+        }
+        /*
+         *  
+         *  
+         */
+        .main-container {
+            background-color: rgba(0, 0, 0, 0.0);
+            position: absolute;
+            z-index: 0;
+            height: 100vh;
+            width: 100vw;
+        }
+        .flex-container {
+            display: flex;
+            height: 100%;
+            width: 100%;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .slides-container {
+            height: 91%;
+            aspect-ratio: 16 / 9;
+            box-sizing: content-box;
+        }
+        #watermark {
+            position: absolute;
+            border-radius: 50%;
+            padding: 40px;
+            /* backdrop-filter: blur(10px); */
+            bottom: 20px;
+            left: 20px;
+            height: 120px;
+            width: 120px;
+            background: radial-gradient(rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0));
+        }
+        @keyframes color-shift-a {
+            0%   { border-color: rgb(129, 193, 39); box-shadow: 0 0 60px 0px rgba(129, 193, 39, 0.8) ; }
+            19%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 60px 10px rgba(129, 193, 39, 0.9) ; }
+            21%  { border-color: rgb(255, 255, 255); box-shadow: 0 0 60px 10px rgba(255, 255, 255, 0.9) ; }
+            39%  { border-color: rgb(255, 255, 255); box-shadow: 0 0 60px 0px rgba(255, 255, 255, 0.8) ; }
+            41%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 60px 0px rgba(129, 193, 39, 0.8) ; }
+            59%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 60px 10px rgba(129, 193, 39, 0.9) ; }
+            61%  { border-color: rgb(255, 255, 255); box-shadow: 0 0 60px 10px rgba(255, 255, 255, 0.9) ; }
+            79%  { border-color: rgb(255, 255, 255); box-shadow: 0 0 60px 0px rgba(255, 255, 255, 0.8) ; }
+            81%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 60px 0px rgba(129, 193, 39, 0.8) ; }
+            95%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 60px 10px rgba(129, 193, 39, 0.9) ; }
+            100% { border-color: rgb(255, 255, 255); box-shadow: 0 0 60px 10px rgba(255, 255, 255, 0.9) ; }
+        }
+        @keyframes color-shift-b {
+            0%   { border-color: rgb(255, 255, 255); }
+            19%  { border-color: rgb(255, 255, 255); }
+            21%  { border-color: rgb(129, 193, 39); }
+            39%  { border-color: rgb(129, 193, 39); }
+            41%  { border-color: rgb(255, 255, 255); }
+            59%  { border-color: rgb(255, 255, 255); }
+            61%  { border-color: rgb(129, 193, 39);  }
+            79%  { border-color: rgb(129, 193, 39); }
+            81%  { border-color: rgb(255, 255, 255); }
+            95%  { border-color: rgb(255, 255, 255); }
+            100% { border-color: rgb(129, 193, 39); }
+        }
+    </style>
+</head>
+<body>
+    <!-- <div style="display:flex; flex-direction:column; align-items:center; justify-content: center; "> -->
+        <div class="main-container">
+            <div class="flex-container">
+                <!-- <div id="slides-container" class="radius-outer"> -->
+                    <div class="slides-container radius-outer"></div>
+                <!-- </div> -->
+            </div>
+        </div>
+        <div class="main-container">
+            <div class="flex-container">
+                <!-- <div id="slides-container" class="radius-outer"> -->
+                    <div class="slides-container radius-single" style="height:91%;"></div>
+                <!-- </div> -->
+            </div>
+        </div>
+    <!-- <div id="watermark"><img src='/assets/nlcsvg square outline.svg' style="width:100%; height:100%;" alt=""></div> -->
+</body>
+</html>

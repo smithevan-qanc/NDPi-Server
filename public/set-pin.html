@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Update Your PIN | NDPi Monitor</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<script src="/functions.js"></script>
+	<script src="/auth.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+	<style>
+		.welcome-message {
+			background: rgba(129, 193, 39, 0.1);
+			border: 1px solid rgba(129, 193, 39, 0.3);
+			border-radius: 12px;
+			padding: 16px;
+			margin-bottom: 24px;
+			text-align: center;
+			color: rgb(129, 193, 39);
+		}
+	</style>
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div class="auth-container">
+		<div class="auth-card">
+			<h1 class="auth-title">Welcome!</h1>
+			<p class="auth-subtitle">Set your personal PIN</p>
+			
+			<div class="welcome-message" id="welcomeMessage">
+				Welcome! Please set your own PIN.
+			</div>
+			
+			<form id="setPinForm">
+				<div class="form-group">
+					<label class="form-label" for="newPin">New PIN</label>
+					<input type="password" id="newPin" class="form-input" required pattern="[0-9]{4}|[0-9]{5}|[0-9]{6}" inputmode="numeric" maxlength="6" autofocus>
+					<p class="form-hint">Choose a 4-6 digit PIN</p>
+					<p class="error-message" id="pinError">PIN must be 4-6 digits</p>
+				</div>
+				
+				<div class="form-group">
+					<label class="form-label" for="confirmPin">Confirm PIN</label>
+					<input type="password" id="confirmPin" class="form-input" required pattern="[0-9]{4}|[0-9]{5}|[0-9]{6}" inputmode="numeric" maxlength="6">
+					<p class="error-message" id="confirmError">PINs do not match</p>
+				</div>
+				
+				<p class="error-message" id="formError" style="margin-bottom: 15px;"></p>
+				
+				<button type="submit" class="button-primary" style="width: 100%;">Set PIN & Continue</button>
+			</form>
+		</div>
+	</div>
+
+	<script>
+		// Initialize UI scale from saved setting
+		/*
+		const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+		const scaleDecimal = savedScale / 100;
+		document.body.style.zoom = scaleDecimal;
+		if (!document.body.style.zoom) {
+		document.body.style.transform = `scale(${scaleDecimal})`;
+		document.body.style.transformOrigin = 'top left';
+		}
+
+		// Check authentication and first-time status
+		const accountData = localStorage.getItem('ndpi_account');
+		if (!accountData) {
+			window.location.href = '/signin.html';
+		} else {
+			const account = JSON.parse(accountData);
+			
+			// If not first time login, redirect to dashboard
+			if (!account.firstTimeLogin) {
+				window.location.href = '/';
+			}
+			
+			
+		}
+			*/
+
+		setScale();
+		let account = {};
+		(async () => {
+			account = await loadUserAccount();
+			setNavigationButtons();
+		})();
+
+		// Show welcome message with name
+		document.getElementById('welcomeMessage').textContent = `Welcome, ${account.firstName}! Please set your own PIN to continue.`;
+
+		const form = document.getElementById('setPinForm');
+		const newPinInput = document.getElementById('newPin');
+		const confirmPinInput = document.getElementById('confirmPin');
+		const pinError = document.getElementById('pinError');
+		const confirmError = document.getElementById('confirmError');
+		const formError = document.getElementById('formError');
+
+		newPinInput.addEventListener('input', () => {
+			//const pin = newPinInput.value;
+			//if (pin.length > 0 && pin.length !== 4 && pin.length !== 6) {
+			//	pinError.style.display = 'block';
+			//} else {
+			//	pinError.style.display = 'none';
+			//}
+		});
+
+		confirmPinInput.addEventListener('input', () => {
+			//if (confirmPinInput.value && confirmPinInput.value !== newPinInput.value) {
+			//	confirmError.style.display = 'block';
+			//} else {
+			//	confirmError.style.display = 'none';
+			//}
+		});
+
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			
+			formError.style.display = 'none';
+			
+			const newPin = newPinInput.value;
+			const confirmPin = confirmPinInput.value;
+			
+			// Validation
+			if (newPin !== confirmPin) {
+				confirmError.style.display = 'block';
+				return;
+			}
+			
+			if (newPin.length !== 4 && newPin.length !== 5 && newPin.length !== 6) {
+				pinError.style.display = 'block';
+				return;
+			}
+			
+			//const account = JSON.parse(localStorage.getItem('ndpi_account'));
+			
+			try {
+				const res = await fetch(`/api/account/${account.id}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ 
+						pin: newPin,
+						clearFirstTime: true
+					})
+				});
+				
+				const data = await res.json();
+				
+				if (res.ok) {
+					// Update localStorage to clear firstTimeLogin flag
+					account.firstTimeLogin = false;
+					localStorage.setItem('ndpi_account', JSON.stringify(account));
+					
+					// Redirect to dashboard
+					const returnUrl = sessionStorage.getItem('signin_return') || '/';
+					sessionStorage.removeItem('signin_return');
+					window.location.href = returnUrl;
+				} else {
+					formError.textContent = data.error || 'Failed to set PIN';
+					formError.style.display = 'block';
+				}
+			} catch (error) {
+				formError.textContent = 'Network error. Please try again.';
+				formError.style.display = 'block';
+			}
+		});
+	</script>
+</body>
+</html>

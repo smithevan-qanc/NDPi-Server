@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Settings | NDPi Monitor</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<script src="/modal.js"></script>
+	<script src="/functions.js"></script>
+	<script src="/auth.js"></script>
+	<script src="/ws-client.js"></script>
+	<script src="/screen-saver.js"></script>
+	<script src="/rokuControl.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-light-fill.svg">
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="topbar-spacer"></div>
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+		<section class="dashboard" id="main-section"></section>
+	</div>
+</body>
+
+<script>
+	const mainContainer = document.getElementById('main-section');
+
+	/*
+	const accountData = localStorage.getItem('ndpi_account');
+	if (!accountData) {
+		sessionStorage.setItem('signin_return', '/settings.html');
+		window.location.href = '/signin.html';
+	}
+
+	const account = JSON.parse(accountData);
+	setNavigationButtons();
+	*/
+
+	setScale();
+	let account = {};
+	(async () => {
+		account = await loadUserAccount();
+		setNavigationButtons();
+	})();
+
+	function setNavigationButtons() {
+		// NAVIGATION BUTTONS
+		const dashboardNavEl = document.getElementById('navDashboard');
+		dashboardNavEl.textContent = `Dashboard`;
+		dashboardNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/';
+		});
+		const devicesNavEl = document.getElementById('navDevices');
+		devicesNavEl.textContent = `Devices`;
+		devicesNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/devices.html';
+		});
+		const groupsNavEl = document.getElementById('navGroups');
+		groupsNavEl.textContent = `Groups`;
+		groupsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/groups.html';
+		});
+		const settingsNavEl = document.getElementById('navSettings');
+		settingsNavEl.textContent = `Settings`;
+		settingsNavEl.classList.add('active');
+		settingsNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href = '/settings.html';
+		});
+		const userAccountNavEl = document.getElementById('navAccount');
+		userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
+		userAccountNavEl.addEventListener('click', function() {
+			this.onclick = null;
+			window.location.href ='/account-settings.html';
+		});
+	}
+
+	/*
+	if (account.firstTimeLogin) {
+		sessionStorage.setItem('signin_return', '/settings.html');
+		window.location.href = '/set-pin.html';
+	}
+		*/
+
+	renderSections();
+
+	function renderSections() {
+		const section_UserPreferences = document.createElement('div');//<div class="card" style="grid-column: 1 / -1;">
+		section_UserPreferences.className = 'card';
+		//section_UserPreferences.style.gridColumn = 1 / -1;
+		section_UserPreferences.innerHTML = `
+			<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+				<h2>User Preferences</h2>
+				<div class="settings-row">
+					<div class="settings-label">Scaling:</div>
+					<div style="display:flex; justify-content:center; align-items:center; flex-direction:row; gap:4px; width: 100%;">
+						<input type="number" max="400" min="50" id="scaleValue"></input>
+						<p style="margin: 0;">%</p>
+						<!--span style="font-size:16px; color:#888; background:transparent;">%</span-->
+						<p></p>
+						<button onclick="resetScale()" class="button-subtle">
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-counterclockwise" viewBox="0 0 16 16">
+								<path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"/>
+								<path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/>
+							</svg>
+							<span>Reset</span>
+						</button>
+					</div>
+					<input type="range" id="scaleSlider" min="50" max="150" value="100" style="flex: 1; width: -webkit-fill-available;">
+				</div>
+			</div>
+		`;
+
+		const section_ScreenSaver = document.createElement('div');
+		section_ScreenSaver.className = 'card';
+		//section_ScreenSaver.style.gridColumn = 1 / -1;
+		section_ScreenSaver.innerHTML = `
+			<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+				<h2>Screen Saver</h2>
+				<div class="settings-row" style="display: block;">
+					<div style="display:flex; align-items:center; gap:5px;">
+						<div style="display:flex; justify-content:center; align-items:start; flex-direction:column; gap:5px; margin-left:12px;">
+							<div style="display: flex; flex-wrap: wrap; flex-direction: row; gap: 5px; margin-bottom: 5px; justify-items: end; align-items: center;">
+								<p style="margin: 0;">Start screensaver after... </p>
+								<input onchange="saveScreenSaverSettings()" type="number" max="120" min="0.5" step="0.5" id="screenSaverWait">
+								<p style="margin: 0;"> minutes.</p>
+							</div>
+						</div>
+					</div>
+					<p style="font-size:12px; color:#888; margin-top:8px; margin-left:12px;">Screen saver won't activate during these times:</p>
+					<div style="margin-top:16px; margin-left:12px; margin-right:12px;">
+						<div id="scheduleList" style="margin-bottom:12px; display:flex; flex-direction:column; gap:8px;"></div>
+						<button onclick="addSchedule()" class="button-transparent">
+							<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle" viewBox="0 0 16 16">
+								<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+								<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+							</svg>
+							<span>Add Block Period</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		`;
+
+		const section_ServerManagement = document.createElement('div');
+		section_ServerManagement.className = 'card';
+		//section_ServerManagement.style.gridColumn = 1 / -1;
+		section_ServerManagement.innerHTML = `
+			<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+				<h2>Server Management</h2>
+				<div class="settings-row">
+					<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
+						<button onclick="restartServer()" class="button-primary">Restart Server Services</button>
+					</div>
+				</div>
+			</div>
+		`;
+
+		const section_SystemControls = document.createElement('div');
+		section_SystemControls.className = 'card';
+		//section_SystemControls.style.gridColumn = 1 / -1;
+		section_SystemControls.innerHTML = `
+			<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+				<h2>System Controls</h2>
+				<div class="settings-row">
+					<!--label style="font-weight: 600; color: #eee; font-size: 14px;">System Controls</label-->
+					<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
+						<button onclick="rebootSystem()" class="button-warning">Reboot Server Machine</button>
+						<button onclick="shutdownSystem()" class="button-danger">
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-power" viewBox="0 0 16 16">
+								<path d="M7.5 1v7h1V1z"/>
+								<path d="M3 8.812a5 5 0 0 1 2.578-4.375l-.485-.874A6 6 0 1 0 11 3.616l-.501.865A5 5 0 1 1 3 8.812"/>
+							</svg>
+							<span>Power OFF Server Machine</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		`;
+
+		const section_ClientDeviceManagement = document.createElement('div');
+		section_ClientDeviceManagement.className = 'card';
+		//section_ClientDeviceManagement.style.gridColumn = 1 / -1;
+		section_ClientDeviceManagement.innerHTML = `
+			<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+				<h2>Client Device Management</h2>
+				<div class="settings-row">
+					<!--label style="font-weight: 600; color: #eee; font-size: 14px;">Client Device Management</label-->
+					<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
+						<button onclick="forgetAllDevices()" class="button-danger">Forget All Added Devices</button>
+					</div>
+					<p><strong>WARNING:</strong>
+						This will remove all saved devices. <br>
+						They may be re-added on the <a href="devices.html" style="color:#888;">devices</a> page.
+					</p>
+				</div>
+			</div>
+		`;
+
+		const section_AdminControls = document.createElement('div');
+		section_AdminControls.className = 'card';
+		//section_AdminControls.style.gridColumn = 1 / -1;
+		section_AdminControls.innerHTML = `
+			<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+				<h2>Admin Controls</h2>
+				<div id="admin-section" class="settings-row" style="padding-bottom:12px;">
+					<!--label style="font-weight: 600; color: #eee; font-size: 14px;">Admin Controls</label-->
+					<div style="display:flex; gap:10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
+						<button onclick="window.location.href='/advanced-account-settings.html'" class="button-primary">
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-people-fill" viewBox="0 0 16 16">
+								<path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
+							</svg>
+							<span>User Accounts</span>
+						</button>
+						<button onclick="viewFavoriteSources()" class="button-primary">Favorite NDI Sources</button>
+					</div>
+				</div>
+			</div>
+		`;
+
+		const section_RokuTvs = document.createElement('div');
+		section_RokuTvs.className = 'card';
+		//section_RokuTvs.style.gridColumn = 1 / -1;
+		section_RokuTvs.innerHTML = `
+			<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+				<h2 id="roku-tv-section-header">Roku TVs</h2>
+				<div id="roku-tv-section" class="settings-row" style="padding-bottom:12px;">
+					<!--label style="font-weight: 600; color: #eee; font-size: 14px;">Roku TV Management</label-->
+					<p style="font-size:12px; color:#888; margin-top:8px; margin-left:12px;">Add Roku TVs to control in groups.</p>
+					<div style="margin-top:16px; margin-left:12px; margin-right:12px;">
+						<div id="rokuTvList" style="margin-bottom:12px; display:flex; flex-direction:column; gap:8px;"></div>
+						<button onclick="addRokuTv()" class="button-transparent"><svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle" viewBox="0 0 16 16">
+								<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+								<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+							</svg>
+							<span>Add Roku TV</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		`;
+
+		mainContainer.appendChild(section_UserPreferences);
+		mainContainer.appendChild(section_ScreenSaver);
+		mainContainer.appendChild(section_ServerManagement);
+
+		if (account.isAdmin) {
+			mainContainer.appendChild(section_SystemControls);
+			mainContainer.appendChild(section_ClientDeviceManagement);
+			mainContainer.appendChild(section_AdminControls);
+			mainContainer.appendChild(section_RokuTvs);
+			loadRokuTvs();
+		}
+	}
+
+	const pageLogo = document.getElementById('topbarLogo');
+	const topbarHeight = document.querySelector('.topbar').clientHeight;
+	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+	initializeScale();
+	initializeScreenSaverSettings();
+
+	// Screen Saver Settings Functions
+	function getScreenSaverSettings() {
+		const defaults = {
+			inactivityMinutes: 5,
+			disableSchedules: []
+		};
+		const saved = localStorage.getItem('ndpi_screensaver_settings');
+		return saved ? JSON.parse(saved) : defaults;
+	}
+
+	let runningFavoriteSources = [];
+
+	async function getFavoriteSourcesFromSystem() {
+		try {
+			const srcRes = await fetch('/api/favorite-ndi-sources');
+			const srcData = await srcRes.json();
+			if (Array.isArray(srcData)) {
+				runningFavoriteSources = srcData;
+			} else {
+				runningFavoriteSources = [{
+					name: 'No Favorites. Enter Source Name Here',
+					url: 'Enter Source IP and Port here (e.g. 192.168.1.2:5961)'
+				}];
+			}
+		} catch (e) {
+			toast.error(`Error: ${e}`);
+			console.error(`Error Getting Favorite Sources from System: ${e}`);
+			runningFavoriteSources = [{
+				name: 'No Favorites. Enter Source Name Here',
+				url: 'Enter Source IP and Port here (e.g. 192.168.1.2:5961)'
+			}];
+		}
+	}
+
+	async function viewFavoriteSources() {
+		// Update favorite sources to DOM
+		if (!runningFavoriteSources || runningFavoriteSources.length == 0) {
+			await getFavoriteSourcesFromSystem();
+		}
+
+		// Map favorite sources to modal select
+		const options = runningFavoriteSources.map(source => ({
+			label: source.name,
+			value: source.url
+		}));
+
+		// Select from favorites
+		const updateFavoriteSource = await modal.select(
+			'Select Source:',
+			options,
+			null,
+			'Modify Favorite NDI Sources',
+			{
+				confirmText: 'Next',
+				cancelText: 'Done'
+			}
+		);
+		// Close if 'Done' is selected.
+		if (updateFavoriteSource === null || updateFavoriteSource === undefined) return;
+		
+		// Select the favorite source record.
+		let selectedFavoriteSource = runningFavoriteSources.find(s => s.url === updateFavoriteSource);
+		
+		// Prompt to modify name of source.
+		const modName = await modal.prompt(
+			`<div style='margin-bottom:16px;'><pre style='margin:0; line-height:20px; font-size:85%;'><code>` +
+			`<font style='font-weight:800; color:#4ade80;'>Name:</font> ${selectedFavoriteSource.name}
+	` +
+			`Url:  ${selectedFavoriteSource.url}` +
+			`</code></pre></div>Name:`,
+			selectedFavoriteSource.name, 
+			'Update Favorite NDI',
+			{
+				confirmText: 'Next',
+				cancelText: 'Back'
+			}
+		);
+		// Return if 'Back' is selected.
+		if (modName === null || modName === undefined) {
+			viewFavoriteSources();
+			return;
+		} else {
+			selectedFavoriteSource.name = modName;
+		}
+
+		// Prompt to modify url of source.
+		const modUrl = await modal.prompt(
+			`<div style='margin-bottom:16px;'><pre style='margin:0; line-height:20px; font-size:85%; color:#888'><code>` +
+			`Name: ${selectedFavoriteSource.name}
+	` +
+			`<font style='font-weight:800; color:#4ade80;'>Url:</font>  ${selectedFavoriteSource.url}` +
+			`</code></pre></div>Url:`,
+			selectedFavoriteSource.url,
+			'Update Favorite NDI',
+			{
+				confirmText: 'Save Changes',
+				cancelText: 'Cancel'
+			}
+		);
+		
+		// Return if 'Cancel' is selected.
+		if (modUrl === null || modUrl === undefined) {
+			viewFavoriteSources();
+			return;
+		} else {
+			selectedFavoriteSource.url = modUrl;
+		}
+
+		// Publish changes.
+		await publishFavoriteSources();
+
+		// Return to source selection.
+		viewFavoriteSources();
+	}
+
+	async function publishFavoriteSources() {
+		try {
+			const res = await fetch(`/api/favorite-ndi-sources`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(runningFavoriteSources)
+			});
+			if (res.ok) {
+				toast.success('Favorite Source List Updated!');
+			} else {
+				toast.error('Failed to update source');
+			}
+		} catch (e) {
+			console.error('Error updating favorite NDI source:', e);
+			toast.error('Error updating source.');
+		}
+	}
+
+	function saveScreenSaverSettings() {
+		const settings = getScreenSaverSettings();
+		const minutes = parseFloat(document.getElementById('screenSaverWait').value);
+		if (isNaN(minutes) || minutes < 0.5) {
+			toast.error('Please enter a valid duration (minimum 0.5 minutes)');
+			return;
+		}
+		settings.inactivityMinutes = minutes;
+		localStorage.setItem('ndpi_screensaver_settings', JSON.stringify(settings));
+		window.dispatchEvent(new CustomEvent('screensaver-settings-updated', { detail: settings }));
+	}
+
+	function initializeScreenSaverSettings() {
+		const settings = getScreenSaverSettings();
+		document.getElementById('screenSaverWait').value = settings.inactivityMinutes;
+		renderSchedules();
+	}
+
+	function renderSchedules() {
+		const settings = getScreenSaverSettings();
+		const list = document.getElementById('scheduleList');
+		
+		if (settings.disableSchedules.length === 0) {
+			list.innerHTML = '<p style="font-size:11px; color:#666; font-style:italic;">No schedules configured</p>';
+			return;
+		}
+		
+		list.innerHTML = settings.disableSchedules.map((schedule, idx) => {
+			const days = schedule.days.length === 7 ? 'Every day' : 
+				schedule.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ');
+			return `
+				<div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); border-radius:6px;">
+					<div>
+						<div style="font-size:13px; font-weight:600; color:#eee;">${schedule.startTime} - ${schedule.endTime}</div>
+						<div style="font-size:11px; color:#888;">
+							${days}
+						</div>
+					</div>
+					<button onclick="removeSchedule(${idx})" class="button-danger" style="padding:6px 12px; font-size:11px;">
+						<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16">
+							<path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/>
+						</svg>
+					</button>
+				</div>
+			`;
+		}).join('');
+	}
+
+	async function addSchedule() {
+		let startTime = '';
+		let endTime = '';
+		let days = [0, 1, 2, 3, 4, 5, 6];
+		
+		const html = `
+			<div style="display:flex; flex-direction:column; gap:12px;">
+				<div>
+					<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">Start Time</label>
+					<input type="time" id="scheduleStart" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px;">
+				</div>
+				<div>
+					<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">End Time</label>
+					<input type="time" id="scheduleEnd" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px;">
+				</div>
+				<div>
+					<label style="font-size:12px; color:#eee; display:block; margin-bottom:6px;">Days</label>
+					<div style="display:flex; gap:8px; flex-wrap:wrap;">
+						${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day, idx) => `
+							<label style="display:flex; align-items:center; gap:4px; font-size:11px; color:#eee; cursor:pointer; padding:4px 8px; background:#1a1a1a; border-radius:4px;">
+								<input type="checkbox" class="scheduleDay" value="${idx}" checked style="cursor:pointer;">
+								${day}
+							</label>
+						`).join('')}
+					</div>
+				</div>
+			</div>
+		`;
+		
+		const confirmed = await modal.custom(html, 'Add Disable Schedule', { 
+			confirmText: 'Add',
+			onOpen: () => {
+				const startInput = document.getElementById('scheduleStart');
+				const endInput = document.getElementById('scheduleEnd');
+				
+				startTime = startInput.value;
+				endTime = endInput.value;
+				
+				startInput.addEventListener('input', (e) => {
+					startTime = e.target.value;
+				});
+				endInput.addEventListener('input', (e) => {
+					endTime = e.target.value;
+				});
+				document.querySelectorAll('.scheduleDay').forEach(cb => {
+					cb.addEventListener('change', () => {
+						days = Array.from(document.querySelectorAll('.scheduleDay:checked')).map(c => parseInt(c.value));
+					});
+				});
+			}
+		});
+		if (!confirmed) return;
+		
+		if (!startTime || !endTime) {
+			toast.error('Please enter both start and end times');
+			return;
+		}
+		
+		if (days.length === 0) {
+			toast.error('Please select at least one day');
+			return;
+		}
+		
+		const settings = getScreenSaverSettings();
+		settings.disableSchedules.push({ startTime, endTime, days });
+		localStorage.setItem('ndpi_screensaver_settings', JSON.stringify(settings));
+		renderSchedules();
+		toast.success('Schedule added');
+		window.dispatchEvent(new CustomEvent('screensaver-settings-updated', { detail: settings }));
+	}
+
+	function removeSchedule(idx) {
+		const settings = getScreenSaverSettings();
+		settings.disableSchedules.splice(idx, 1);
+		localStorage.setItem('ndpi_screensaver_settings', JSON.stringify(settings));
+		renderSchedules();
+		toast.success('Schedule removed');
+		window.dispatchEvent(new CustomEvent('screensaver-settings-updated', { detail: settings }));
+	}
+
+	// UI Scale Functions
+	function initializeScale() {
+		const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+		const scaleSlider = document.getElementById('scaleSlider');
+		const scaleValue = document.getElementById('scaleValue');
+		
+		if (!scaleSlider || !scaleValue) {
+			setTimeout(initializeScale, 200);
+			return;
+		}
+		
+		scaleSlider.value = savedScale;
+		scaleValue.value = savedScale;
+		applyScale(savedScale);
+
+		let debounceTimer;
+
+		// Scale Entry Method
+		scaleValue.addEventListener('input', function() {
+			let scale = Math.max(this.value, 50);
+			scale = Math.min(scale, 200);
+			scaleSlider.value = scale;
+			clearTimeout(debounceTimer);
+			debounceTimer = setTimeout(() => {
+				scaleValue.value = scale;
+				applyScale(scale);
+				localStorage.setItem('ndpi_ui_scale', scale);
+			}, 2000);
+		});
+		/*
+		scaleValue.addEventListener('change', function() {
+			const scale = this.value;
+			scaleSlider.value = scale;
+			applyScale(scale);
+			localStorage.setItem('ndpi_ui_scale', scale);
+		});
+		*/
+
+		// Scale Slider Entry Method
+		scaleSlider.addEventListener('input', function() {
+			const scale = this.value;
+			scaleValue.value = scale;
+		});
+		scaleSlider.addEventListener('change', function() {
+			const scale = this.value;
+			applyScale(scale);
+			localStorage.setItem('ndpi_ui_scale', scale);
+		});
+	}
+
+	function applyScale(scale) {
+		const scaleDecimal = scale / 100;
+		document.body.style.zoom = scaleDecimal;
+		// Fallback for browsers that don't support zoom
+		if (!document.body.style.zoom) {
+			document.body.style.transform = `scale(${scaleDecimal})`;
+			document.body.style.transformOrigin = 'top left';
+		}
+	}
+
+	function resetScale() {
+		const resetTo = 100;
+		document.getElementById('scaleSlider').value = resetTo;
+		document.getElementById('scaleValue').value = resetTo;
+		applyScale(resetTo);
+		localStorage.setItem('ndpi_ui_scale', `${resetTo}`);
+	}
+
+	// Initialize WebSocket connection
+	const ws = initWebSocket();
+
+	async function restartServer() {
+		const confirmed = await modal.confirm('Are you sure you want to restart the server?', 'Restart Server', { danger: true, confirmText: 'Restart' });
+		if (!confirmed) return;
+		try {
+			const res = await fetch('/api/system/restart', { method: 'POST' });
+			if (res.ok) {
+				toast.info('Server restarting...');
+				setTimeout(() => window.location.reload(), 5000);
+			} else {
+				toast.error('Failed to restart server');
+			}
+		} catch (e) {
+			toast.error('Error restarting server');
+		}
+	}
+
+	async function shutdownSystem() {
+		const confirmed = await modal.confirm('Are you sure you want to shutdown this Raspberry Pi? You will need physical access to power it back on.', 'Shutdown System', { danger: true, confirmText: 'Shutdown' });
+		if (!confirmed) return;
+		try {
+			const res = await fetch('/api/system/shutdown', { method: 'POST' });
+			if (res.ok) {
+				toast.info('System shutdown initiated');
+			} else {
+				toast.error('Failed to shutdown system');
+			}
+		} catch (e) {
+			toast.error('Error shutting down system');
+		}
+	}
+
+	async function rebootSystem() {
+		const confirmed = await modal.confirm('Are you sure you want to reboot this Raspberry Pi?', 'Reboot System', { danger: true, confirmText: 'Reboot' });
+		if (!confirmed) return;
+		try {
+			const res = await fetch('/api/system/reboot', { method: 'POST' });
+			if (res.ok) {
+				toast.info('System rebooting...');
+				setTimeout(() => window.location.reload(), 30000);
+			} else {
+				toast.error('Failed to reboot system');
+			}
+		} catch (e) {
+			toast.error('Error rebooting system');
+		}
+	}
+
+	async function forgetAllDevices() {
+		const confirmed = await modal.confirm('Are you sure you want to forget ALL devices? This cannot be undone!', 'Forget All Devices', { danger: true, confirmText: 'Forget All' });
+		if (!confirmed) return;
+		try {
+			const res = await fetch('/api/devices/forget-all', { method: 'POST' });
+			if (res.ok) {
+				toast.success('All devices forgotten');
+				setTimeout(() => window.location.href = '/', 1000);
+			} else {
+				toast.error('Failed to forget devices');
+			}
+		} catch (e) {
+			toast.error('Error forgetting devices');
+		}
+	}
+
+	async function showServerNetworkSettings() {
+		const config = await modal.prompt(
+			'Server Network Configuration (JSON format)',
+			JSON.stringify({
+				mode: 'dhcp',
+				staticIP: '',
+				subnet: '255.255.255.0',
+				gateway: '',
+				dns: '8.8.8.8',
+				wifiSSID: '',
+				wifiPassword: ''
+			}, null, 2),
+			'Configure Server Network'
+		);
+		
+		if (!config) return;
+		
+		try {
+			const networkConfig = JSON.parse(config);
+			const confirmed = await modal.confirm(
+				'Applying network settings may cause the server to disconnect. Continue?',
+				'Apply Network Settings',
+				{ danger: true, confirmText: 'Apply' }
+			);
+			
+			if (!confirmed) return;
+			
+			const res = await fetch('/api/system/network', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(networkConfig)
+			});
+			
+			if (res.ok) {
+				toast.success('Network settings applied. Server may reconnect with new IP.');
+				setTimeout(() => window.location.reload(), 10000);
+			} else {
+				toast.error('Failed to apply network settings');
+			}
+		} catch (e) {
+			toast.error('Invalid JSON format or network error');
+		}
+	}
+
+	// Roku TV Management Functions
+	let rokuTvs = [];
+	let groups = [];
+
+	async function loadRokuTvs() {
+		try {
+			const [rokuRes, groupsRes] = await Promise.all([
+				fetch('/api/roku-tvs'),
+				fetch('/api/groups')
+			]);
+			if (!groupsRes.ok) throw new Error('Failed to fetch groups');
+			if (!rokuRes.ok) throw new Error('Failed to fetch Roku TVs');
+
+			const rokuData = await rokuRes.json();
+			const groupsData = await groupsRes.json();
+			
+			rokuTvs = rokuData.rokuTvs || [];
+			groups = groupsData.groups || [];
+			
+			renderRokuTvs();
+		} catch (e) {
+			console.error('Failed to load Roku TVs:', e);
+		}
+	}
+
+	function renderRokuTvs() {
+		const container = document.getElementById('rokuTvList');
+		
+		if (rokuTvs.length === 0) {
+			container.innerHTML = '<p style="color:#888;font-size:12px;">No Roku TVs added yet</p>';
+			return;
+		}
+		
+		container.innerHTML = rokuTvs.map(tv => {
+			const group = groups.find(g => g.id === tv.groupId);
+			const groupName = group ? group.name : 'Unknown Group';
+			
+			return `
+				<div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); border-radius:6px;">
+					<div>
+						<div style="font-size:13px; font-weight:600; color:#eee;">${tv.displayName}</div>
+						<div style="font-size:11px; color:#888;">
+							${tv.ipAddress} • ${tv.model || 'Unknown Model'} • Group: ${groupName}
+						</div>
+					</div>
+					<button onclick="removeRokuTv('${tv.id}')" class="button-danger" style="padding:6px 12px; font-size:11px;">
+						<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16">
+							<path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/>
+						</svg>
+					</button>
+				</div>
+			`;
+		}).join('');
+	}
+
+	async function addRokuTv() {
+		// Get IP address
+		const ipAddress = await modal.prompt('Enter Roku TV IP address:', '', 'Add Roku TV');
+		if (!ipAddress) return;
+		
+		// Validate IP format
+		const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+		if (!ipPattern.test(ipAddress)) {
+			toast.error('Invalid IP address format');
+			return;
+		}
+		
+		// Fetch device info from Roku
+		toast.info('Fetching device information...');
+		
+		try {
+			console.log(`Fetching device info from http://${ipAddress}:8060/query/device-info`);
+			const response = await fetch(`http://${ipAddress}:8060/query/device-info`, {
+				method: 'GET',
+				headers: { 
+					'Accept': 'application/xml'
+				}
+			});
+			if (!response.ok) {
+				toast.error('Failed to connect to Roku TV. Check IP address.');
+				return;
+			}
+			
+			const xmlText = await response.text();
+			const parser = new DOMParser();
+			const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+			
+			const getTagText = (tagName) => xmlDoc.getElementsByTagName(tagName)[0]?.textContent || '';
+			
+			const deviceInfo = {
+				friendlyName: getTagText('friendly-device-name') || getTagText('user-device-name') || 'Roku TV',
+				model: getTagText('model-name'),
+				manufacturer: getTagText('vendor-name') || 'Roku',
+				screenSize: getTagText('screen-size'),
+				deviceType: getTagText('is-tv') === 'true' ? 'TV' : 'Device'
+			};
+			
+			// Select group
+			if (groups.length === 0) {
+				toast.error('No groups available. Create a group first.');
+				return;
+			}
+			
+			const groupOptions = groups.map(g => ({ value: g.id, label: g.name }));
+			const groupId = await modal.select('Select group for this Roku TV:', groupOptions, null, 'Add Roku TV');
+			
+			if (!groupId) return;
+			
+			// Save to server
+			const res = await fetch('/api/roku-tv', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					displayName: deviceInfo.friendlyName,
+					ipAddress,
+					model: deviceInfo.model,
+					manufacturer: deviceInfo.manufacturer,
+					deviceType: deviceInfo.deviceType,
+					screenSize: deviceInfo.screenSize,
+					groupId
+				})
+			});
+			
+			if (res.ok) {
+				toast.success('Roku TV added successfully');
+				loadRokuTvs();
+			} else {
+				const data = await res.json();
+				toast.error(data.error || 'Failed to add Roku TV');
+			}
+		} catch (e) {
+			console.error('Error adding Roku TV:', e);
+			toast.error('Failed to connect to Roku TV');
+		}
+	}
+
+	async function removeRokuTv(id) {
+		const tv = rokuTvs.find(t => t.id === id);
+		if (!tv) return;
+		
+		const confirmed = await modal.confirm(
+			`Remove "${tv.displayName}" from Roku TV management?`,
+			'Remove Roku TV',
+			{ danger: true, confirmText: 'Remove' }
+		);
+		
+		if (!confirmed) return;
+		
+		try {
+			const res = await fetch(`/api/roku-tv/${id}`, { method: 'DELETE' });
+			
+			if (res.ok) {
+				toast.success('Roku TV removed');
+				loadRokuTvs();
+			} else {
+				toast.error('Failed to remove Roku TV');
+			}
+		} catch (e) {
+			toast.error('Error removing Roku TV');
+		}
+	}
+
+</script>
+</body>
+</html>

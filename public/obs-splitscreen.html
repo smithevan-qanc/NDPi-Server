@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OBS Splitscreen</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        /*
+         *  
+         *  NOTE:
+         *  When calculating the radius for a container (inner) inside another container (outer):
+         *  Border Radius(inner) = Border Radius(outer) - Border Width(outer)
+         *  
+         */
+        .radius-outer {
+            border-radius: 45px;
+            border-width: 10px; /* thickness */
+            padding: 0px;
+            border-color: rgb(59, 190, 44);
+            border-style: solid;
+            box-sizing: border-box;
+            animation: color-shift-a 50s infinite alternate;
+        }
+        .radius-inner {
+            border-radius: 35px;
+            border-width: 7px; /* thickness */
+            border-color: rgb(220, 220, 220);
+            border-style: solid;
+            box-sizing: border-box;
+            box-shadow: 0px 0px 30px rgba(255, 255, 255, 0.9) inset, 0px 0px 10px rgba(0, 0, 0, 0.45);
+            animation: color-shift-b 50s infinite alternate;
+        }
+        /*
+         *  
+         *  
+         */
+        #header {
+            height: 2vh;
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.0);
+        }
+        #splitscreen-container {
+            background-color: rgba(0, 0, 0, 0.0);
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            height: 96vh;
+        }
+        #left-screen {
+            height: 100%;
+            width: 35vw;
+            /* width: 35vw; */
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Column: Left - Right */
+            justify-content: center; /* Column: Up - Down */
+            background-color: rgba(255, 0, 0, 0.0);
+        }
+        #right-screen {
+            height: 100%;
+            width: 65vw;
+            /* width: 65vw; */
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Column: Left - Right */
+            justify-content: center; /* Column: Up - Down */
+            background-color: rgba(0, 0, 255, 0.0);
+        }
+        #camera-container {
+            width: 100%;
+            height: 70vh;
+            /* aspect-ratio: 2 / 3; */
+        }
+        #slides-container {
+            width: 100%;
+            aspect-ratio: 16 / 10.1;
+        }
+        #footer {
+            /* background-image: url('/assets/nlcsvg square.svg'); */
+            height: 2vh;
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.0);
+        }
+        @keyframes color-shift-a {
+            0%   { border-color: rgb(129, 193, 39); box-shadow: 0 0 5px 5px rgb(129, 193, 39) inset; }
+            19%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 5px 5px rgb(129, 193, 39) inset; }
+            21%  { border-color: rgb(255, 255, 255); box-shadow: 0 0 5px 5px rgb(255, 255, 255) inset; }
+            39%  { border-color: rgb(255, 255, 255); box-shadow: 0 0 5px 5px rgb(255, 255, 255) inset; }
+            41%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 5px 5px rgb(129, 193, 39) inset; }
+            59%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 5px 5px rgb(129, 193, 39) inset; }
+            61%  { border-color: rgb(255, 255, 255); box-shadow: 0 0 5px 5px rgb(255, 255, 255) inset; }
+            79%  { border-color: rgb(255, 255, 255); box-shadow: 0 0 5px 5px rgb(255, 255, 255) inset; }
+            81%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 5px 5px rgb(129, 193, 39) inset; }
+            95%  { border-color: rgb(129, 193, 39); box-shadow: 0 0 5px 5px rgb(129, 193, 39) inset; }
+            100% { border-color: rgb(255, 255, 255); box-shadow: 0 0 5px 5px rgb(255, 255, 255) inset; }
+        }
+        @keyframes color-shift-b {
+            0%   { border-color: rgb(255, 255, 255); }
+            19%  { border-color: rgb(255, 255, 255); }
+            21%  { border-color: rgb(129, 193, 39); }
+            39%  { border-color: rgb(129, 193, 39); }
+            41%  { border-color: rgb(255, 255, 255); }
+            59%  { border-color: rgb(255, 255, 255); }
+            61%  { border-color: rgb(129, 193, 39);  }
+            79%  { border-color: rgb(129, 193, 39); }
+            81%  { border-color: rgb(255, 255, 255); }
+            95%  { border-color: rgb(255, 255, 255); }
+            100% { border-color: rgb(129, 193, 39); }
+        }
+    </style>
+</head>
+<body>
+    <div style="display:flex; flex-direction:column;">
+        <div id="header">
+            <!-- Additional content can go here -->
+        </div>
+        <div id="splitscreen-container">
+            <div style="height:100%; width:2vh;" class="vertical-spacer"></div>
+            <div id="left-screen">
+                <div id="camera-container" class="radius-outer">
+                    <div style="width: 100%; height: 100%;" class="radius-inner"></div>
+                </div>
+            </div>
+            <div style="height:100%; width:2vh;" class="vertical-spacer"></div>
+            <div id="right-screen">
+                <div id="slides-container" class="radius-outer">
+                    <div style="width: 100%; height: 100%;" class="radius-inner"></div>
+                </div>
+            </div>
+            <div style="height:100%; width:2vh;" class="vertical-spacer"></div>
+        </div>
+        <div id="footer">
+            <!-- Additional content can go here -->
+        </div>
+    </div>
+</body>
+</html>
