@@ -1,10 +1,34 @@
 const redirectSignIn = () => { window.location.href = '/signin.html'; }
+let account = null;
 
 (() => {
-    console.log(window.location);
+    //console.log(window.location);
     if (window.location.pathname === '/signin.html') {
         localStorage.removeItem('ndpi_token');
         localStorage.removeItem('ndpi_account_id');
+    }
+})();
+
+(async function loadUserAccount() {
+    const token = localStorage.getItem('ndpi_token');
+    if (!token) {
+        redirectSignIn();
+		return;
+    }
+    try {
+        const res = await fetch('/api/account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            account = data.account;
+        } else {
+            redirectSignIn();
+        }
+    } catch (error) {
+        console.error(error);
     }
 })();
 
@@ -50,32 +74,6 @@ async function signOut() {
     localStorage.removeItem('ndpi_account_id');
     localStorage.removeItem('ndpi_account');
     redirectSignIn();
-}
-
-async function loadUserAccount() {
-    const token = localStorage.getItem('ndpi_token');
-    if (!token) {
-        redirectSignIn();
-		return;
-    }
-    try {
-        const res = await fetch('/api/account', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token })
-        });
-        const data = await res.json();
-        if (res.ok) {
-            return data.account;
-        } else {
-            redirectSignIn();
-		    return;
-        }
-    } catch (error) {
-        console.error(error);
-        redirectSignIn();
-		return;
-    }
 }
 
 async function updateProfile(firstName, lastName) {

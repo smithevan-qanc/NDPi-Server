@@ -57,29 +57,17 @@
 			</p>
 		</div>
 	</div>
-
+	<script src="/functions.js"></script>
 	<script>
-		// Check if user is admin
-		/*
-		const accountData = localStorage.getItem('ndpi_account');
-		if (!accountData) {
-			window.location.href = '/signin.html';
-		} else {
-			const account = JSON.parse(accountData);
-		}
-		*/
 
-		setScale();
-		let account = {};
-		(async () => {
-			account = await loadUserAccount();
-			if (!account.isAdmin) {
-				alert('Access denied. Admin privileges required.');
-				window.location.href = '/';
-			}
-			setNavigationButtons();
+		(() => {
+			setTimeout(() => {
+				if (!account.isAdmin) {
+					alert('Access denied. Admin privileges required.');
+					window.location.href = '/';
+				}
+			}, 1000);
 		})();
-
 
 		const form = document.getElementById('createAccountForm');
 		const pinInput = document.getElementById('pin');

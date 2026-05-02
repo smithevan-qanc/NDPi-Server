@@ -1,6 +1,6 @@
 {
   "name": "ndpi-monitor-server",
-  "version": "1.0.0",
+  "version": "3.1.0",
   "description": "Web GUI server for managing NDPi Monitor Client devices and NDI sources",
   "main": "server.js",
   "scripts": {

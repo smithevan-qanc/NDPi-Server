@@ -43,7 +43,8 @@ body::-webkit-scrollbar {
 
 ::selection {
 	background: var(--primary-color-green);
-    color: #fff;
+    color: #000;
+	/* text-shadow: 1px 1px rgba(0,0,0,0.5); */
 }
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ GENERAL PAGE LAYOUT ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
@@ -807,6 +808,33 @@ label {
     background: #c43c3c;
 }
 
+.console-line {
+	margin: 0;
+	color: #e1e1e1;
+	font-family: 'Courier New', Courier, monospace;
+	font-weight: 400;
+	font-size: 12px;
+	letter-spacing: 0.5px;
+	padding: 0 5px 0 5px;
+	user-select: text;
+	cursor: text;
+	line-height: 130%;
+	/* text-wrap: nowrap;
+	margin-bottom: 4px; */
+}
+
+.console-input {
+	font-family: 'Courier New', Courier, monospace;
+	letter-spacing: 0.5px;
+	border: none !important;
+	box-shadow: none !important;
+	padding: 0 0 0 10px !important;
+	font-weight: 600;
+    background: rgba(255, 255, 255, 0) !important;
+    color: #e1e1e1 !important;
+    box-sizing: border-box;
+}
+
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF USER/ADMIN RELATED css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ OFFLINE ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
@@ -926,8 +954,8 @@ label {
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 12px;
     color: #eee;
-    font-size: 12px;
-    letter-spacing: 2px;
+    font-size: 16px;
+    letter-spacing: 0.5px;
     box-sizing: border-box;
 }
 

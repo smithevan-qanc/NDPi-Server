@@ -7,45 +7,39 @@
  *  -   Managing Client NDPi - Monitor Devices within the local network.
  *  -   Serve the Web Graphical User Interface
  *  -   Serve Html overlays for OBS
- *  
  */
 
-const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
-const path = require('path');
-const os = require('os');
-const bonjour = require('bonjour')();
-const fs = require('fs');
-const crypto = require('crypto');
-const { exec } = require('child_process');
-const { stdout, stderr } = require('process');
-const { DOMParser } = require('@xmldom/xmldom');
+const express               = require('express');
+const http                  = require('http');
+const WebSocket             = require('ws');
+const path                  = require('path');
+const os                    = require('os');
+const bonjour               = require('bonjour')();
+const fs                    = require('fs');
+const crypto                = require('crypto');
+const { spawn }             = require('child_process');
+const { exec }              = require('child_process');
+const util                  = require('util');
+//const exec                  = util.promisify(require('child_process').exec)
+const { stdout, stderr }    = require('process');
+const { DOMParser }         = require('@xmldom/xmldom');
+const { json }              = require('stream/consumers');
 
-const ACCOUNTS_FILE = path.join(__dirname, 'accounts.json');
-let accounts = new Map(); 
-const ROKU_TVS_FILE = path.join(__dirname, 'rokuTvs.json');
-let rokuTvs = [];
-const FAVORITED_SOURCES_FILE = path.join(__dirname, 'favorited-sources.json');
-const CLIENTS_FILE = path.join(__dirname, 'clients.json');
-const GROUPS_FILE = path.join(__dirname, 'groups.json');
+const ACCOUNTS_FILE             = path.join(__dirname, 'accounts.json');
+let accounts                    = new Map(); 
+const ROKU_TVS_FILE             = path.join(__dirname, 'rokuTvs.json');
+let rokuTvs                     = [];
+const FAVORITED_SOURCES_FILE    = path.join(__dirname, 'favorited-sources.json');
+const CLIENTS_FILE              = path.join(__dirname, 'clients.json');
+const GROUPS_FILE               = path.join(__dirname, 'groups.json');
 
-
-/** VERSION CONTROL
- *  All version numbers associated with this build originate from 
+/**
+ *  VERSION CONTROL
  */
-const pgm = {
-    ver: {
-        maj: 3,
-        min: 1,
-        ptch: 0
-    },
-    build: [
-        { ver: '3.0.0', rel: '03-05-26' },
-        { ver: '3.1.0', rel: 'WIP' }
-    ]
-};
-const version = `${pgm.ver.maj}.${pgm.ver.min}.${pgm.ver.ptch}`;
+const versionCurrent  = path.join(__dirname, 'version-current.txt');
+const versionStable   = path.join(__dirname, 'version-stable.txt');
+const versionIsStable = versionCurrent === versionStable;
+/** END of - VERSION CONTROL **/
 function startupConsoleLog() {
     console.log(`
 ════════════════════════════════════════════════════════════════
@@ -53,14 +47,14 @@ function startupConsoleLog() {
   ⏐  ∖⏐ ⏐ ⌈▔| ⏐ ⌈-) ⌈▔|   ⏐ ⌈∖/| ⏐/▔▔▔∖⌈▔'▔▔∖⌈▔|▏ ▔/▔▔▔∖⌈▔'▔▔|
   ⏐ ⌈∖  ⏐ ⌊_| ⏐  __/⏐ ⏐▔▔▔⏐ ⏐  ⏐ ⏐ (-) ⏐ ⌈▔⏐ ⏐ ⏐▏ ⎡▏(-) ⏐ ⌈▔▔             
   ⌊_| ∖_⌊____/⌊_|   ⌊_|▔▔▔⌊_|  ⌊_|∖___/⌊_| ⌊_⌊_|∖__∖___/⌊_|              𓀡
-                           
-                                     𝘝𝘦𝕣𝕤𝕚𝕠𝕟   ⸻      ${version}
-  N D P i - M O N I T O R            𝔹𝕦𝕚𝕝𝕕     ⸻      ${pgm.build.find(v => v.ver === version).rel || 'WIP'}
+
+  N D P i - M O N I T O R            𝘝𝘦𝕣𝕤𝕚𝕠𝕟   ⸻      ${versionCurrent}${versionIsStable ? ' (Stable)' : ''}
 ════════════════════════════════════════════════════════════════
 `);
 }
+startupConsoleLog();
 const CRLFArray = (string = '') => { return string.split(/\r?\n/); }
-
+let localIp = getServerIP();
 /** Begin Heartbeat to all Web GUI sessions.
  *  @param {number} heartbeatInterval - Time in ms between WebSocket heartbeats (10000 = 10sec).
  *  @function broadcastToGUI() - Function used to send WebSocket message.
@@ -69,7 +63,7 @@ const heartbeatInterval = 10000;
 setInterval(() => {
     broadcastToGUI({
         type: 'heartbeat',
-        origin: `interval ${Math.floor(heartbeatInterval / 1000)}s`,
+        origin: `Server Interval (${localIp})`,
         timestamp: Date.now()
     });
 }, heartbeatInterval);
@@ -83,7 +77,7 @@ setInterval(async () => {
     const rokuTvData = await getRokuTvInfo();
     broadcastToGUI({
         type: 'roku-update',
-        origin: `interval ${Math.floor(rokuStatusUpdateInterval / 1000)}s`,
+        origin: `Server Interval (${localIp})`,
         data: rokuTvData
     });
 }, rokuStatusUpdateInterval);
@@ -97,7 +91,7 @@ setInterval(async () => {
     sources = await getNDISources();
     broadcastToGUI({
         type: 'ndi-sources',
-        origin: `interval ${Math.floor(ndiSourceUpdateInterval / 1000)}s`,
+        origin: `Server Interval (${localIp})`,
         sources: sources
     });
 }, ndiSourceUpdateInterval);
@@ -112,7 +106,7 @@ setInterval(async () => {
         const stats = await getSystemStats();
         broadcastToGUI({
             type: 'system-stats',
-            origin: `interval ${Math.floor(systemStatsUpdateInterval / 1000)}s`,
+            origin: `Server Interval (${localIp})`,
             stats: stats
         });
     } catch (error) {
@@ -126,6 +120,7 @@ setInterval(async () => {
  */
 const wsDevice = new WebSocket.Server({ noServer: true });
 const wsGUI = new WebSocket.Server({ noServer: true });
+const wsConsole = new WebSocket.Server({ noServer: true });
 /** WebSocket Server active connections.
  *      For @const wsDevice - Server ⮂ Device
  *      @const clientDevices @implements {
@@ -143,26 +138,23 @@ const wsGUI = new WebSocket.Server({ noServer: true });
 const clientDevices = new Map();
 const guiClients = new Map();
 const activeViewers = new Map();
-wsDevice.on('connection', (ws) => {
+const guiConsoleUsers = new Map();
+wsDevice.on('connection', (_ws) => {
     console.log('Client device connected | WebSocket');
-
     let deviceId = null;
-
-    ws.on('message', (data) => {
+    _ws.on('message', (data) => {
         try {
             const message = JSON.parse(data.toString());
             
             if (message.type === 'client-status') {
                 deviceId = message.deviceId;
                 
-                // Store/update client status
                 clientDevices.set(deviceId, {
-                    ws: ws,
+                    ws: _ws,
                     status: message,
                     lastUpdate: Date.now()
                 });
                 
-                // Update the client record in our clients map
                 if (clients.has(deviceId)) {
                     const client = clients.get(deviceId);
                     client.currentSource = message.currentSource;
@@ -185,8 +177,7 @@ wsDevice.on('connection', (ws) => {
             console.error('Client WebSocket message error:', error);
         }
     });
-    
-    wsDevice.on('close', () => {
+    _ws.on('close', () => {
         console.log(`Client device disconnected: ${deviceId || 'unknown'}`);
         if (deviceId) {
             clientDevices.delete(deviceId);
@@ -198,26 +189,26 @@ wsDevice.on('connection', (ws) => {
             }
         }
     });
-    
-    wsDevice.on('error', (error) => {
+    _ws.on('error', (error) => {
         console.error('Client WebSocket error:', error);
         if (deviceId) {
             clientDevices.delete(deviceId);
         }
     });
 });
-wsGUI.on('connection', (ws) => {
+wsGUI.on('connection', (_ws) => {
+    let clientInfo = {
+        accountId: null,
+        accountName: 'Anonymous',
+        connectedAt: Date.now()
+    };
+    guiClients.set(_ws, clientInfo);
 
-    let clientInfo = { accountId: null, accountName: 'Anonymous', connectedAt: Date.now() };
-    guiClients.set(ws, clientInfo);
-    
-    // Send initial data
-    ws.send(JSON.stringify({ 
+    _ws.send(JSON.stringify({ 
         type: 'connected',
         message: 'Connected to NDPi Monitor Server'
     }));
-    
-    ws.on('message', (data) => {
+    _ws.on('message', (data) => {
         try {
             const message = JSON.parse(data.toString());
             
@@ -246,16 +237,15 @@ wsGUI.on('connection', (ws) => {
             console.error('WebSocket message error:', error);
         }
     });
-    
-    ws.on('close', () => {
+    _ws.on('close', () => {
         if (clientInfo.accountId) {
             activeViewers.delete(clientInfo.accountId);
             broadcastViewers('wsGUI close');
         }
-        guiClients.delete(wsGUI);
+        //guiClients.delete(wsGUI);
+        guiClients.delete(_ws);
     });
-    
-    ws.on('error', (error) => {
+    _ws.on('error', (error) => {
         console.error('WebSocket error:', error);
         if (clientInfo.accountId) {
             activeViewers.delete(clientInfo.accountId);
@@ -263,19 +253,200 @@ wsGUI.on('connection', (ws) => {
         }
     });
 });
+wsConsole.on('connection', async (_ws) => {
+
+    const CRLFArray = string => string.split(/\r?\n/);
+    const socketID = crypto.randomUUID();
+    let child = null;
+    let workingDir = await printWorkingDirectory();
+    guiConsoleUsers.set(socketID, _ws);
+    
+    // Get the current working directory upon initial connection.
+    async function printWorkingDirectory() {
+        console.log('Printing Working Directory');
+        let response = '';
+        await new Promise((resolve) => {
+            child = exec('pwd', {
+                env: {
+                    ...process.env,
+                    DISPLAY: ':0',
+                    XAUTHORITY: '/home/ndpi-client/.Xauthority'
+                },
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+            child.stdout.on('data', (data) => {
+                const output = data.toString().trim();
+                console.log('New GUI Terminal Em: ', `PWD: ${output}`);
+                response = output;
+            });
+            child.stderr.on('data', (data) => {
+                const output = data.toString().trim();
+                console.log('PWD Error: ', output);
+                response = output;
+            });
+            child.on('close', () => {
+                resolve();
+            });
+        });
+        return response;
+    }
+
+    // Send an initial connection message.
+    _ws.send(JSON.stringify({ 
+        type: 'connected',
+        data: [{
+            message: `Connected to NDPi Monitor Server. Session: ${socketID}` ,
+        }],
+        pwd: workingDir,
+        hostname: os.hostname()
+    }));
+
+    // Session function reference used to send responses back to client GUI
+    // data: Array of command response lines.
+    // Send 'keepOpen' as false to allow the browser terminal to re-enable.
+    function respond(data, keepOpen = true) {
+        _ws.send(JSON.stringify({
+            type: 'response',
+            data: data,
+            keepOpen: keepOpen,
+            pwd: workingDir,
+        }));
+    }
+
+    _ws.on('message', (data) => {
+        const message = JSON.parse(data);
+
+        // Messages received by this WebSocket only handle message.type 'command'
+        if (message.type !== 'command') return;
+
+        // exec() options
+        let options = {
+            env: {
+                ...process.env,
+                DISPLAY: ':0',
+                XAUTHORITY: '/home/ndpi-client/.Xauthority'
+            },
+            cwd: workingDir
+        };
+
+        let commandAmpParse = [];
+        if (`${message.command}`.includes(' && ')) {
+            commandAmpParse = `${message.command}`.split(' && ');
+        } else {
+            commandAmpParse = [ `${message.command}` ];
+        }
+
+        processCommands(commandAmpParse);
+
+        async function processCommands(commands = []) {
+            let promptID = crypto.randomUUID();
+            let loopError = false;
+            let currentCount = 0;
+            let totalCount = commands.length;
+            console.log('Processing Command Batch: ');
+            console.log(`${promptID}`.toUpperCase(), JSON.stringify(commandAmpParse, null, 2));
+
+            for (const command of commands) {
+                if (loopError) break;
+
+                currentCount++
+                console.log(`Running Command ${currentCount} of ${totalCount} from GUI`, command);
+
+                await new Promise((resolve) => {
+                    child = exec(command, options);
+                    child.stdout.on('data', (data) => {
+                        const output = data.toString().trim();
+                        const outputArry = [];
+                        CRLFArray(output).forEach((line) => {
+                            outputArry.push({
+                                message: `${line}`,
+                                font: {
+                                    color: '#e1e1e1',
+                                    weight: `${line}`.includes('*') ? '600' : '400',
+                                },
+                            });
+                        });
+                        respond(outputArry);
+                    });
+                    child.stderr.on('data', (data) => {
+                        loopError = true;
+                        const output = data.toString().trim();
+                        const outputArry = [];
+                        CRLFArray(output).forEach((line) => {
+                            outputArry.push({
+                                message: `${line}`,
+                                font: {
+                                    color: '#ff0000',
+                                    weight: `${line}`.includes('*') ? '600' : '400',
+                                },
+                            });
+                        });
+                        respond(outputArry);
+                    });
+                    child.on('error', (err) => {
+                        loopError = true;
+                        const output = err.toString().trim();
+                        respond([{
+                            message: output,
+                            font: {
+                                color: '#b00000',
+                                weight: '400',
+                            },
+                        }]);
+                    });
+                    child.on('exit', () => {
+                        // Handle changing directories.
+                        if (!loopError && command.startsWith('cd ')) {
+                            const parseCmdArgs = command.split(' ');
+                            if (parseCmdArgs[1].startsWith('../')) {
+                                let dirTree = workingDir.split('/');
+                                dirTree.pop();
+                                workingDir = dirTree.join('/');
+                            } else if (parseCmdArgs[1].startsWith('/')) {
+                                workingDir = parseCmdArgs[1];
+                            } else {
+                                workingDir += `/${parseCmdArgs[1]}`;
+                            }
+                            options.cwd = workingDir;
+                            console.log('Session Directory Update: ', workingDir);
+                        }
+                    });
+                    child.on('close', () => {
+                        if (currentCount === totalCount || loopError) {
+                            respond([{
+                                message: null,
+                                font: {
+                                    color: '#e1e1e1',
+                                    weight: '400',
+                                },
+                            }], false);
+                        }
+                        resolve();
+                    });
+                });
+                child = null;
+            }
+            console.log('Batch ', `${promptID}`.toUpperCase(), ` ${loopError ? 'ERROR. EXIT' : 'COMPLETE'}`);
+        }
+    });
+    _ws.on('error', (error) => {
+        console.error('Console WebSocket Error:', error);
+    });
+    _ws.on('close', () => {
+        if (child) child.kill('SIGKILL');
+        guiConsoleUsers.delete(socketID);
+    });
+});
 /** HTTP Server Application
  *  @param PORT 3000
- *  @const app @function express() - Server Application Framework
+ *  @const _api @function express() - Server Application Framework
  */
 const PORT = process.env.PORT || 3000;
-const app = express();
-const server = http.createServer(app);
+const _api = express();
+const server = http.createServer(_api);
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('╔════════════════════════════════╗');
-    console.log('║   NDPi Monitor Server v3.1.0   ║');
-    console.log('╚════════════════════════════════╝');
     console.log(`Server running on port ${PORT}`);
-    console.log(`Web interface: http://${getServerIP()}:${PORT}`);
+    console.log(`Web interface: http://${localIp}:${PORT}`);
 });
 server.on('upgrade', (request, socket, head) => {
     const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
@@ -287,6 +458,10 @@ server.on('upgrade', (request, socket, head) => {
     } else if (pathname === '/ws/client') {
         wsDevice.handleUpgrade(request, socket, head, (ws) => {
             wsDevice.emit('connection', ws, request);
+        });
+    } else if (pathname === '/ws/console') {
+        wsConsole.handleUpgrade(request, socket, head, (ws) => {
+            wsConsole.emit('connection', ws, request);
         });
     } else {
         socket.destroy();
@@ -730,14 +905,14 @@ const getOrigin = (req) => {
 /**
  *  Server GUI
  */
-app.use(express.json());
-app.use('/assets', express.static(path.join(__dirname, 'Assets')));
-app.use(express.static(path.join(__dirname, 'public'), {
+_api.use(express.json());
+_api.use('/assets', express.static(path.join(__dirname, 'Assets')));
+_api.use(express.static(path.join(__dirname, 'public'), {
     setHeaders: (res, path) => {
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     }
 }));
-app.get('/', (req, res) => {
+_api.get('/', (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -745,33 +920,8 @@ app.get('/', (req, res) => {
  *  Server API
  */
 
-app.post('/api/resolution', express.json(), (req, res) => {
-    const { output, resolution, rate } = req.body;
-    console.log(req.body);
-    if (!resolution) {
-        return res.status(400).json({
-            error: true,
-            message: 'Missing resolution. (e.g. 1920x1080)',
-        });
-    }
-
-    exec(`DISPLAY=:0 xrandr --output ${output ? output : 'HDMI-1'} --mode ${resolution}${rate ? ` --rate ${rate}` : ''}`, (error, stdout, stderr) => {
-        if (error) {
-            res.status(400).json({
-                error: true,
-                message: stderr
-            });
-        } else {
-            res.json({
-                error: false,
-                message: `Resolution set: ${resolution}.`
-            });
-        }
-    });
-});
-
-app.get('/api/resolution', (req, res) => {
-    exec('DISPLAY=:0 xrandr', (error, stdout, stderr) => {
+_api.get('/api/resolution', (req, res) => {
+    exec('xrandr', (error, stdout, stderr) => {
         if (error) {
             return res.status(500).json({ error: true, message: stderr });
         } else {
@@ -806,8 +956,33 @@ app.get('/api/resolution', (req, res) => {
         }
     });
 });
+_api.post('/api/resolution', express.json(), (req, res) => {
+    const { output, resolution, rate } = req.body;
+    console.log(req.body);
+    if (!resolution) {
+        return res.status(400).json({
+            error: true,
+            message: 'Missing resolution. (e.g. 1920x1080)',
+        });
+    }
+    let cmdStr = ``;
 
-app.get('/api/system-logs', (req, res) => {
+    exec(`xrandr --output ${output ? output : 'HDMI-1'} --mode ${resolution}${rate ? ` --rate ${rate}` : ''}`, (error, stdout, stderr) => {
+        if (error) {
+            res.status(400).json({
+                error: true,
+                message: stderr
+            });
+        } else {
+            res.json({
+                error: false,
+                message: `Resolution set: ${resolution}.`
+            });
+        }
+    });
+});
+
+_api.get('/api/system-logs', (req, res) => {
     exec('sudo journalctl --no-pager -n 100', (error, stdout, stderr) => {
         if (error) {
             return res.status(500).json({ error: true, message: stderr });
@@ -818,7 +993,7 @@ app.get('/api/system-logs', (req, res) => {
     });
 });
 
-app.get('/api/favorite-ndi-sources', (req, res) => {
+_api.get('/api/favorite-ndi-sources', (req, res) => {
     try {
         if (fs.existsSync(FAVORITED_SOURCES_FILE)) {
             const data = fs.readFileSync(FAVORITED_SOURCES_FILE, 'utf8');
@@ -832,7 +1007,7 @@ app.get('/api/favorite-ndi-sources', (req, res) => {
         res.json([]);
     }
 });
-app.post('/api/favorite-ndi-sources', express.json(), (req, res) => {
+_api.post('/api/favorite-ndi-sources', express.json(), (req, res) => {
     const updateArray = req.body;
     
     if (!Array.isArray(updateArray)) {
@@ -847,7 +1022,7 @@ app.post('/api/favorite-ndi-sources', express.json(), (req, res) => {
         res.status(500).json({ error: 'Failed to save favorited sources' });
     }
 });
-app.get('/api/ndi-sources/:favorite?', async (req, res) => {
+_api.get('/api/ndi-sources/:favorite?', async (req, res) => {
     const { favorite } = req.params;
     let sources = [];
     if (favorite) {
@@ -865,7 +1040,7 @@ app.get('/api/ndi-sources/:favorite?', async (req, res) => {
     res.json(sources);
 });
 
-app.post('/api/account/create', express.json(), (req, res) => {
+_api.post('/api/account/create', express.json(), (req, res) => {
     const { firstName, lastName, username, pin } = req.body;
     /**
      *  Validate
@@ -878,8 +1053,8 @@ app.post('/api/account/create', express.json(), (req, res) => {
      *  Validate
      *  PIN Length
      */
-    if (!/^\d{4}$|^\d{6}$/.test(pin)) {
-        return res.status(400).json({ error: 'PIN must be 4 or 6 digits' });
+    if (!/^\d{4}$|^\d{5}$|^\d{6}$/.test(pin)) {
+        return res.status(400).json({ error: 'PIN must be 4-6 digits' });
     }
     /**
      *  Validate
@@ -910,7 +1085,7 @@ app.post('/api/account/create', express.json(), (req, res) => {
         message: 'Account created successfully.'
     });
 });
-app.post('/api/account/signin', express.json(), (req, res) => {
+_api.post('/api/account/signin', express.json(), (req, res) => {
 
     const host = req.get('host');
     
@@ -925,7 +1100,7 @@ app.post('/api/account/signin', express.json(), (req, res) => {
                         firstName: account.firstName,
                         lastName: account.lastName,
                         username: account.username,
-                        isAdmin: account.isAdmin || false,
+                        isAdmin: account.isAdmin,
                         firstTimeLogin: account.firstTimeLogin || false
                     }
                 });
@@ -959,7 +1134,7 @@ app.post('/api/account/signin', express.json(), (req, res) => {
     }
     res.status(401).json({ error: 'Invalid PIN' });
 });
-app.post('/api/account', express.json(), (req, res) => {
+_api.post('/api/account', express.json(), (req, res) => {
     const { token } = req.body;
     
     if (!token) {
@@ -984,7 +1159,7 @@ app.post('/api/account', express.json(), (req, res) => {
     }
     res.status(401).json({ success: false, message: 'Invalid Token' });
 });
-app.get('/api/account/:id', (req, res) => {
+_api.get('/api/account/:id', (req, res) => {
     const account = accounts.get(req.params.id);
     if (!account) {
         return res.status(404).json({ error: 'Account not found' });
@@ -998,7 +1173,7 @@ app.get('/api/account/:id', (req, res) => {
         createdAt: account.createdAt
     });
 });
-app.put('/api/account/:id', express.json(), (req, res) => {
+_api.put('/api/account/:id', express.json(), (req, res) => {
     const account = accounts.get(req.params.id);
     
     if (!account) {
@@ -1076,7 +1251,7 @@ app.put('/api/account/:id', express.json(), (req, res) => {
         }
     });
 });
-app.delete('/api/account/:id', (req, res) => {
+_api.delete('/api/account/:id', (req, res) => {
     const account = accounts.get(req.params.id);
     
     if (!account) {
@@ -1094,7 +1269,7 @@ app.delete('/api/account/:id', (req, res) => {
     
     res.json({ success: true });
 });
-app.get('/api/admin/accounts', (req, res) => {
+_api.get('/api/admin/accounts', (req, res) => {
     // TODO: Add admin authentication middleware
     const accountList = Array.from(accounts.values()).map(acc => ({
         id: acc.id,
@@ -1107,12 +1282,12 @@ app.get('/api/admin/accounts', (req, res) => {
     
     res.json({ accounts: accountList });
 });
-app.get('/api/active-viewers', (req, res) => {
+_api.get('/api/active-viewers', (req, res) => {
     const viewers = Array.from(activeViewers.values());
     res.json({ viewers });
 });
 
-app.get('/api/discovered-devices', (req, res) => {
+_api.get('/api/discovered-devices', (req, res) => {
     const discovered = Array.from(discoveredClients.values())
         .filter(device => !clients.has(device.deviceId)) // Only show ones not already added
         .map(device => ({
@@ -1124,13 +1299,13 @@ app.get('/api/discovered-devices', (req, res) => {
     res.json({ devices: discovered });
 });
 
-app.get('/api/roku-tvs', (req, res) => {
+_api.get('/api/roku-tvs', (req, res) => {
     res.json({ rokuTvs });
 });
-app.post("/api/roku-info", express.json(), async (req, res) => {
+_api.post("/api/roku-info", express.json(), async (req, res) => {
     const { ipAddress } = req.body;
     if (!ipAddress) {
-        return res.status(400).json({ error: `IP Address for RokuTv is missing. ${ipAddress}` });
+        return res.status(400).json({ error: `IP Address for RokuTv is required. ${ipAddress}` });
     }
     console.log(`Getting status from RokuTv: ${ipAddress}`);
     try {
@@ -1144,7 +1319,7 @@ app.post("/api/roku-info", express.json(), async (req, res) => {
         res.status(500).send("Failed to reach Roku");
     }
 });
-app.post('/api/roku-tv', express.json(), (req, res) => {
+_api.post('/api/roku-tv', express.json(), (req, res) => {
     const { displayName, ipAddress, model, manufacturer, deviceType, screenSize, groupId } = req.body;
     
     if (!ipAddress || !groupId) {
@@ -1174,7 +1349,7 @@ app.post('/api/roku-tv', express.json(), (req, res) => {
     
     res.json({ success: true, rokuTv: newRokuTv });
 });
-app.delete('/api/roku-tv/:id', (req, res) => {
+_api.delete('/api/roku-tv/:id', (req, res) => {
     const index = rokuTvs.findIndex(tv => tv.id === req.params.id);
     if (index === -1) {
         return res.status(404).json({ error: 'Roku TV not found' });
@@ -1184,7 +1359,7 @@ app.delete('/api/roku-tv/:id', (req, res) => {
     res.json({ success: true });
 });
 
-app.get('/api/devices', (req, res) => {
+_api.get('/api/devices', (req, res) => {
     const devices = Array.from(clients.values()).map(client => ({
         id: client.deviceId,
         deviceId: client.deviceId,
@@ -1203,7 +1378,7 @@ app.get('/api/devices', (req, res) => {
     }));
     res.json({ devices });
 });
-app.post('/api/device/:id?', express.json(), (req, res) => {
+_api.post('/api/device/:id?', express.json(), (req, res) => {
     const deviceId = req.params.id || req.body.deviceId || req.body.id;
     const { deviceName, ip, name } = req.body;
     
@@ -1224,7 +1399,7 @@ app.post('/api/device/:id?', express.json(), (req, res) => {
     saveClients();
     res.json({ success: true, device: clients.get(deviceId) });
 });
-app.delete('/api/device/:deviceId', (req, res) => {
+_api.delete('/api/device/:deviceId', (req, res) => {
     const { deviceId } = req.params;
     
     if (!clients.has(deviceId)) {
@@ -1237,14 +1412,14 @@ app.delete('/api/device/:deviceId', (req, res) => {
     
     res.json({ success: true, message: `Forgot device ${deviceName}` });
 });
-app.post('/api/devices/forget-all', (req, res) => {
+_api.post('/api/devices/forget-all', (req, res) => {
     const count = clients.size;
     clients.clear();
     saveClients();
     
     res.json({ success: true, message: `Forgot ${count} device(s)` });
 });
-app.put('/api/device/:deviceId', express.json(), (req, res) => {
+_api.put('/api/device/:deviceId', express.json(), (req, res) => {
     const { deviceId } = req.params;
     const updates = req.body;
     
@@ -1303,7 +1478,7 @@ app.put('/api/device/:deviceId', express.json(), (req, res) => {
         }
     });
 });
-app.post('/api/device/:deviceId/shutdown', (req, res) => {
+_api.post('/api/device/:deviceId/shutdown', (req, res) => {
     const { deviceId } = req.params;
     
     if (!clients.has(deviceId)) {
@@ -1314,7 +1489,7 @@ app.post('/api/device/:deviceId/shutdown', (req, res) => {
         .then(() => res.json({ success: true, message: 'Shutdown command sent' }))
         .catch(error => res.status(500).json({ error: error.message }));
 });
-app.post('/api/device/:deviceId/reboot', (req, res) => {
+_api.post('/api/device/:deviceId/reboot', (req, res) => {
     const { deviceId } = req.params;
     
     if (!clients.has(deviceId)) {
@@ -1325,7 +1500,7 @@ app.post('/api/device/:deviceId/reboot', (req, res) => {
         .then(() => res.json({ success: true, message: 'Reboot command sent' }))
         .catch(error => res.status(500).json({ error: error.message }));
 });
-app.post('/api/device/:deviceId/overlay', (req, res) => {
+_api.post('/api/device/:deviceId/overlay', (req, res) => {
     const { deviceId } = req.params;
     
     if (!clients.has(deviceId)) {
@@ -1336,7 +1511,7 @@ app.post('/api/device/:deviceId/overlay', (req, res) => {
         .then(() => res.json({ success: true, message: 'Overlay command sent' }))
         .catch(error => res.status(500).json({ error: error.message }));
 });
-app.post('/api/device/:deviceId/blank', (req, res) => {
+_api.post('/api/device/:deviceId/blank', (req, res) => {
     const { deviceId } = req.params;
     
     if (!clients.has(deviceId)) {
@@ -1348,7 +1523,7 @@ app.post('/api/device/:deviceId/blank', (req, res) => {
         .catch(error => res.status(500).json({ error: error.message }));
 });
 
-app.get('/api/groups', (req, res) => {
+_api.get('/api/groups', (req, res) => {
     const groupList = Array.from(groups.values()).map(group => ({
         id: group.id,
         name: group.name,
@@ -1357,7 +1532,7 @@ app.get('/api/groups', (req, res) => {
     }));
     res.json({ groups: groupList });
 });
-app.post('/api/group', express.json(), (req, res) => {
+_api.post('/api/group', express.json(), (req, res) => {
     const { name, devices } = req.body;
     if (!name) {
         return res.status(400).json({ error: 'Group name required' });
@@ -1377,7 +1552,7 @@ app.post('/api/group', express.json(), (req, res) => {
     
     res.json({ success: true, group: newGroup });
 });
-app.delete('/api/group/:groupId', (req, res) => {
+_api.delete('/api/group/:groupId', (req, res) => {
     const { groupId } = req.params;
     
     if (!groups.has(groupId)) {
@@ -1390,7 +1565,7 @@ app.delete('/api/group/:groupId', (req, res) => {
     
     res.json({ success: true, message: `Group "${group.name}" deleted` });
 });
-app.put('/api/group/:groupId', express.json(), async (req, res) => {
+_api.put('/api/group/:groupId', express.json(), async (req, res) => {
     const { groupId } = req.params;
     const updates = req.body;
     
@@ -1436,22 +1611,7 @@ app.put('/api/group/:groupId', express.json(), async (req, res) => {
         }
     });
 });
-app.post('/api/group/:groupId/assign-source', express.json(), (req, res) => {
-    const { groupId } = req.params;
-    const { sourceName } = req.body;
-    
-    if (!groups.has(groupId)) {
-        return res.status(404).json({ error: 'Group not found' });
-    }
-    
-    const group = groups.get(groupId);
-    group.currentSource = sourceName;
-    groups.set(groupId, group);
-    saveGroups();
-    
-    res.json({ success: true, message: `Source "${sourceName}" assigned to group "${group.name}"` });
-});
-app.post('/api/group/:groupId/shutdown', async (req, res) => {
+_api.post('/api/group/:groupId/shutdown', async (req, res) => {
     const { groupId } = req.params;
     const group = groups.get(groupId);
     
@@ -1465,7 +1625,7 @@ app.post('/api/group/:groupId/shutdown', async (req, res) => {
     await Promise.all(promises);
     res.json({ success: true, message: `Shutdown command sent to ${group.devices.length} devices` });
 });
-app.post('/api/group/:groupId/reboot', async (req, res) => {
+_api.post('/api/group/:groupId/reboot', async (req, res) => {
     const { groupId } = req.params;
     const group = groups.get(groupId);
     
@@ -1479,7 +1639,7 @@ app.post('/api/group/:groupId/reboot', async (req, res) => {
     await Promise.all(promises);
     res.json({ success: true, message: `Reboot command sent to ${group.devices.length} devices` });
 });
-app.post('/api/group/:groupId/overlay', async (req, res) => {
+_api.post('/api/group/:groupId/overlay', async (req, res) => {
     const { groupId } = req.params;
     const group = groups.get(groupId);
     
@@ -1493,7 +1653,7 @@ app.post('/api/group/:groupId/overlay', async (req, res) => {
     await Promise.all(promises);
     res.json({ success: true, message: `Overlay command sent to ${group.devices.length} devices` });
 });
-app.post('/api/group/:groupId/blank', async (req, res) => {
+_api.post('/api/group/:groupId/blank', async (req, res) => {
     const { groupId } = req.params;
     const group = groups.get(groupId);
     
@@ -1507,7 +1667,7 @@ app.post('/api/group/:groupId/blank', async (req, res) => {
     await Promise.all(promises);
     res.json({ success: true, message: `Blank command sent to ${group.devices.length} devices` });
 });
-app.post('/api/group/:groupId/add-device', express.json(), (req, res) => {
+_api.post('/api/group/:groupId/add-device', express.json(), (req, res) => {
     const { groupId } = req.params;
     const { deviceId } = req.body;
     
@@ -1548,7 +1708,7 @@ app.post('/api/group/:groupId/add-device', express.json(), (req, res) => {
     
     res.json({ success: true, message: `Device "${device.deviceName}" added to group "${group.name}"` });
 });
-app.post('/api/group/:groupId/remove-device', express.json(), (req, res) => {
+_api.post('/api/group/:groupId/remove-device', express.json(), (req, res) => {
     const { groupId } = req.params;
     const { deviceId } = req.body;
     
@@ -1580,14 +1740,7 @@ app.post('/api/group/:groupId/remove-device', express.json(), (req, res) => {
     res.json({ success: true, message: 'Device removed from group' });
 });
 
-app.post('/api/system/restart', (req, res) => {
-    res.json({ success: true, message: 'Server restart initiated' });
-    setTimeout(() => {
-        const { exec } = require('child_process');
-        exec('sudo systemctl restart ndpi-monitor.service');
-    }, 1000);
-});
-app.post('/api/system/shutdown', (req, res) => {
+_api.post('/api/system/shutdown', (req, res) => {
     res.json({ success: true, message: 'System shutdown initiated' });
     
     // Notify all GUI clients about shutdown
@@ -1602,7 +1755,7 @@ app.post('/api/system/shutdown', (req, res) => {
         exec('sudo shutdown now');
     }, 1000);
 });
-app.post('/api/system/restart', (req, res) => {
+_api.post('/api/system/restart', (req, res) => {
     res.json({ success: true, message: 'Server restart initiated' });
     
     // Notify all GUI clients about restart
@@ -1616,7 +1769,7 @@ app.post('/api/system/restart', (req, res) => {
         process.exit(0); // systemd will restart the service
     }, 1000);
 });
-app.post('/api/system/reboot', (req, res) => {
+_api.post('/api/system/reboot', (req, res) => {
     res.json({ success: true, message: 'System reboot initiated' });
     
     // Notify all GUI clients about reboot
@@ -1704,12 +1857,12 @@ function sendCommandToClient(deviceId, command, userInfo = {}) {
             return reject(new Error('Client not found or no IP address'));
         }
 
-        const serverIP = getServerIP();
+        localIp = getServerIP();
 
         // Add server address and user info to command
         const enrichedCommand = {
             ...command,
-            serverAddress: `${serverIP}:${PORT}`,
+            serverAddress: `${localIp}:${PORT}`,
             user: userInfo.user || 'system',
             timestamp: new Date().toISOString()
         };
@@ -1759,21 +1912,19 @@ function sendCommandToClient(deviceId, command, userInfo = {}) {
  *  Uses 'bonjour'
  */
 console.log('Starting client discovery...');
-const browser = bonjour.find({ type: 'ndpi-monitor-client' });
-browser.on('up', (service) => {
+const clientDeviceMDNS = bonjour.find({ type: 'ndpi-monitor-client' });
+clientDeviceMDNS.on('up', (service) => {
     const deviceId = service.txt?.deviceid || service.txt?.deviceId;
     const deviceName = service.txt?.devicename || service.txt?.deviceName || 'NDPi Client';
     const ip = service.txt?.ip || service.addresses?.[0] || service.host;
     const commandPort = service.txt?.commandport || service.txt?.commandPort || '3001';
 
-    console.log(service);
-
     if (!deviceId) {
-        console.log('Discovered client without device ID');
+        console.log(`[] Discovered client without device ID`);
+        console.log(`Data: ${service.txt}`);
         return;
     }
 
-    console.log(`Discovered: ${deviceName} (${deviceId}) at ${ip}:${commandPort}`);
     // Upsert discovered clients
     discoveredClients.set(deviceId, {
         deviceId,
@@ -1795,9 +1946,16 @@ browser.on('up', (service) => {
         client.lastSeen = new Date().toISOString();
         clients.set(deviceId, client);
         saveClients();
+        console.log(`[] Update from client device:`);
+    } else {
+        console.log(`[] Discovered new client device:`);
     }
+        console.log(`ID:   ${deviceId}`);
+        console.log(`NAME: ${deviceName}`);
+        console.log(`IP:   ${ip}`);
+        console.log(`PORT: ${commandPort}`);
 });
-browser.on('down', (service) => {
+clientDeviceMDNS.on('down', (service) => {
     const deviceId = service.txt?.deviceid || service.txt?.deviceId;
     
     if (deviceId && clients.has(deviceId)) {
@@ -1809,21 +1967,6 @@ browser.on('down', (service) => {
         saveClients();
     }
 });
-const deviceConsideredInactiveAfterMinutes = 1;
-setInterval(() => {
-    const now = new Date();
-    for (const [deviceId, client] of clients.entries()) {
-        const lastSeen = new Date(client.lastSeen);
-        const minutesSinceLastSeen = (now - lastSeen) / 1000 / 60;
-        
-        if (minutesSinceLastSeen > deviceConsideredInactiveAfterMinutes && client.status !== 'offline') {
-            client.status = 'offline';
-            clients.set(deviceId, client);
-            console.log(`Client timeout: ${client.deviceName} (${deviceId})`);
-            saveClients();
-        }
-    }
-}, 20000);
 
 // Start server
 loadAccounts();
@@ -1832,13 +1975,45 @@ loadGroups();
 loadRokuTvs();
 
 process.on('uncaughtException', (err) => {
-    console.log(`UNCAUGHT EXCEPTION ${err}`);
+    console.log(' ');
+    console.log(' ');
+    console.log(`UNHANDLED REJECTION ${err}`);
+    console.log(' ');
+    console.log(' ');
 });
 
 process.on('unhandledRejection', (err) => {
+    console.log(' ');
+    console.log(' ');
     console.log(`UNHANDLED REJECTION ${err}`);
+    console.log(' ');
+    console.log(' ');
 });
 
-process.on('SIGTERM', () => { 
-    if (journaler) journaler.stop();
- });
+process.on('beforeExit', async (code) => {
+    console.log(`Waiting to exit NDPi Server [CODE: ${code}]`);
+    await new Promise((resolve) => { setTimeout(() => {resolve}, 1500) });
+});
+
+process.on('exit', (code) => {
+    console.log(`NDPi Server exit with code: ${code}`);
+    console.log('⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻ ')
+    console.log(' GOOD BYE 👋');
+    console.log('⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻ ');
+    console.log('⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻   ⸻ ');
+});
+
+
+process.on('SIGINT',  () => { killProcess('SIGINT'); });
+process.on('SIGTERM', () => { killProcess('SIGTERM'); });
+
+
+function killProcess(reason) {
+    // Notify all GUI clients about shutdown
+    broadcastToGUI({
+        type: 'server-shutdown',
+        origin: `${reason}`,
+        message: 'Server is shutting down...'
+    });
+    process.exit()
+}

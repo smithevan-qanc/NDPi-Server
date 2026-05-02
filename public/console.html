@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Console | NDPi Monitor</title>
+	<link rel="stylesheet" href="/styles_ii.css">
+	<script src="/modal.js"></script>
+	<script src="/auth.js"></script>
+	<script src="/ws-console.js"></script>
+	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="back-btn" onclick="history.back()">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
+  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+				</svg>
+			</div>
+			<div class="topbar-spacer"></div>
+			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
+				<span id="navAccount"></span>
+			</button-->
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+
+		<section class="dashboard" style="flex: 1;">
+			<div class="card" style="grid-column: 1 / -1;">
+				<div class="card-content" style="gap: 1vh;">
+					<div id="console-viewer" style="display: flex; flex: 1; flex-direction: column; justify-content: end; overflow: scroll; scrollbar-width: none;"></div>
+                    <div class="form-input" id="promptContainer" style="display: flex; align-items: center; padding-right: 10px;">
+                        <div id="pwd-label" style="font-family: 'Courier New', Courier, monospace; letter-spacing: 0.5px; font-size: 12px; text-align: end; width: min-content;  text-wrap-mode: nowrap;">~ $</div>
+                        <input id="promptIn" type="text" class="console-input" autocorrect="off" autocapitalize="off" autofocus></input>
+                    </div>
+				</div>
+			</div>
+		</section>
+	</div>
+	<script src="/functions.js"></script>
+	<script>
+
+		(async () => {
+			applyActiveNav('navAccount');
+		})();
+
+		// Initialize WebSocket for real-time updates
+		const ws = initConsole();
+
+		const promptEl = document.getElementById('promptIn');
+
+		promptEl.addEventListener('keydown', function(e) {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				sendCommand();
+			}
+		});
+
+		document.addEventListener('keydown', (e) => {
+			if (e.ctrlKey) return;
+			if (e.metaKey) return;
+			if (/^F[1-9][0-2]?$/.test(e.key)) return;
+
+			if (e.code.startsWith('Key') && document.activeElement !== promptEl) {
+				promptEl.focus();
+			}
+		});
+
+		document.addEventListener("visibilitychange", () => {
+			if (document.visibilityState === "visible") {
+				promptEl.focus();
+			}
+		});
+
+
+		const pageLogo = document.getElementById('topbarLogo');
+		const topbarHeight = document.querySelector('.topbar').clientHeight;
+		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+	</script>
+</body>
+</html>

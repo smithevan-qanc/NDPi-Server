@@ -1,14 +1,6 @@
-let account = {};
 const ws = initWebSocket();
 
-(() => {
-    setScale();
-    setNavigationButtons();
-    applyActiveNav('navAccount');
-})();
-
 (async () => {
-    account = await loadUserAccount();
     populateFields();
 
     function populateFields() {

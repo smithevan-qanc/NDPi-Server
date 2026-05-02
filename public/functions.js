@@ -1,3 +1,11 @@
+(() => {
+	setScale();
+	setNavigationButtons();
+	const pageLogo = document.getElementById('topbarLogo');
+	const topbarHeight = document.querySelector('.topbar').clientHeight;
+	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+})();
 
 function setScale() {
     const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';

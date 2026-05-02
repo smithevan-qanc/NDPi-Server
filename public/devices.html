@@ -6,7 +6,6 @@
 	<title>Devices | NDPi Monitor</title>
 	<link rel="stylesheet" href="/styles_ii.css">
 	<script src="/modal.js"></script>
-	<script src="/functions.js"></script>
 	<script src="/auth.js"></script>
 	<script src="/ws-client.js"></script>
 	<script src="/screen-saver.js"></script>
@@ -75,305 +74,236 @@
 			</button>
 		</div>
 	</div>
+	<script src="/functions.js"></script>
+	<script>
+		
+		(() => {
+			applyActiveNav('navDevices');
+		})();
 
-<script>
-	// Check authentication
-	/*
-	const accountData = localStorage.getItem('ndpi_account');
-	if (!accountData) {
-		sessionStorage.setItem('signin_return', window.location.pathname);
-		window.location.href = '/signin.html';
-	}
+		// Global variables
+		let devices = [];
+		let groups = [];
+		let activeViewers = [];
 
-	const account = JSON.parse(accountData);
-	setNavigationButtons();
-	*/
-
-	setScale();
-	let account = {};
-	(async () => {
-		account = await loadUserAccount();
-		setNavigationButtons();
-	})();
-
-	function setNavigationButtons() {
-		// NAVIGATION BUTTONS
-		const dashboardNavEl = document.getElementById('navDashboard');
-		dashboardNavEl.textContent = `Dashboard`;
-		dashboardNavEl.addEventListener('click', function() {
+		document.getElementById('add-button').addEventListener('click', () => {
 			this.onclick = null;
-			window.location.href = '/';
+			window.location.href='/device-discovery.html'
 		});
-		const devicesNavEl = document.getElementById('navDevices');
-		devicesNavEl.textContent = `Devices`;
-		devicesNavEl.classList.add('active');
-		devicesNavEl.addEventListener('click', function() {
-			this.onclick = null;
-			window.location.href = '/devices.html';
-		});
-		const groupsNavEl = document.getElementById('navGroups');
-		groupsNavEl.textContent = `Groups`;
-		groupsNavEl.addEventListener('click', function() {
-			this.onclick = null;
-			window.location.href = '/groups.html';
-		});
-		const settingsNavEl = document.getElementById('navSettings');
-		settingsNavEl.textContent = `Settings`;
-		settingsNavEl.addEventListener('click', function() {
-			this.onclick = null;
-			window.location.href = '/settings.html';
-		});
-		const userAccountNavEl = document.getElementById('navAccount');
-		userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
-		userAccountNavEl.addEventListener('click', function() {
-			this.onclick = null;
-			window.location.href ='/account-settings.html';
-		});
-	}
 
-	/*
-	// Redirect to set PIN if first time login
-	if (account.firstTimeLogin) {
-		sessionStorage.setItem('signin_return', window.location.pathname);
-		window.location.href = '/set-pin.html';
-	}
-
-	// Display account name
-	//document.getElementById('navAccount').textContent = account.firstName;
-
-	// Initialize UI scale from saved setting
-	const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
-	const scaleDecimal = savedScale / 100;
-	document.body.style.zoom = scaleDecimal;
-	if (!document.body.style.zoom) {
-		document.body.style.transform = `scale(${scaleDecimal})`;
-		document.body.style.transformOrigin = 'top left';
-	}
-	*/
-
-	// Global variables
-	let devices = [];
-	let groups = [];
-	let activeViewers = [];
-
-	document.getElementById('add-button').addEventListener('click', () => {
-		this.onclick = null;
-		window.location.href='/device-discovery.html'
-	});
-
-	// Show offline overlay
-	function showOfflineOverlay() {
-		document.getElementById('offlineOverlay').style.display = 'block';
-	}
-
-	// Hide offline overlay
-	function hideOfflineOverlay() {
-		document.getElementById('offlineOverlay').style.display = 'none';
-	}
-
-	// Fetch Devices and Discovered Devices
-	async function fetchDevices() {
-		console.log('fetchDevices called');
-		try {
-			// Fetch both saved devices and discovered devices
-			const [devicesRes, discoveredRes] = await Promise.all([
-				fetch('/api/devices'),
-				fetch('/api/discovered-devices')
-			]);
-			const devicesData = await devicesRes.json();
-			const discoveredData = await discoveredRes.json();
-			
-			console.log('Devices API response:', devicesData);
-			console.log('Discovered devices API response:', discoveredData);
-			
-			// Combine saved devices and discovered devices
-			const savedDevices = devicesData.devices || [];
-			const discoveredDevices = (discoveredData.devices || []).map(dev => ({...dev, status: 'discovered'}));
-			
-			// Filter out discovered devices that are already saved
-			const savedDeviceIds = new Set(savedDevices.map(d => d.deviceId));
-			const newDiscovered = discoveredDevices.filter(d => !savedDeviceIds.has(d.deviceId));
-			
-			devices = [...savedDevices, ...newDiscovered];
-			renderDevices();
-		} catch (e) {
-			console.error('Error fetching devices:', e);
-			devices = [];
-			renderDevices();
+		// Show offline overlay
+		function showOfflineOverlay() {
+			document.getElementById('offlineOverlay').style.display = 'block';
 		}
-	}
 
-	// Render Devices by Status
-	function renderDevices() {
-		console.log('renderDevices called, devices:', devices);
-		
-		const onlineDevices = devices.filter(d => d.status === 'online');
-		const discoveredDevices = devices.filter(d => d.status === 'discovered');
-		const offlineDevices = devices.filter(d => d.status === 'offline');
-		
-		// Show/hide sections based on content
-		document.getElementById('onlineSection').style.display = onlineDevices.length > 0 ? 'block' : 'none';
-		document.getElementById('discoveredSection').style.display = discoveredDevices.length > 0 ? 'block' : 'none';
-		document.getElementById('offlineSection').style.display = offlineDevices.length > 0 ? 'block' : 'none';
-		document.getElementById('noDevicesMessage').style.display = devices.length === 0 ? 'block' : 'none';
-		
-		// Render each section
-		renderDeviceSection('onlineDevices', onlineDevices, false);
-		renderDeviceSection('discoveredDevices', discoveredDevices, true);
-		renderDeviceSection('offlineDevices', offlineDevices, false);
-	}
+		// Hide offline overlay
+		function hideOfflineOverlay() {
+			document.getElementById('offlineOverlay').style.display = 'none';
+		}
 
-	function renderDeviceSection(containerId, deviceList, isDiscovered) {
-		const container = document.getElementById(containerId);
-		container.innerHTML = '';
-		
-		deviceList.forEach(dev => {
-			const tile = document.createElement('div');
+		// Fetch Devices and Discovered Devices
+		async function fetchDevices() {
+			console.log('fetchDevices called');
+			try {
+				// Fetch both saved devices and discovered devices
+				const [devicesRes, discoveredRes] = await Promise.all([
+					fetch('/api/devices'),
+					fetch('/api/discovered-devices')
+				]);
+				const devicesData = await devicesRes.json();
+				const discoveredData = await discoveredRes.json();
+				
+				console.log('Devices API response:', devicesData);
+				console.log('Discovered devices API response:', discoveredData);
+				
+				// Combine saved devices and discovered devices
+				const savedDevices = devicesData.devices || [];
+				const discoveredDevices = (discoveredData.devices || []).map(dev => ({...dev, status: 'discovered'}));
+				
+				// Filter out discovered devices that are already saved
+				const savedDeviceIds = new Set(savedDevices.map(d => d.deviceId));
+				const newDiscovered = discoveredDevices.filter(d => !savedDeviceIds.has(d.deviceId));
+				
+				devices = [...savedDevices, ...newDiscovered];
+				renderDevices();
+			} catch (e) {
+				console.error('Error fetching devices:', e);
+				devices = [];
+				renderDevices();
+			}
+		}
+
+		// Render Devices by Status
+		function renderDevices() {
+			console.log('renderDevices called, devices:', devices);
 			
-			if (isDiscovered) {
-				// Discovered device - show add button with spread layout
-				tile.className = 'device-tile discovered-device';
-				tile.innerHTML = `
-					<div class="device-tile-main">
-						<strong style="font-size:15px;">${dev.deviceName}</strong>
-						<span class='mono' style="font-size:12px;">${dev.deviceId}</span>
-					</div>
-					<div class="device-tile-info mono">
-						<span>IP: ${dev.ip}</span>
-						<span style='color: #ffa500;'>Discovered - Click to Add</span>
-					</div>
-				`;
-				tile.onclick = async () => {
-					try {
-						const response = await fetch(`/api/device/${dev.deviceId}`, {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({
-								deviceId: dev.deviceId,
-								deviceName: dev.deviceName,
-								ip: dev.ip
-							})
-						});
-						
-						if (response.ok) {
-							toast.success('Device added');
-							fetchDevices(); // Refresh the list
-						} else {
-							toast.error('Failed to add device');
+			const onlineDevices = devices.filter(d => d.status === 'online');
+			const discoveredDevices = devices.filter(d => d.status === 'discovered');
+			const offlineDevices = devices.filter(d => d.status === 'offline');
+			
+			// Show/hide sections based on content
+			document.getElementById('onlineSection').style.display = onlineDevices.length > 0 ? 'block' : 'none';
+			document.getElementById('discoveredSection').style.display = discoveredDevices.length > 0 ? 'block' : 'none';
+			document.getElementById('offlineSection').style.display = offlineDevices.length > 0 ? 'block' : 'none';
+			document.getElementById('noDevicesMessage').style.display = devices.length === 0 ? 'block' : 'none';
+			
+			// Render each section
+			renderDeviceSection('onlineDevices', onlineDevices, false);
+			renderDeviceSection('discoveredDevices', discoveredDevices, true);
+			renderDeviceSection('offlineDevices', offlineDevices, false);
+		}
+
+		function renderDeviceSection(containerId, deviceList, isDiscovered) {
+			const container = document.getElementById(containerId);
+			container.innerHTML = '';
+			
+			deviceList.forEach(dev => {
+				const tile = document.createElement('div');
+				
+				if (isDiscovered) {
+					// Discovered device - show add button with spread layout
+					tile.className = 'device-tile discovered-device';
+					tile.innerHTML = `
+						<div class="device-tile-main">
+							<strong style="font-size:15px;">${dev.deviceName}</strong>
+							<span class='mono' style="font-size:12px;">${dev.deviceId}</span>
+						</div>
+						<div class="device-tile-info mono">
+							<span>IP: ${dev.ip}</span>
+							<span style='color: #ffa500;'>Discovered - Click to Add</span>
+						</div>
+					`;
+					tile.onclick = async () => {
+						try {
+							const response = await fetch(`/api/device/${dev.deviceId}`, {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									deviceId: dev.deviceId,
+									deviceName: dev.deviceName,
+									ip: dev.ip
+								})
+							});
+							
+							if (response.ok) {
+								toast.success('Device added');
+								fetchDevices(); // Refresh the list
+							} else {
+								toast.error('Failed to add device');
+							}
+						} catch (e) {
+							toast.error('Error adding device');
 						}
-					} catch (e) {
-						toast.error('Error adding device');
-					}
-				};
-			} else {
-				// Saved device - spread layout with system stats
-				tile.className = 'device-tile' + (dev.status === 'online' ? ' active' : '');
-				
-				// Build system stats display
-				let statsHtml = '';
-				if (dev.systemStats && dev.status === 'online') {
-					const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
-					const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
-					const tempColor = dev.systemStats.temperature > 78 ? '#f87171' : dev.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
-					const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
-					statsHtml = `<div class="device-stats">
-						<span style="color:${cpuColor};">CPU ${dev.systemStats.cpu}%</span>
-						<span style="color:${tempColor};">TEMP ${tempF}°F</span>
-						<span style="color:${memColor};">MEM ${dev.systemStats.memory.percent}%</span>
-					</div>`;
-				}
-				
-				tile.innerHTML = `
-					<div class="device-tile-main">
-						<strong style="font-size:15px;">${dev.name}</strong>
-						<span class='mono' style="font-size:12px;">${dev.id}</span>
-					</div>
-					<div class="device-tile-info mono">
-						<span>Group: ${dev.group}</span>
-						<span>IP: ${dev.ip}</span>
-						<span>Source: ${dev.currentSource || 'None'}</span>
-						<span style='color:${dev.status==='online'?'rgb(129, 193, 39)':'#888'};'>${dev.status}</span>
-					</div>
-					${statsHtml}
-				`;
-				tile.onclick = () => window.location.href = `/device.html?id=${encodeURIComponent(dev.id)}`;
-			}
-			
-			container.appendChild(tile);
-		});
-	}
-
-	// Add Device Modal
-	const showAddDeviceModal = async () => {
-		try {
-			const res = await fetch('/api/discovered-devices');
-			const data = await res.json();
-			const discovered = data.devices || [];
-
-			if (discovered.length === 0) {
-				toast.warning('No devices discovered. Make sure clients are powered on.');
-				return;
-			}
-
-			const options = discovered.map(dev => `${dev.deviceName} (${dev.deviceId}) - ${dev.ip}`);
-			const choice = await modal.select('Select a device to add:', options, 'Add Device');
-
-			if (choice !== null) {
-				const selected = discovered[choice];
-				const response = await fetch(`/api/device/${selected.deviceId}`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						deviceId: selected.deviceId,
-						deviceName: selected.deviceName,
-						ip: selected.ip
-					})
-				});
-
-				if (response.ok) {
-					toast.success('Device added');
-					await fetchDevices();
+					};
 				} else {
-					toast.error('Failed to add device');
+					// Saved device - spread layout with system stats
+					tile.className = 'device-tile' + (dev.status === 'online' ? ' active' : '');
+					
+					// Build system stats display
+					let statsHtml = '';
+					if (dev.systemStats && dev.status === 'online') {
+						const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
+						const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
+						const tempColor = dev.systemStats.temperature > 78 ? '#f87171' : dev.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
+						const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
+						statsHtml = `<div class="device-stats">
+							<span style="color:${cpuColor};">CPU ${dev.systemStats.cpu}%</span>
+							<span style="color:${tempColor};">TEMP ${tempF}°F</span>
+							<span style="color:${memColor};">MEM ${dev.systemStats.memory.percent}%</span>
+						</div>`;
+					}
+					
+					tile.innerHTML = `
+						<div class="device-tile-main">
+							<strong style="font-size:15px;">${dev.name}</strong>
+							<span class='mono' style="font-size:12px;">${dev.id}</span>
+						</div>
+						<div class="device-tile-info mono">
+							<span>Group: ${dev.group}</span>
+							<span>IP: ${dev.ip}</span>
+							<span>Source: ${dev.currentSource || 'None'}</span>
+							<span style='color:${dev.status==='online'?'rgb(129, 193, 39)':'#888'};'>${dev.status}</span>
+						</div>
+						${statsHtml}
+					`;
+					tile.onclick = () => window.location.href = `/device.html?id=${encodeURIComponent(dev.id)}`;
 				}
+				
+				container.appendChild(tile);
+			});
+		}
+
+		// Add Device Modal
+		const showAddDeviceModal = async () => {
+			try {
+				const res = await fetch('/api/discovered-devices');
+				const data = await res.json();
+				const discovered = data.devices || [];
+
+				if (discovered.length === 0) {
+					toast.warning('No devices discovered. Make sure clients are powered on.');
+					return;
+				}
+
+				const options = discovered.map(dev => `${dev.deviceName} (${dev.deviceId}) - ${dev.ip}`);
+				const choice = await modal.select('Select a device to add:', options, 'Add Device');
+
+				if (choice !== null) {
+					const selected = discovered[choice];
+					const response = await fetch(`/api/device/${selected.deviceId}`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							deviceId: selected.deviceId,
+							deviceName: selected.deviceName,
+							ip: selected.ip
+						})
+					});
+
+					if (response.ok) {
+						toast.success('Device added');
+						await fetchDevices();
+					} else {
+						toast.error('Failed to add device');
+					}
+				}
+			} catch (e) {
+				toast.error('Error adding device');
 			}
-		} catch (e) {
-			toast.error('Error adding device');
-		}
-	};
+		};
 
-	// Initialize WebSocket connection
-	const ws = initWebSocket();
+		// Initialize WebSocket connection
+		const ws = initWebSocket();
 
-	// Handle device updates from WebSocket
-	ws.onDevicesUpdate = (devices) => {
-		window.devices = devices;
-		renderDevices();
-	};
+		// Handle device updates from WebSocket
+		ws.onDevicesUpdate = (devices) => {
+			window.devices = devices;
+			renderDevices();
+		};
 
-	// Handle discovered devices updates from WebSocket
-	ws.onDiscoveredDevicesUpdate = (discoveredDevices) => {
-		console.log('Discovered devices updated via WebSocket:', discoveredDevices);
-		fetchDevices(); // Refresh the devices list
-	};
+		// Handle discovered devices updates from WebSocket
+		ws.onDiscoveredDevicesUpdate = (discoveredDevices) => {
+			console.log('Discovered devices updated via WebSocket:', discoveredDevices);
+			fetchDevices(); // Refresh the devices list
+		};
 
-	// Handle viewer updates from WebSocket
-	ws.onViewersUpdate = (viewers) => {
-		activeViewers = viewers;
-		// Only update display if updateViewersDisplay function exists
-		if (typeof updateViewersDisplay === 'function') {
-			updateViewersDisplay();
-		}
-	};
+		// Handle viewer updates from WebSocket
+		ws.onViewersUpdate = (viewers) => {
+			activeViewers = viewers;
+			// Only update display if updateViewersDisplay function exists
+			if (typeof updateViewersDisplay === 'function') {
+				updateViewersDisplay();
+			}
+		};
 
-	// Initial load
-	fetchDevices();
+		// Initial load
+		fetchDevices();
 
-	const pageLogo = document.getElementById('topbarLogo');
-	const topbarHeight = document.querySelector('.topbar').clientHeight;
-	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
-	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+		const pageLogo = document.getElementById('topbarLogo');
+		const topbarHeight = document.querySelector('.topbar').clientHeight;
+		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
 
-</script>
+	</script>
 </body>
 </html>

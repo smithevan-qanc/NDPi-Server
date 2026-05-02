@@ -5,7 +5,6 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Update Your PIN | NDPi Monitor</title>
 	<link rel="stylesheet" href="/styles_ii.css">
-	<script src="/functions.js"></script>
 	<script src="/auth.js"></script>
 	<link rel="icon" type="image/svg+xml" href="/assets/nlcsvg-square-outline-filled.svg">
 	<style>
@@ -51,40 +50,8 @@
 			</form>
 		</div>
 	</div>
-
+	<script src="/functions.js"></script>
 	<script>
-		// Initialize UI scale from saved setting
-		/*
-		const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
-		const scaleDecimal = savedScale / 100;
-		document.body.style.zoom = scaleDecimal;
-		if (!document.body.style.zoom) {
-		document.body.style.transform = `scale(${scaleDecimal})`;
-		document.body.style.transformOrigin = 'top left';
-		}
-
-		// Check authentication and first-time status
-		const accountData = localStorage.getItem('ndpi_account');
-		if (!accountData) {
-			window.location.href = '/signin.html';
-		} else {
-			const account = JSON.parse(accountData);
-			
-			// If not first time login, redirect to dashboard
-			if (!account.firstTimeLogin) {
-				window.location.href = '/';
-			}
-			
-			
-		}
-			*/
-
-		setScale();
-		let account = {};
-		(async () => {
-			account = await loadUserAccount();
-			setNavigationButtons();
-		})();
 
 		// Show welcome message with name
 		document.getElementById('welcomeMessage').textContent = `Welcome, ${account.firstName}! Please set your own PIN to continue.`;
