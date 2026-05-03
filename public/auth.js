@@ -9,7 +9,7 @@ let account = null;
     }
 })();
 
-(async function loadUserAccount() {
+async function loadUserAccount() {
     const token = localStorage.getItem('ndpi_token');
     if (!token) {
         redirectSignIn();
@@ -30,7 +30,7 @@ let account = null;
     } catch (error) {
         console.error(error);
     }
-})();
+}
 
 async function signIn(pin) {
     if (pin.length !== 4 && pin.length !== 6) {

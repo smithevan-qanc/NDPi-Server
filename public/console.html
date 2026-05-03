@@ -40,9 +40,9 @@
 			<div class="card" style="grid-column: 1 / -1;">
 				<div class="card-content" style="gap: 1vh;">
 					<div id="console-viewer" style="display: flex; flex: 1; flex-direction: column; justify-content: end; overflow: scroll; scrollbar-width: none;"></div>
-                    <div class="form-input" id="promptContainer" style="display: flex; align-items: center; padding-right: 10px;">
+                    <div class="form-input" id="promptContainer" style="display: flex; align-items: center; padding-right: 10px; gap: 10px;">
                         <div id="pwd-label" style="font-family: 'Courier New', Courier, monospace; letter-spacing: 0.5px; font-size: 12px; text-align: end; width: min-content;  text-wrap-mode: nowrap;">~ $</div>
-                        <input id="promptIn" type="text" class="console-input" autocorrect="off" autocapitalize="off" autofocus></input>
+                        <input id="promptIn" type="text" class="console-input" style="border-left-color: rgba(0, 0, 0, 0) !important; border-left-width: 2px !important;" autocorrect="off" autocapitalize="off"></input>
                     </div>
 				</div>
 			</div>
@@ -55,34 +55,94 @@
 			applyActiveNav('navAccount');
 		})();
 
-		// Initialize WebSocket for real-time updates
-		const ws = initConsole();
+		async function initPage(account) {
+			if (!account) return;
+			
+			const ws = initConsole();
 
-		const promptEl = document.getElementById('promptIn');
+			const promptEl = document.getElementById('promptIn');
 
-		promptEl.addEventListener('keydown', function(e) {
-			if (e.key === 'Enter') {
-				e.preventDefault();
-				sendCommand();
-			}
-		});
+			promptEl.addEventListener('change', (e) => {
+				promptEl.style.setProperty(
+					'border-left-color',
+					'rgba(0, 0, 0, 0)',
+					'important'
+				);
+			})
 
-		document.addEventListener('keydown', (e) => {
-			if (e.ctrlKey) return;
-			if (e.metaKey) return;
-			if (/^F[1-9][0-2]?$/.test(e.key)) return;
+			promptEl.addEventListener('keydown', function(e) {
+				promptEl.style.setProperty(
+					'border-left-color',
+					'rgba(0, 0, 0, 0)',
+					'important'
+				);
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					sendCommand();
+				}
+			});
 
-			if (e.code.startsWith('Key') && document.activeElement !== promptEl) {
-				promptEl.focus();
-			}
-		});
+			document.addEventListener('keydown', (e) => {
 
-		document.addEventListener("visibilitychange", () => {
-			if (document.visibilityState === "visible") {
-				promptEl.focus();
-			}
-		});
+				// Clear Console
+				if (e.key === 'k' && e.metaKey) {
+					const consoleEl = document.getElementById('console-viewer');
+					if (!consoleEl) return;
+					const connectionLine = consoleEl.firstChild;
+					consoleEl.innerHTML = '';
+					consoleEl.appendChild(connectionLine);
+					return;
+				}
 
+				// Kill Process
+				if (e.key === 'c' && e.ctrlKey) {
+					killProcess();
+					return;
+				}
+
+				if (
+					e.ctrlKey ||
+					e.metaKey ||
+					e.altKey ||
+					e.key.startsWith('F')
+				) return;
+
+				// Focus Prompt TB on type start
+				if (e.code.startsWith('Key') && document.activeElement !== promptEl) {
+					promptEl.focus();
+				}
+
+			});
+
+			setInterval(() => {
+				if (document.activeElement === promptEl || promptEl.value !== '') {
+					promptEl.style.setProperty(
+						'border-left-color',
+						'rgba(0, 0, 0, 0)',
+						'important'
+					);
+					return;
+				}
+				promptEl.style.setProperty(
+					'border-left-color',
+					'rgba(129, 193, 39, 1)',
+					'important'
+				);
+				setTimeout(() => {
+					promptEl.style.setProperty(
+						'border-left-color',
+						'rgba(0, 0, 0, 0)',
+						'important'
+					);
+				}, 500);
+			}, 1000);
+
+			document.addEventListener("visibilitychange", () => {
+				if (document.visibilityState === "visible") {
+					promptEl.focus();
+				}
+			});
+		}
 
 		const pageLogo = document.getElementById('topbarLogo');
 		const topbarHeight = document.querySelector('.topbar').clientHeight;

@@ -65,10 +65,22 @@ class NDPiWebSocket {
         }
     }
 
-    onLinePush(data) {
+    onLinePush(data, reset = false) {
         const consoleEl = document.getElementById('console-viewer');
         const newLine = document.createElement('pre');
-        newLine.innerHTML = `${data.text}`;
+        const txt = String(data.text);
+        if (reset) consoleEl.innerHTML = '';
+
+        // handle HTML tags.
+        if (txt.includes('<br>')) {
+            newLine.innerHTML = txt;
+        } else if (txt.includes('<font')) {
+            newLine.innerHTML = txt;
+        } else if (txt.includes('<') || txt.includes('>')) {
+            newLine.textContent = txt;
+        } else {
+            newLine.innerHTML = txt;
+        }
         newLine.className = 'console-line'
         if (data.color) newLine.style.color = data.color;
         if (data.weight) newLine.style.fontWeight = data.weight;
@@ -90,7 +102,7 @@ class NDPiWebSocket {
                             text: response.message || '',
                             color: '#9a9a9a',
                             weight: '400'
-                        });
+                        }, true);
                     });
                 }
                 document.getElementById('pwd-label').innerHTML = 
@@ -162,6 +174,17 @@ function initConsole() {
         return consoleWS;
     } else {
         return null;
+    }
+}
+
+function killProcess() {
+    if (
+        consoleWS.ws &&
+        consoleWS.ws.readyState === WebSocket.OPEN
+    ) {
+        consoleWS.ws.send(JSON.stringify({
+            type: 'command-kill',
+        }));
     }
 }
 

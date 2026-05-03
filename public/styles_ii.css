@@ -826,9 +826,11 @@ label {
 .console-input {
 	font-family: 'Courier New', Courier, monospace;
 	letter-spacing: 0.5px;
-	border: none !important;
+	border-color: transparent !important;
 	box-shadow: none !important;
-	padding: 0 0 0 10px !important;
+	padding: 0 0 0 0 !important;
+	border-radius: 0 !important;
+	text-decoration-line: none;
 	font-weight: 600;
     background: rgba(255, 255, 255, 0) !important;
     color: #e1e1e1 !important;

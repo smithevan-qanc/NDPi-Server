@@ -17,7 +17,7 @@ const os                    = require('os');
 const bonjour               = require('bonjour')();
 const fs                    = require('fs');
 const crypto                = require('crypto');
-const { spawn }             = require('child_process');
+const { spawn, ChildProcess }             = require('child_process');
 const { exec }              = require('child_process');
 const util                  = require('util');
 //const exec                  = util.promisify(require('child_process').exec)
@@ -258,11 +258,11 @@ wsConsole.on('connection', async (_ws) => {
     const CRLFArray = string => string.split(/\r?\n/);
     const socketID = crypto.randomUUID();
     let child = null;
-    let workingDir = await printWorkingDirectory();
+    let workingDir = await __printWorkingDirectory();
     guiConsoleUsers.set(socketID, _ws);
     
     // Get the current working directory upon initial connection.
-    async function printWorkingDirectory() {
+    async function __printWorkingDirectory() {
         console.log('Printing Working Directory');
         let response = '';
         await new Promise((resolve) => {
@@ -284,11 +284,40 @@ wsConsole.on('connection', async (_ws) => {
                 console.log('PWD Error: ', output);
                 response = output;
             });
+            child.on('exit', () => {
+                child = null;
+            });
             child.on('close', () => {
                 resolve();
             });
         });
         return response;
+    }
+
+    // Session function reference used to send responses back to client GUI
+    // data: Array of command response lines.
+    // Send 'keepOpen' as false to allow the browser terminal to re-enable.
+    function __respond(data, keepOpen = true) {
+        _ws.send(JSON.stringify({
+            type: 'response',
+            data: data,
+            keepOpen: keepOpen,
+            pwd: workingDir,
+        }));
+    }
+
+    function __killChildProcess() {
+        if (child) {
+            const procID = Math.floor(child.pid + 1);
+            console.log('GUI Console Kill Command Received.', 'PID:', procID);
+            if (procID > 10) {
+                try {
+                    process.kill(procID, 'SIGTERM');
+                } catch (e) {
+                    console.log("Error: Attempted to kill a process that doesn't exist:", procID);
+                }
+            }
+        }
     }
 
     // Send an initial connection message.
@@ -301,26 +330,27 @@ wsConsole.on('connection', async (_ws) => {
         hostname: os.hostname()
     }));
 
-    // Session function reference used to send responses back to client GUI
-    // data: Array of command response lines.
-    // Send 'keepOpen' as false to allow the browser terminal to re-enable.
-    function respond(data, keepOpen = true) {
-        _ws.send(JSON.stringify({
-            type: 'response',
-            data: data,
-            keepOpen: keepOpen,
-            pwd: workingDir,
-        }));
-    }
-
     _ws.on('message', (data) => {
         const message = JSON.parse(data);
 
         // Messages received by this WebSocket only handle message.type 'command'
-        if (message.type !== 'command') return;
+        if (!String(message.type).includes('command')) return;
+
+        if (message.type === 'command-kill') {
+            __killChildProcess();
+            __respond([{
+                message: null,
+                font: {
+                    color: '#e1e1e1',
+                    weight: '400',
+                },
+            }], false);
+            return;
+        }
 
         // exec() options
         let options = {
+            detached: true,
             env: {
                 ...process.env,
                 DISPLAY: ':0',
@@ -336,21 +366,22 @@ wsConsole.on('connection', async (_ws) => {
             commandAmpParse = [ `${message.command}` ];
         }
 
-        processCommands(commandAmpParse);
+        ___processCommands(commandAmpParse);
 
-        async function processCommands(commands = []) {
+        async function ___processCommands(commands = []) {
             let promptID = crypto.randomUUID();
             let loopError = false;
             let currentCount = 0;
             let totalCount = commands.length;
             console.log('Processing Command Batch: ');
-            console.log(`${promptID}`.toUpperCase(), JSON.stringify(commandAmpParse, null, 2));
+            console.log(`${promptID}:`.toUpperCase(), JSON.stringify(commandAmpParse));
 
             for (const command of commands) {
+
                 if (loopError) break;
 
                 currentCount++
-                console.log(`Running Command ${currentCount} of ${totalCount} from GUI`, command);
+                console.log(`Running Command ${currentCount} of ${totalCount} from GUI: [${command}]`);
 
                 await new Promise((resolve) => {
                     child = exec(command, options);
@@ -359,14 +390,14 @@ wsConsole.on('connection', async (_ws) => {
                         const outputArry = [];
                         CRLFArray(output).forEach((line) => {
                             outputArry.push({
-                                message: `${line}`,
+                                message: String(line),
                                 font: {
                                     color: '#e1e1e1',
-                                    weight: `${line}`.includes('*') ? '600' : '400',
+                                    weight: String(line).includes('*') ? '600' : '400',
                                 },
                             });
                         });
-                        respond(outputArry);
+                        __respond(outputArry);
                     });
                     child.stderr.on('data', (data) => {
                         loopError = true;
@@ -374,19 +405,20 @@ wsConsole.on('connection', async (_ws) => {
                         const outputArry = [];
                         CRLFArray(output).forEach((line) => {
                             outputArry.push({
-                                message: `${line}`,
+                                message: String(line),
                                 font: {
                                     color: '#ff0000',
-                                    weight: `${line}`.includes('*') ? '600' : '400',
+                                    weight: String(line).includes('*') ? '600' : '400',
                                 },
                             });
                         });
-                        respond(outputArry);
+                        console.log('stderr.on data:', outputArry);
+                        __respond(outputArry);
                     });
                     child.on('error', (err) => {
                         loopError = true;
                         const output = err.toString().trim();
-                        respond([{
+                        __respond([{
                             message: output,
                             font: {
                                 color: '#b00000',
@@ -407,13 +439,18 @@ wsConsole.on('connection', async (_ws) => {
                             } else {
                                 workingDir += `/${parseCmdArgs[1]}`;
                             }
+                            if (`${workingDir}`.includes('//')) {
+                                `${workingDir}`.replaceAll('//', '/');
+                            }
                             options.cwd = workingDir;
                             console.log('Session Directory Update: ', workingDir);
                         }
+                        child = null;
+                        resolve();
                     });
                     child.on('close', () => {
                         if (currentCount === totalCount || loopError) {
-                            respond([{
+                            __respond([{
                                 message: null,
                                 font: {
                                     color: '#e1e1e1',
@@ -421,22 +458,25 @@ wsConsole.on('connection', async (_ws) => {
                                 },
                             }], false);
                         }
-                        resolve();
                     });
                 });
-                child = null;
             }
             console.log('Batch ', `${promptID}`.toUpperCase(), ` ${loopError ? 'ERROR. EXIT' : 'COMPLETE'}`);
         }
     });
+
     _ws.on('error', (error) => {
         console.error('Console WebSocket Error:', error);
     });
+    
     _ws.on('close', () => {
-        if (child) child.kill('SIGKILL');
+        __killChildProcess();
         guiConsoleUsers.delete(socketID);
     });
 });
+setInterval(() => {
+    console.log('Active GUI Console Count:', guiConsoleUsers.size);
+}, 5000);
 /** HTTP Server Application
  *  @param PORT 3000
  *  @const _api @function express() - Server Application Framework
