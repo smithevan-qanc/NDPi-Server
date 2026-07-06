@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -e
 TMP=$(mktemp)
-trap "rm -f $TMP" EXIT
+
+#    Read Current EEPROM Configuration
+sudo rpi-eeprom-config > "$TMP"
 
 declare -A SETTINGS=(
     [BOOT_DELAY]=0
@@ -9,9 +11,6 @@ declare -A SETTINGS=(
     [DISABLE_HDMI]=1
     [POWER_OFF_ON_HALT]=1
 )
-
-#    Read Current EEPROM Configuration
-sudo rpi-eeprom-config > "$TMP"
 
 for KEY in "${!SETTINGS[@]}"; do
     VALUE="${SETTINGS[$KEY]}"
