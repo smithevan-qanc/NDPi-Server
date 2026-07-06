@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -e
+TMP=$(mktemp)
+trap "rm -f $TMP" EXIT
+
+declare -A SETTINGS=(
+    [BOOT_DELAY]=0
+    [BOOT_UART]=0
+    [DISABLE_HDMI]=1
+    [POWER_OFF_ON_HALT]=1
+)
+
+#    Read Current EEPROM Configuration
+sudo rpi-eeprom-config > "$TMP"
+
+for KEY in "${!SETTINGS[@]}"; do
+    VALUE="${SETTINGS[$KEY]}"
+
+    if grep -q "^${KEY}=" "$TMP"; then
+        sudo sed -i "s/^${KEY}=.*/${KEY}=${VALUE}/" "$TMP"
+    else
+        echo "${KEY}=${VALUE}" | sudo tee -a "$TMP" > /dev/null
+    fi
+
+done
+
+#   Apply new EEPROM Configuration
+sudo rpi-eeprom-config --apply "$TMP"
+
+#   Remove EEPROM Configuration /tmp file.
+rm -f "$TMP"
+echo ""
+echo "Current EEPROM Configuration"
+sudo rpi-eeprom-config
+echo ""
