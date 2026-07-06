@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="/styles.css">
+		<title>Not Found | NDPi Monitor</title>
+		<link rel="icon" type="image/svg+xml" href="/media/favicon.svg">
+	</head>
+	<body class="hide-scrollbar">
+		<div id="wallpaper"></div>
+		<div class="auth-container">
+			<div class="auth-card">
+				<img src="/media/logo-page-header.svg" alt="NLC Logo" style="width: 120px; height: 120px; display: block; margin: 0 auto 10px auto;">
+				<h1 class="auth-title">Not Found</h1>
+				<p class="auth-subtitle">This page has moved or does not exist.</p>
+			</div>
+		</div>
+		<script>
+			// Initialize UI scale from saved setting
+			const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+			const scaleDecimal = savedScale / 100;
+			document.body.style.zoom = scaleDecimal;
+			if (!document.body.style.zoom) {
+				document.body.style.transform = `scale(${scaleDecimal})`;
+				document.body.style.transformOrigin = 'top left';
+			}
+		</script>
+	</body>
+</html>

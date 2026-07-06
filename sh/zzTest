@@ -1,0 +1,433 @@
+#!/bin/bash
+set -e
+
+USER="ndpi-client"
+IP="192.168.2.45"
+
+consoleColors() {
+    NC='\033[0m' # No Color
+    R='\033[1;31m'
+    G='\033[1;32m'
+    Y='\033[1;33m'
+    B='\033[1;34m'
+    INFO='\033[1;37m'
+}
+
+# Logging functions
+log_info() {
+    echo -e "${B}     INFO ╮${NC}"
+    echo -e "${B}          ╰⸺▶ ${INFO}$1${NC}"
+}
+ext_info() {
+    echo -e "${B}          ╰⸺▶ ${INFO}$1${NC}"
+}
+log_error() {
+    echo -e "${R}    ERROR ╮${NC}"
+    echo -e "${R}          ╰⸺▶ ${INFO}$1${NC}"
+}
+ext_error() {
+    echo -e "${R}          ╰⸺▶ ${INFO}$1${NC}"
+}
+log_success() {
+    echo -e "${G}  SUCCESS ╮${NC}"
+    echo -e "${G}          ╰⸺▶ ${INFO}$1${NC}"
+}
+ext_success() {
+    echo -e "${G}          ╰⸺▶ ${INFO}$1${NC}"
+}
+
+standBy() {
+
+    log_info "Current Node Versions"
+    ext_info "    nvm - $(ssh "${USER}@${IP}" "nvm -v")"
+    ext_info "Node.js - $(ssh "${USER}@${IP}" "node -v")"
+    ext_info "    npm - $(ssh "${USER}@${IP}" "npm -v")"
+
+
+    echo -e "${INFO}Checking Node Version..."
+    if ssh "${USER}@${IP}" "
+        node -v
+    "; then
+        echo -e "${NC}"
+    fi
+    echo -e "${NC}"
+
+    # Check if nvm is already installed
+    if ! ssh "${USER}@${IP}" "
+        nvm -v >/dev/null 2>&1
+    "; then
+        log_info "Installing Node Version Manager..."
+        if ! ssh "${USER}@${IP}" "
+            set -e
+            curl -o- ${NVM_URL} | bash
+        "; then
+            log_error "Node Version Manager failed to install"
+            exit 1
+        fi
+    fi
+    ######
+    local output=$(ssh "${USER}@${IP}" "node -v" 2>/dev/null)
+    local check="20"
+
+    if [[ $output == *"v$check"* ]]; then
+        echo "-- TRUE ${output}"
+    else
+        echo "-- FALSE ${output}"
+    fi
+    ######
+    local nvmVerChk="$(ssh "${USER}@${IP}" "nvm -v" 2>/dev/null)"
+    if [ "$nvmVerChk" != "" ]; then
+        echo $nvmVerChk
+    fi
+
+    local nodeVerChk="$(ssh "${USER}@${IP}" "node -v" 2>/dev/null)"
+    if [ "$nodeVerChk" != "" ]; then
+        echo $nodeVerChk
+    fi
+
+    local npmVerChk="$(ssh "${USER}@${IP}" "npm -v" 2>/dev/null)"
+    if [ "$npmVerChk" != "" ]; then
+        echo $npmVerChk
+    fi
+    #######
+    local nvmVerChk="$(ssh "${USER}@${IP}" "nvm -v" 2>/dev/null)"
+    if [ "$nvmVerChk" = "" ]; then
+        log_info "Installing Node Version Manager..."
+        local nvmVerChk="$(ssh "${USER}@${IP}" "npm -v" 2>/dev/null)"
+    fi
+
+    if [ "$nvmVerChk" = "" ]; then
+        ext_error "Installing Node Version Manager FAILED..."
+        exit 1
+    else
+        ext_success "Node Version Manager (${nvmVerChk}) Installed"
+    fi
+
+    echo $(head -n 1 version-git.txt)
+
+}
+
+# Node Version Manager Download URL
+NVM_URL="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh"
+INSTALL_NODE_VER="20"
+
+DEVICE_ROOT_DIR="/home/${USER}"
+INSTALL_DIR="${DEVICE_ROOT_DIR}/ndpi"
+
+REMOTE_DIR_ROOT="$(ssh "${USER}@${IP}" 'echo $HOME')"
+REMOTE_DIR_PGM="${REMOTE_DIR_ROOT}/ndpi"
+
+getNvmVer() {
+    ssh "${USER}@${IP}" '
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+        nvm -v
+    ' 2>/dev/null
+}
+
+getDesktopManager_v1() {
+    ssh "${USER}@${IP}" \
+    "loginctl show-session \$(loginctl | awk '/tty|seat/ {print \$1; exit}') -p Type --value"
+}
+
+getDesktopManager_v2() {
+    ssh "${USER}@${IP}" \
+    "loginctl list-sessions --no-legend | awk 'NR==1 {print \$1}' | xargs -I{} loginctl show-session {} -p Type --value"
+}
+
+getDesktopManager_v3() {
+    ssh "${USER}@${IP}" 'bash -s' <<'EOF'
+session=$(loginctl list-sessions --no-legend | awk 'NR==1 {print $1}')
+loginctl show-session "$session" -p Type --value
+EOF
+}
+
+progress_bar() {
+    local duration=$1
+    local steps=50
+    local sleep_time=$(awk "BEGIN {print $duration/$steps}")
+
+    for ((i=0; i<=steps; i++)); do
+        local percent=$(( i * 100 / steps ))
+
+        printf "\r[%-50s] %3d%%" "$(printf '%*s' "$i" | tr ' ' '#')" "$percent"
+        sleep "$sleep_time"
+    done
+    echo
+}
+
+wait_for_ssh() {
+    local host="$1"
+    local user="$2"
+    local timeout="${3:-120}"   # max seconds to wait
+    local interval=2            # seconds between attempts
+    local elapsed=0
+
+    while true; do
+        if ssh -o ConnectTimeout=2 \
+               -o BatchMode=yes \
+               -o StrictHostKeyChecking=no \
+               "${user}@${host}" "exit" 2>/dev/null; then
+            echo ""
+            return 0
+        fi
+
+        if (( elapsed >= timeout )); then
+            log_error "TIMEOUT"
+            ext_error "Took too long to reconnect."
+            return 1
+        fi
+
+        printf "\rWaiting for Reboot... %ds/%ds" "$elapsed" "$timeout"
+        sleep "$interval"
+        ((elapsed+=interval))
+    done
+}
+
+reboot_wait() {
+    local host="${1:-$IP}"
+    local user="${2:-$USER}"
+    local timeout="${3:-180}"
+    local interval=2
+    local elapsed=0
+
+    echo -e "${B}     INFO ╮${NC}"
+    echo -e "${B}          ╰⸺▶ ${INFO}Rebooting Device"
+
+    ssh "${user}@${host}" "sudo reboot"
+    sleep 1
+
+    printf  "${B}          ╰⸺▶ ${INFO}Waiting for device online."
+
+
+    # Phase 1: wait for SSH to accept connections
+    while ! ssh -o ConnectTimeout=3 \
+                 -o BatchMode=yes \
+                 -o StrictHostKeyChecking=no \
+                 "${user}@${host}" "exit" 2>/dev/null; do
+
+        printf "."
+        sleep "$interval"
+        ((elapsed+=interval))
+
+        if (( elapsed >= timeout )); then
+            echo -e "${NC}"
+            return 1
+        fi
+    done
+
+    echo -e "${NC}"
+
+    # Reset timer for next phase
+    elapsed=0
+
+    # Phase 2: wait for systemd to report fully running
+    while true; do
+        state=$(ssh -o ConnectTimeout=3 \
+                    -o BatchMode=yes \
+                    "${user}@${host}" "systemctl is-system-running" 2>/dev/null)
+
+        if [[ "$state" == "running" ]]; then
+            return 0
+        fi
+
+        sleep "$interval"
+        ((elapsed+=interval))
+
+        if (( elapsed >= timeout )); then
+            log_error "Systemctl not responding"
+            ext_error "Last Known State: $state"
+            return 1
+        fi
+    done
+}
+
+activateX11() {
+    local target="x11"
+
+    # Check if x11 is already set using all 3 methods.
+    local display=$(getDesktopManager_v1)
+    if [ "$display" = "$target" ]; then
+        return
+    fi
+    local display=$(getDesktopManager_v2)
+    if [ "$display" = "$target" ]; then
+        return
+    fi
+    local display=$(getDesktopManager_v3)
+    if [ "$display" = "$target" ]; then
+        return
+    else
+        log_info "Switching to $target"
+        ssh "${USER}@${IP}" "sudo raspi-config nonint do_wayland W1"
+        reboot_wait
+        ext_success "Device ready"
+    fi
+}
+
+del() {
+    printf "#!/bin/bash
+set -e
+
+# This script is executed on the remote machine automatically after the update from GitHub is downloaded.
+# Write the script (if any is required) inside the install() function below.
+
+# NOTE:
+#   The contents of this file will RESET automatically after running 'updateGit.sh'.
+
+install() {
+    # Write Update Script Here
+    echo \"INSTALLING UPDATE\"
+}
+install
+
+echo \"INSTALLATION COMPLETE\"" > "sh/install-update"
+}
+
+    # reboot_wait "$IP" "$USER" 120
+create_service_file() {
+    #local dir="$(ssh "${USER}@${IP}" 'echo $HOME')"
+    #echo "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    
+    #   echo "$(cd "$(dirname "${0}")" && pwd)"
+    #   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    #   Prints: The full path location of the current shell script
+
+    #   cd "$(dirname "${0}")"
+    #   ^^^^^^^^^^^^^^^^^^^^^^
+    #   Change Directory: The full path location of the current shell script
+    
+
+    #   echo "$(cd "$(dirname "${0}")/.." && pwd)"
+    #   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    #   Prints: The full path of the parent directory
+
+    #   cd "$(dirname "${0}")/.."
+    #   ^^^^^^^^^^^^^^^^^^^^^^^^^
+    #   Change Directory: The full path of the parent directory
+
+    #echo "$(ssh "${USER}@${IP}" 'ls')"
+
+    local FILE_NAME="ndpi.txt"
+    local FILE_CONTENTS="
+[Unit]
+Description=NDPi Monitor - Client Node
+After=network.target avahi-daemon.service
+
+[Service]
+Type=simple
+User=${USER}
+WorkingDirectory=${REMOTE_DIR_PGM}
+ExecStart=/usr/bin/node ${REMOTE_DIR_PGM}/client.js
+Restart=always
+RestartSec=5
+Environment=PATH=/usr/bin:/usr/local/bin
+Environment=LD_LIBRARY_PATH=${REMOTE_DIR_PGM}
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=multi-user.target
+"
+    # > /dev/null
+
+    local UNIT_01="Description=NDPi Monitor - Client Node"    
+    local UNIT_02="After=network.target avahi-daemon.service"
+    local UNIT_03=""
+    local UNIT_04=""
+
+    local SERVICE_01="Type=simple"
+    local SERVICE_02="User=${USER}"
+    local SERVICE_03="WorkingDirectory=${REMOTE_DIR_PGM}"
+    local SERVICE_04="ExecStart=/usr/bin/node ${REMOTE_DIR_PGM}/client.js"
+    local SERVICE_05="Restart=always"
+    local SERVICE_06="RestartSec=5"
+    local SERVICE_07="Environment=PATH=/usr/bin:/usr/local/bin"
+    local SERVICE_08="Environment=LD_LIBRARY_PATH=${REMOTE_DIR_PGM}"
+    local SERVICE_09="Environment=DISPLAY=:0"
+    local SERVICE_10=""
+    local SERVICE_11=""
+    local SERVICE_12=""
+    local SERVICE_13=""
+    local SERVICE_14=""
+    local SERVICE_15=""
+    local SERVICE_16=""
+    local SERVICE_17=""
+    local SERVICE_18=""
+    local SERVICE_19=""
+    local SERVICE_20=""
+
+    local INSTALL_01="WantedBy=multi-user.target"
+    local INSTALL_02=""
+    local INSTALL_03=""
+    local INSTALL_04=""
+
+    local teeCmd="sudo tee -a /tmp/${FILE_NAME}"
+
+    ssh "${USER}@${IP}" "
+        echo '[Unit]' | sudo tee /tmp/${FILE_NAME}
+        echo '${UNIT_01}'    | ${teeCmd}
+        echo '${UNIT_02}'    | ${teeCmd}
+        #echo '${UNIT_03}'    | ${teeCmd}
+        #echo '${UNIT_04}'    | ${teeCmd}
+        echo ''              | ${teeCmd}
+        echo '[Service]'     | ${teeCmd}
+        echo '${SERVICE_01}' | ${teeCmd}
+        echo '${SERVICE_02}' | ${teeCmd}
+        echo '${SERVICE_03}' | ${teeCmd}
+        echo '${SERVICE_04}' | ${teeCmd}
+        echo '${SERVICE_05}' | ${teeCmd}
+        echo '${SERVICE_06}' | ${teeCmd}
+        echo '${SERVICE_07}' | ${teeCmd}
+        echo '${SERVICE_08}' | ${teeCmd}
+        echo '${SERVICE_09}' | ${teeCmd}
+        #echo '${SERVICE_10}' | ${teeCmd}
+        #echo '${SERVICE_11}' | ${teeCmd}
+        #echo '${SERVICE_12}' | ${teeCmd}
+        #echo '${SERVICE_13}' | ${teeCmd}
+        #echo '${SERVICE_14}' | ${teeCmd}
+        #echo '${SERVICE_15}' | ${teeCmd}
+        #echo '${SERVICE_16}' | ${teeCmd}
+        #echo '${SERVICE_17}' | ${teeCmd}
+        #echo '${SERVICE_18}' | ${teeCmd}
+        #echo '${SERVICE_19}' | ${teeCmd}
+        #echo '${SERVICE_20}' | ${teeCmd}
+        echo ''              | ${teeCmd}
+        echo '[Install]'     | ${teeCmd}
+        echo '${INSTALL_01}' | ${teeCmd}
+        #echo '${INSTALL_02}' | ${teeCmd}
+        #echo '${INSTALL_03}' | ${teeCmd}
+        #echo '${INSTALL_04}' | ${teeCmd}
+    "
+    echo ""
+    echo "Reading File..."
+    echo ""
+
+    ssh "${USER}@${IP}" "cat /tmp/${FILE_NAME}"
+
+}
+
+testZone() {
+    local FileName="$(head -n 2 ${LOCAL_DIR}/config/picom/00path)"
+    echo $FileName   
+}
+
+
+sleepTime() {
+    sleep 5
+}
+##
+##
+##
+##
+
+consoleColors
+
+#
+
+ testZone
+
+
+##
+##
+##
+##

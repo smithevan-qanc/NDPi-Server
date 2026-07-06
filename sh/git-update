@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -e
+
+print_prepare_to_update() {
+    printf "\n"
+    printf P
+    sleep 0.05
+    printf R
+    sleep 0.05
+    printf E
+    sleep 0.05
+    printf P
+    sleep 0.05
+    printf A
+    sleep 0.05
+    printf R
+    sleep 0.05
+    printf I
+    sleep 0.05
+    printf N
+    sleep 0.05
+    printf G
+    sleep 0.05
+    printf " "
+    sleep 0.05
+    printf T
+    sleep 0.05
+    printf O
+    sleep 0.05
+    printf " "
+    sleep 0.05
+    printf U
+    sleep 0.05
+    printf P
+    sleep 0.05
+    printf D
+    sleep 0.05
+    printf A
+    sleep 0.05
+    printf T
+    sleep 0.05
+    printf E
+    printf "\n"
+    sleep 1
+}
+
+# cd "$(dirname "${0}")/.."
+cd $HOME/TMP_ndpi
+
+BRANCH="$(head -n 1 version/git)"
+
+git fetch origin $BRANCH
+
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/$BRANCH)
+
+if [ "$LOCAL" != "$REMOTE" ]; then
+    git reset --hard origin/$BRANCH
+
+    chmod +x ./sh/*
+
+    print_prepare_to_update
+
+    ./sh/install-update
+fi
+
+exit 0

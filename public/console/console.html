@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link rel="stylesheet" href="/styles.css">
+	<script src="/scripts/modal.js"></script>
+	<script src="/scripts/auth.js"></script>
+	<title>Console | NDPi Monitor</title>
+	<link rel="icon" type="image/svg+xml" href="/media/favicon.svg">
+</head>
+<body class="hide-scrollbar">
+	<div id="wallpaper"></div>
+	<div id="main-div" class="app">
+		<div class="topbar">
+			<div class="back-btn" onclick="history.back()">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
+  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+				</svg>
+			</div>
+			<div class="topbar-spacer"></div>
+			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
+				<span id="navAccount"></span>
+			</button-->
+			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
+		</div>
+		
+		<div class="bottombar">
+			<div class="bottombar-nav">
+				<button id="navDashboard" class="nav-btn"></button>
+				<button id="navDevices" class="nav-btn"></button>
+				<button id="navGroups" class="nav-btn"></button>
+				<button id="navSettings" class="nav-btn"></button>
+				<button id="navAccount" class="nav-btn"></button>
+			</div>
+		</div>
+
+		<section class="dashboard" style="flex: 1;">
+			<div class="card" style="grid-column: 1 / -1;">
+				<div class="card-content" style="gap: 1vh;">
+					<div id="console-viewer" style="display: flex; flex: 1; flex-direction: column; justify-content: end; overflow: scroll; scrollbar-width: none;"></div>
+                    <div class="form-input" id="promptContainer" style="display: flex; align-items: center; padding-right: 10px; gap: 10px;">
+                        <div id="pwd-label" style="font-family: 'Courier New', Courier, monospace; letter-spacing: 0.5px; font-size: 12px; text-align: end; width: min-content;  text-wrap-mode: nowrap;">~ $</div>
+                        <input id="promptIn" type="text" class="console-input" style="border-left-color: rgba(0, 0, 0, 0) !important; border-left-width: 2px !important;" autocorrect="off" autocapitalize="off"></input>
+                    </div>
+				</div>
+			</div>
+		</section>
+	</div>
+	<script src="/scripts/ws-console.js"></script>
+	<script src="/scripts/functions.js"></script>
+	<script>
+
+		(async () => {
+			applyActiveNav('navAccount');
+		})();
+
+		async function initPage(account) {
+			if (!account) return;
+			
+			const ws = initConsole();
+
+			const promptEl = document.getElementById('promptIn');
+
+			promptEl.addEventListener('change', (e) => {
+				promptEl.style.setProperty(
+					'border-left-color',
+					'rgba(0, 0, 0, 0)',
+					'important'
+				);
+			})
+
+			promptEl.addEventListener('keydown', function(e) {
+				promptEl.style.setProperty(
+					'border-left-color',
+					'rgba(0, 0, 0, 0)',
+					'important'
+				);
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					sendCommand();
+				}
+			});
+
+			document.addEventListener('keydown', (e) => {
+
+				// Clear Console
+				if (e.key === 'k' && e.metaKey) {
+					const consoleEl = document.getElementById('console-viewer');
+					if (!consoleEl) return;
+					const connectionLine = consoleEl.firstChild;
+					consoleEl.innerHTML = '';
+					consoleEl.appendChild(connectionLine);
+					return;
+				}
+
+				// Kill Process
+				if (e.key === 'c' && e.ctrlKey) {
+					killProcess();
+					return;
+				}
+
+				// Paste Text
+				if (e.key === 'v' && e.ctrlKey) {
+					pasteText();
+					return;
+				}
+
+				if (
+					e.ctrlKey ||
+					e.metaKey ||
+					e.altKey ||
+					e.key.startsWith('F')
+				) return;
+
+				// Focus Prompt TB on type start
+				if (e.code.startsWith('Key') && document.activeElement !== promptEl) {
+					promptEl.focus();
+				}
+
+			});
+
+			setInterval(() => {
+				if (document.activeElement === promptEl || promptEl.value !== '' || promptEl.disabled) {
+					promptEl.style.setProperty(
+						'border-left-color',
+						'rgba(0, 0, 0, 0)',
+						'important'
+					);
+					return;
+				}
+				promptEl.style.setProperty(
+					'border-left-color',
+					'rgba(129, 193, 39, 1)',
+					'important'
+				);
+				setTimeout(() => {
+					promptEl.style.setProperty(
+						'border-left-color',
+						'rgba(0, 0, 0, 0)',
+						'important'
+					);
+				}, 500);
+			}, 1000);
+
+			document.addEventListener("visibilitychange", () => {
+				if (document.visibilityState === "visible") {
+					promptEl.focus();
+				}
+			});
+		}
+
+		async function pasteText() {
+			try {
+				const val = await navigator.clipboard.readText();
+				document.getElementById('promptIn').value = val;
+			} catch {}
+		}
+
+		const pageLogo = document.getElementById('topbarLogo');
+		const topbarHeight = document.querySelector('.topbar').clientHeight;
+		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+
+	</script>
+</body>
+</html>

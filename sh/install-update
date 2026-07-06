@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -e
+
+# This script is executed on the remote machine automatically after the update from GitHub is downloaded.
+# Write the script (if any is required) inside the install() function below.
+
+# NOTE:
+#   The contents of this file will RESET automatically after running updateGit.sh.
+
+customInstallInstructions() {
+    # Write Custom Update Script Here
+    sleep 0.1
+}
+
+DEBUG=false
+if [ "$1" == "--debug" ]; then
+    DEBUG=true
+fi
+
+debug() {
+    if [ "$DEBUG" == "true" ]; then
+        if [[ "$1" == "-n" ]]; then
+            echo -ne "$2"
+        else
+            echo "$1"
+        fi
+    fi
+}
+
+install() {
+    echo -ne "INSTALLING UPDATE...\n\n"
+
+    cd $HOME
+    sleep 0.5
+
+    local TMP="$(pwd)/TMP_ndpi"
+    local PGM="$(pwd)/ndpi"
+    debug "    [FROM] $TMP"
+    debug "      [TO] $PGM"
+
+    # read -rp "Install? (y/n) " confirm
+    # if [[ "$confirm" = [yY] ]]; then
+
+    sudo rsync -rvu \
+        --exclude .git \
+        --exclude sh/git-update \
+        "$TMP"/ "$PGM"
+    
+    sleep 0.5
+
+    cd $PGM
+    
+    debug "[Current Dir] $(pwd)"
+    
+    customInstallInstructions
+
+    echo -ne "\nRestarting NDPi Client"
+    sudo systemctl restart ndpi
+    echo -ne "\rINSTALLATION COMPLETE  \n"
+
+    # sudo reboot
+    # else
+    #     echo "INSTALLATION ABORTED"
+    # fi
+}
+
+install

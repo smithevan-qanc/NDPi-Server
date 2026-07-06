@@ -54,6 +54,16 @@ coverage/
 tmp/
 temp/
 
+ndi_discover.cpp
+
+*00path
+*NOTES.txt
+
+
+git-hub-deploy-server
+git-hub-initiate-new
+git-hub-push-update
+
 GitHub-Deploy-Server.sh
 complete-deploy-server.sh
 update-GitHubRepo.sh
@@ -61,10 +71,19 @@ initiateGit.sh
 updateGit.sh
 GitHubRepoUrl.txt
 zzTest.sh
+
+
 VERSION-NOTES.md
 MANUAL-COMMANDS.md
 Setup Docker and Nginx.md
 001 Rsync Public.md
+version/notes
+
+
+
 
 # Un-used Files
 0app.js
+assets/other
+UXPLAY_NDI_QUICK_REF.md
+BUILD_AND_SETUP.md

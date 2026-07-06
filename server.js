@@ -17,13 +17,11 @@ const os                    = require('os');
 const bonjour               = require('bonjour')();
 const fs                    = require('fs');
 const crypto                = require('crypto');
-const { spawn, ChildProcess }             = require('child_process');
-const { exec }              = require('child_process');
-const util                  = require('util');
-//const exec                  = util.promisify(require('child_process').exec)
+const { spawn, exec }       = require('child_process');
 const { stdout, stderr }    = require('process');
 const { DOMParser }         = require('@xmldom/xmldom');
 const { json }              = require('stream/consumers');
+const { clearTimeout, setTimeout }      = require('timers');
 
 const ACCOUNTS_FILE             = path.join(__dirname, 'accounts.json');
 let accounts                    = new Map(); 
@@ -36,8 +34,8 @@ const GROUPS_FILE               = path.join(__dirname, 'groups.json');
 /**
  *  VERSION CONTROL
  */
-const versionCurrent  = path.join(__dirname, 'version-current.txt');
-const versionStable   = path.join(__dirname, 'version-stable.txt');
+const versionCurrent  = path.join(__dirname, 'version', 'current');
+const versionStable   = path.join(__dirname, 'version', 'stable');
 const versionIsStable = versionCurrent === versionStable;
 /** END of - VERSION CONTROL **/
 function startupConsoleLog() {
@@ -164,7 +162,31 @@ wsDevice.on('connection', (_ws) => {
                     client.streamStatus = message.status;
                     client.lastStatusUpdate = new Date().toISOString();
                     clients.set(deviceId, client);
+                    saveClients();
                 }
+
+                ///
+                ///     Try the following for the above 'if' statement
+                ///
+
+                const savedClient = clients.get(deviceId);
+                const updateClient = message;
+                patchObject(savedClient, updateClient);
+                clients.set(deviceId, savedClient);
+                saveClients();
+
+                function patchObject(target, update) {
+                    Object.entries(update).forEach(([key, value]) => {
+                        if (value !== undefined) {
+                            target[key] = value;
+                        }
+                    });
+                    return target;
+                }
+
+                ///
+                /// 
+                ///                 
                 
             } else if (message.type === 'pong') {
                 // Heartbeat response
@@ -185,7 +207,7 @@ wsDevice.on('connection', (_ws) => {
                 const client = clients.get(deviceId);
                 client.streamStatus = 'disconnected';
                 clients.set(deviceId, client);
-                updateDevicesToUI('wsDevice close');
+                saveClients();
             }
         }
     });
@@ -324,7 +346,7 @@ wsConsole.on('connection', async (_ws) => {
     _ws.send(JSON.stringify({ 
         type: 'connected',
         data: [{
-            message: `Connected to NDPi Monitor Server. Session: ${socketID}` ,
+            message: `Connected to NDPi Monitor Server - Session: ${socketID}` ,
         }],
         pwd: workingDir,
         hostname: os.hostname()
@@ -528,437 +550,35 @@ function broadcastViewers(origin = '') {
     console.log('Active Users Online:');
     console.log(viewers);
 }
-async function getRokuTvInfo() {
-    let data = [];
-    await Promise.all(rokuTvs.map(async (tv) => {
-        try {
-            const res = await fetch(`http://${tv.ipAddress}:8060/query/device-info`, {
-                method: 'GET',
-                headers: { 
-                    'Accept': 'application/xml'
-                }
-            });
-            if (!res.ok) {
-                console.log(`Fetched Roku TV`);
-            }
-		    const xmlText = await res.text();
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-            const tag = (tagName) => xmlDoc.getElementsByTagName(tagName)[0]?.textContent || '';
-            /**
-             * Device Type
-             */
-            let deviceType;
-            if (tag('is-stick') === 'true') {
-                deviceType = 'Stick';
-            } else if (tag('is-tv') === 'true') {
-                deviceType = 'TV';
-            } else {
-                deviceType = 'Unknown';
-            }
-            /**
-             * Uptime
-             */
-            const totalSeconds = tag('uptime') ?? '0';
-            const hours = Math.floor(totalSeconds / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = Math.floor(totalSeconds % 60);
-            
-            const pad2 = (num) => {
-                return num.toString().padStart(2, '0');
-            };
-            const uptime = `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
-            /**
-             * MAC
-             */
-            let macAddress;
-            if (tag('network-type') == 'wifi') {
-                macAddress = tag('wifi-mac');
-            } else if (tag('network-type') == 'ethernet') {
-                macAddress = tag('ethernet-mac');
-            }
-            /**
-             * Power Mode
-             */
-            const powerState = {
-                displayValue: tag('power-mode'),
-                isOn: false,
-            };
-            switch (tag('power-mode')) {
-                case 'Ready':
-                    powerState.isOn = false;
-                    break;
-                case 'DisplayOff':
-                    powerState.isOn = false;
-                    break;
-                case 'PowerOn':
-                    powerState.isOn = true;
-                    break;
-                default:
-                    break;
-            }
-            /**
-             * 
-             */
-            const deviceInfo = {
-                deviceType: deviceType,
-                name: tag('friendly-device-name') || tag('user-device-name') || 'Roku TV',
-                room: tag('user-device-location'),
-                screenSize: tag('screen-size'),
-                mfr: tag('vendor-name') || '',
-                id: tag('device-id'),
-                sn: tag('serial-number'),
-                fw: tag('software-version'),
-                uptime: uptime,
-                currentMode: powerState.displayValue,
-                isOn: powerState.isOn,
-                network: {
-                    name: tag('network-name'),
-                    connection: tag('network-type'),
-                    mac: macAddress,
-                },
-                compatibility: {
-                    ecp: tag('ecp-setting-mode') === 'enabled',
-                }
-            };
-            data.push(deviceInfo);
-        } catch(error) {
-            console.log(error);
-        }
-    }));
-    return data;
-}
-async function getNDISources() {
-    return new Promise((resolve, reject) => {
-        try {
-            exec('LD_LIBRARY_PATH=/home/ndpi-server/ndpi-monitor ./ndi-discover 3', (error, stdout, stderr) => {
-                if (error) {
-                    reject(error);
-                    return;
-                }
-                const sources = JSON.parse(stdout.trim());
-                // Set discovered sources 'favorite' to false first.
-                sources.forEach(function (src) {
-                    src.favorite = false;                    
-                });
-                let favoritedSources = [];
-                let favoritedSourcesUpdated = false;
-                try {
-                    if (fs.existsSync(FAVORITED_SOURCES_FILE)) {
-                        const data = fs.readFileSync(FAVORITED_SOURCES_FILE, 'utf8');
-                        favoritedSources = JSON.parse(data);
-                        
-                        // set all favorited sources 'favorite' to true
-                        favoritedSources.forEach(function (src) {
-                            src.favorite = true;
-                        });
-                        
-                        if (!Array.isArray(favoritedSources)) {
-                            favoritedSources = [];
-                        }
-                    }
-                } catch (fileError) {
-                    console.error('Error reading favorited sources:', fileError);
-                    favoritedSources = [];
-                }
-                const mergedSources = [];
-                const usedFavoritedIndices = new Set();
-                for (const discoveredSource of sources) {
-                    /**
-                     *  @const {number} exactMatchIndex
-                     *  -   Evaluates each @const favoritedSources for matching @param name AND @param url to the @const discoveredSource
-                     * 
-                     *  If @const exactMatchIndex - is NOT equal to -1
-                     *  -   Exact Match Found.
-                     *  -   Add the @const discoveredSource to @const mergedSources
-                     */
-                    const exactMatchIndex = favoritedSources.findIndex(fav => 
-                        fav.name === discoveredSource.name && fav.url === discoveredSource.url
-                    );
-                    if (exactMatchIndex !== -1) {
-                        mergedSources.push(favoritedSources[exactMatchIndex]);
-                        usedFavoritedIndices.add(exactMatchIndex);
-                    } else {
-                        /**
-                         *  @const {number} partialMatchIndex
-                         *  -   Evaluates each @const favoritedSources for matching @param name OR @param url to the @const discoveredSource
-                         * 
-                         *  If @const partialMatchIndex - is NOT equal to -1
-                         *  -   Exact Match Found.
-                         *  -   Add the @const discoveredSource to @const mergedSources
-                         *  -   Update the @const favoritedSources with the @const discoveredSource
-                         *  Else
-                         *  -   Add the @const discoveredSource to @const mergedSources
-                         */
-                        const partialMatchIndex = favoritedSources.findIndex(fav =>
-                            fav.name === discoveredSource.name || fav.url === discoveredSource.url
-                        );
-                        if (partialMatchIndex !== -1) {
-                            discoveredSource.favorite = true;
-                            mergedSources.push(discoveredSource);
-                            favoritedSources[partialMatchIndex] = discoveredSource;
-                            usedFavoritedIndices.add(partialMatchIndex);
-                            favoritedSourcesUpdated = true;
-                        } else {
-                            mergedSources.push(discoveredSource);
-                        }
-                    }
-                }
-                /**
-                 *  Add the remaining @const favoritedSources that werent discovered to @const mergedSources
-                 */
-                for (let i = 0; i < favoritedSources.length; i++) {
-                    if (!usedFavoritedIndices.has(i)) {
-                        mergedSources.push(favoritedSources[i]);
-                    }
-                }
-                /**
-                 *  If @const favoritedSources were updated, then save to fs
-                 */
-                if (favoritedSourcesUpdated) {
-                    try {
-                        fs.writeFileSync(FAVORITED_SOURCES_FILE, JSON.stringify(favoritedSources, null, 2));
-                    } catch (saveError) {
-                        console.error('Error saving favorited sources:', saveError);
-                    }
-                }
-                /**
-                 *  Parse IP Port for sorting.
-                 *  @param {string} addr 
-                 *  @returns Last Octet of IP Addr and Port Number w/o colon
-                 */
-                const  ipPortKey = (addr) => {
-                    const match = addr.match(/\.([0-9]+):([0-9]+)/);
-                    if (!match) return Infinity;
-                    const lastOctet = match[1];
-                    const port = match[2];
-                    return Number(lastOctet + port);
-                }
-                mergedSources.sort((a,b) => {
-                    if (a.favorite !== b.favorite) {
-                        return b.favorite - a.favorite;
-                    }
-                    return ipPortKey(a.url) - ipPortKey(b.url);
-                });
-                resolve(mergedSources);
-            });
-        } catch (parseError) {
-            console.error('NDI discovery error:', parseError);
-            resolve([]); 
-        }
-    });
-}
-function hashPIN(pin) {
-    return crypto.createHash('sha256').update(pin.toString()).digest('hex');
-}
-async function getSystemStats() {
-    return new Promise((resolve, reject) => {
-        exec('top -bn1 | head -5 && free -m && df -h /', (error, stdout, stderr) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-            try {
-                const lines = stdout.split('\n');
-                // Parse load average
-                const loadLine = lines.find(line => line.includes('load average'));
-                const loadMatch = loadLine.match(/load average: ([^,]+), ([^,]+), ([^,]+)/);
-                const load = loadMatch ? [parseFloat(loadMatch[1]), parseFloat(loadMatch[2]), parseFloat(loadMatch[3])] : [0, 0, 0];
-                // Parse CPU usage
-                const cpuLine = lines.find(line => line.includes('%Cpu'));
-                const cpuMatch = cpuLine.match(/([0-9.]+) us.*?([0-9.]+) id/);
-                const cpuUsage = cpuMatch ? parseFloat(cpuMatch[1]) : 0;
-                // Parse memory
-                const memLine = lines.find(line => line.includes('Mem:'));
-                const memMatch = memLine.match(/Mem:\s+(\d+)\s+(\d+)\s+(\d+)/);
-                const memTotal = memMatch ? parseInt(memMatch[1]) : 0;
-                const memUsed = memMatch ? parseInt(memMatch[2]) : 0;
-                // Parse disk
-                const diskLine = lines.find(line => line.includes('/dev/'));
-                const diskMatch = diskLine.match(/\s+(\d+)%/);
-                const diskUsage = diskMatch ? parseInt(diskMatch[1]) : 0;
-                // Temperature - read from thermal zone
-                let temp;
-                const tempFile = '/sys/class/thermal/thermal_zone0/temp';
-                if (fs.existsSync(tempFile)) {
-                    temp = parseInt(fs.readFileSync(tempFile, 'utf8')) / 1000;
-                } else {
-                    temp = 0
-                }
-                resolve({
-                    cpuUsage: Math.round(cpuUsage * 10) / 10,
-                    cpuTemp: temp,
-                    memoryUsage: Math.round((memUsed / memTotal) * 100),
-                    memoryTotal: Math.round(memTotal / 1024 * 10) / 10, // Convert to GB
-                    memoryUsed: Math.round(memUsed / 1024 * 10) / 10,
-                    diskUsage: diskUsage,
-                    loadAverage: load,
-                    uptime: os.uptime()
-                });
-            } catch (parseError) {
-                reject(parseError);
-            }
-        });
-    });
-}
-function loadAccounts() {
-    try {
-        if (fs.existsSync(ACCOUNTS_FILE)) {
-            const data = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8'));
-            accounts = new Map(Object.entries(data));
-            console.log(`Found ${accounts.size} user accounts`);
-        } else {
-            // Create default admin account
-            createAdminAccount();
-        }
-    } catch (error) {
-        console.log('Creating admin account');
-        createAdminAccount();
-    }
-}
-function createAdminAccount() {
-    const adminId = crypto.randomUUID();
-    accounts.set(adminId, {
-        id: adminId,
-        firstName: 'Admin',
-        lastName: 'User',
-        username: 'admin',
-        pinHash: hashPIN('0000'),
-        createdAt: new Date().toISOString(),
-        isAdmin: true,
-        isSystemAccount: true,
-        firstTimeLogin: false,
-
-    });
-    saveAccounts();
-    console.log('Admin account created - Username: admin, PIN: 0000');
-}
-function saveAccounts() {
-    try {
-        const data = Object.fromEntries(accounts);
-        fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(data, null, 2));
-    } catch (error) {
-        console.error('Failed to save accounts:', error);
-    }
-}
-function loadRokuTvs() {
-    try {
-        if (fs.existsSync(ROKU_TVS_FILE)) {
-            const data = JSON.parse(fs.readFileSync(ROKU_TVS_FILE, 'utf8'));
-            rokuTvs = Array.isArray(data) ? data : [];
-            console.log(`Found ${rokuTvs.length} Saved Roku TVs`);
-        } else {
-            rokuTvs = [];
-            saveRokuTvs();
-        }
-    } catch (error) {
-        console.error('Failed to load Roku TVs:', error);
-        rokuTvs = [];
-    }
-}
-function saveRokuTvs() {
-    try {
-        fs.writeFileSync(ROKU_TVS_FILE, JSON.stringify(rokuTvs, null, 2));
-    } catch (error) {
-        console.error('Failed to save Roku TVs:', error);
-    }
-}
 
 let clients = new Map(); // Saved/added clients
 let discoveredClients = new Map(); // Clients seen via mDNS but not saved yet
 let groups = new Map();
 
-function loadClients() {
-    try {
-        if (fs.existsSync(CLIENTS_FILE)) {
-            const data = JSON.parse(fs.readFileSync(CLIENTS_FILE, 'utf8'));
-            clients = new Map(Object.entries(data));
-            console.log(`Found ${clients.size} NDPi Client Devices`);
-        }
-    } catch (error) {
-        console.log('No NDPi Client Devices saved.');
-    }
-}
-function updateDevicesToUI(origin = '') {
-    broadcastToGUI({
-        type: 'devices-update',
-        origin: origin,
-        devices: Array.from(clients.values()).map(client => ({
-            id: client.deviceId,
-            deviceId: client.deviceId,
-            name: client.deviceName,
-            ip: client.ip,
-            status: client.status,
-            currentSource: client.currentSource || 'None',
-            displayMode: client.displayMode || 'overlay',
-            streamStatus: client.streamStatus || 'unknown',
-            ndiInfo: client.ndiInfo || null,
-            systemStats: client.systemStats || null,
-            lastSeen: client.lastSeen,
-            lastStatusUpdate: client.lastStatusUpdate,
-            group: client.groupName || client.group || 'Ungrouped',
-            groupId: client.groupId || null,
-            groupName: client.groupName || null
-        }))
-    });
-}
-function saveClients() {
-    try {
-        const data = Object.fromEntries(clients);
-        fs.writeFileSync(CLIENTS_FILE, JSON.stringify(data, null, 2));
-        updateDevicesToUI('function saveClients()');
-    } catch (error) {
-        console.error('Failed to save clients:', error);
-    }
-}
-function loadGroups() {
-    try {
-        if (fs.existsSync(GROUPS_FILE)) {
-            const data = JSON.parse(fs.readFileSync(GROUPS_FILE, 'utf8'));
-            groups = new Map(Object.entries(data));
-            console.log(`Found ${groups.size} groups`);
-        }
-    } catch (error) {
-        console.log('No saved groups');
-    }
-}
-function saveGroups() {
-    try {
-        const data = Object.fromEntries(groups);
-        fs.writeFileSync(GROUPS_FILE, JSON.stringify(data, null, 2));
-        
-        // Broadcast update to all GUI clients
-        broadcastToGUI({
-            type: 'groups-update',
-            origin: 'function saveGroups()',
-            groups: Array.from(groups.values())
-        });
-    } catch (error) {
-        console.error('Failed to save groups:', error);
-    }
-}
-
-const getOrigin = (req) => {
-    return `${req.header('origin') || req.header('host') || 'origin/host not listed'}`;
-}
-
 /**
  *  Server GUI
  */
 _api.use(express.json());
-_api.use('/assets', express.static(path.join(__dirname, 'Assets')));
+_api.use('/media', express.static(path.join(__dirname, 'assets', 'gui', 'media')));
+_api.use('/custom-media', express.static(path.join(__dirname, 'assets', 'gui', 'custom-media')));
 _api.use(express.static(path.join(__dirname, 'public'), {
     setHeaders: (res, path) => {
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     }
 }));
+// Start (Home) Page
 _api.get('/', (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'dashboard', 'dashboard.html'));
 });
+// Other Pages - Rendered At the End.
+
 /**
  *  Server API
  */
+const getOrigin = (req) => {
+    return `${req.header('origin') || req.header('host') || 'origin/host not listed'}`;
+}
 
 _api.get('/api/resolution', (req, res) => {
     exec('xrandr', (error, stdout, stderr) => {
@@ -1412,6 +1032,7 @@ _api.get('/api/devices', (req, res) => {
         ndiInfo: client.ndiInfo || null,
         systemStats: client.systemStats || null,
         lastSeen: client.lastSeen,
+        lastStatusUpdate: client.lastStatusUpdate,
         group: client.groupName || client.group || 'Ungrouped',
         groupId: client.groupId || null,
         groupName: client.groupName || null
@@ -1425,7 +1046,6 @@ _api.post('/api/device/:id?', express.json(), (req, res) => {
     if (!deviceId) {
         return res.status(400).json({ error: 'Device ID required' });
     }
-
     const client = clients.get(deviceId) || {};
     clients.set(deviceId, {
         ...client,
@@ -1435,8 +1055,8 @@ _api.post('/api/device/:id?', express.json(), (req, res) => {
         status: client.status || 'offline',
         lastSeen: new Date().toISOString()
     });
-
     saveClients();
+
     res.json({ success: true, device: clients.get(deviceId) });
 });
 _api.delete('/api/device/:deviceId', (req, res) => {
@@ -1487,8 +1107,6 @@ _api.put('/api/device/:deviceId', express.json(), (req, res) => {
         
         client[key] = value;
     }
-    
-    client.lastSeen = new Date().toISOString();
     clients.set(deviceId, client);
     saveClients();
     
@@ -1514,6 +1132,7 @@ _api.put('/api/device/:deviceId', express.json(), (req, res) => {
             status: client.status,
             currentSource: client.currentSource || 'None',
             lastSeen: client.lastSeen,
+            lastStatusUpdate: client.lastStatusUpdate,
             group: client.group || 'Ungrouped'
         }
     });
@@ -1527,7 +1146,7 @@ _api.post('/api/device/:deviceId/shutdown', (req, res) => {
 
     sendCommandToClient(deviceId, { type: 'shutdown' })
         .then(() => res.json({ success: true, message: 'Shutdown command sent' }))
-        .catch(error => res.status(500).json({ error: error.message }));
+        .catch(error => res.status(404).json({ error: error.message }));
 });
 _api.post('/api/device/:deviceId/reboot', (req, res) => {
     const { deviceId } = req.params;
@@ -1538,7 +1157,7 @@ _api.post('/api/device/:deviceId/reboot', (req, res) => {
 
     sendCommandToClient(deviceId, { type: 'reboot' })
         .then(() => res.json({ success: true, message: 'Reboot command sent' }))
-        .catch(error => res.status(500).json({ error: error.message }));
+        .catch(error => res.status(404).json({ error: error.message }));
 });
 _api.post('/api/device/:deviceId/overlay', (req, res) => {
     const { deviceId } = req.params;
@@ -1549,7 +1168,7 @@ _api.post('/api/device/:deviceId/overlay', (req, res) => {
 
     sendCommandToClient(deviceId, { type: 'overlay' })
         .then(() => res.json({ success: true, message: 'Overlay command sent' }))
-        .catch(error => res.status(500).json({ error: error.message }));
+        .catch(error => res.status(404).json({ error: error.message }));
 });
 _api.post('/api/device/:deviceId/blank', (req, res) => {
     const { deviceId } = req.params;
@@ -1560,7 +1179,7 @@ _api.post('/api/device/:deviceId/blank', (req, res) => {
 
     sendCommandToClient(deviceId, { type: 'blank' })
         .then(() => res.json({ success: true, message: 'Blank command sent' }))
-        .catch(error => res.status(500).json({ error: error.message }));
+        .catch(error => res.status(404).json({ error: error.message }));
 });
 
 _api.get('/api/groups', (req, res) => {
@@ -1741,10 +1360,11 @@ _api.post('/api/group/:groupId/add-device', express.json(), (req, res) => {
     device.groupId = groupId;
     device.groupName = group.name;
     clients.set(deviceId, device);
+    saveClients();
     
     groups.set(groupId, group);
     saveGroups();
-    updateDevicesToUI(`POST( '/api/group/:groupId/add-device' ) [ ${getOrigin(req)} ]`);
+    //updateDevicesToUI(`POST( '/api/group/:groupId/add-device' ) [ ${getOrigin(req)} ]`);
     
     res.json({ success: true, message: `Device "${device.deviceName}" added to group "${group.name}"` });
 });
@@ -1771,11 +1391,12 @@ _api.post('/api/group/:groupId/remove-device', express.json(), (req, res) => {
         device.groupId = null;
         device.groupName = null;
         clients.set(deviceId, device);
+        saveClients();
     }
     
     groups.set(groupId, group);
     saveGroups();
-    updateDevicesToUI(`POST( '/api/group/:groupId/remove-device' ) [ ${getOrigin(req)} ]`);
+    //updateDevicesToUI(`POST( '/api/group/:groupId/remove-device' ) [ ${getOrigin(req)} ]`);
     
     res.json({ success: true, message: 'Device removed from group' });
 });
@@ -1825,6 +1446,473 @@ _api.post('/api/system/reboot', (req, res) => {
     }, 1000);
 });
 
+/** 
+ *  HTML Page Scripts
+ */
+_api.get('/scripts/:scriptName', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+
+    const scriptName = req.params.scriptName;
+    // File path for requested page script using request parameter.
+    const fsPageScriptPath = path.join(__dirname, 'public', scriptName, `${scriptName}.js`);
+    // Check if File exists
+    const pageScriptExists = fs.existsSync(fsPageScriptPath);
+
+    // File path for requested general script using request parameter.
+    const fsGeneralScriptPath = path.join(__dirname, 'public', '01-scripts', `${scriptName}.js`);
+    // Check if File exists
+    const generalScriptExists = fs.existsSync(fsGeneralScriptPath);
+    
+    if (pageScriptExists) {
+        res.sendFile(fsPageScriptPath);
+    } else if (generalScriptExists) {
+        res.sendFile(fsGeneralScriptPath);
+    } else {
+        res.sendStatus(404);
+    }
+});
+
+/** 
+ *  HTML Page Redirects
+ *   -  MUST REMAIN BELOW ALL OTHER _app FUNCTIONS
+ */
+_api.get('/:pageName', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+
+    const pageName = req.params.pageName;
+    // File path for requested page using request parameter.
+    const fsPagePath = path.join(__dirname, 'public', pageName, `${pageName}.html`);
+    // Check if File exists
+    const pageExists = fs.existsSync(fsPagePath);
+
+    // File path for fallback page.
+    const fsNotFoundPath = path.join(__dirname, 'public', 'not-found', `not-found.html`);
+    // Check if File exists
+    const notFoundExists = fs.existsSync(fsNotFoundPath);
+
+    if (pageExists) {
+        res.sendFile(fsPagePath);
+    } else if (notFoundExists) {
+        res.sendFile(fsNotFoundPath);
+    } else {
+        res.sendStatus(404);
+    }
+});
+
+
+async function getRokuTvInfo() {
+    let data = [];
+    await Promise.all(rokuTvs.map(async (tv) => {
+        try {
+            const res = await fetch(`http://${tv.ipAddress}:8060/query/device-info`, {
+                method: 'GET',
+                headers: { 
+                    'Accept': 'application/xml'
+                }
+            });
+            if (!res.ok) {
+                console.log(`Fetched Roku TV`);
+            }
+		    const xmlText = await res.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+            const tag = (tagName) => xmlDoc.getElementsByTagName(tagName)[0]?.textContent || '';
+            /**
+             * Device Type
+             */
+            let deviceType;
+            if (tag('is-stick') === 'true') {
+                deviceType = 'Stick';
+            } else if (tag('is-tv') === 'true') {
+                deviceType = 'TV';
+            } else {
+                deviceType = 'Unknown';
+            }
+            /**
+             * Uptime
+             */
+            const totalSeconds = tag('uptime') ?? '0';
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = Math.floor(totalSeconds % 60);
+            
+            const pad2 = (num) => {
+                return num.toString().padStart(2, '0');
+            };
+            const uptime = `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
+            /**
+             * MAC
+             */
+            let macAddress;
+            if (tag('network-type') == 'wifi') {
+                macAddress = tag('wifi-mac');
+            } else if (tag('network-type') == 'ethernet') {
+                macAddress = tag('ethernet-mac');
+            }
+            /**
+             * Power Mode
+             */
+            const powerState = {
+                displayValue: tag('power-mode'),
+                isOn: false,
+            };
+            switch (tag('power-mode')) {
+                case 'Ready':
+                    powerState.isOn = false;
+                    break;
+                case 'DisplayOff':
+                    powerState.isOn = false;
+                    break;
+                case 'PowerOn':
+                    powerState.isOn = true;
+                    break;
+                default:
+                    break;
+            }
+            /**
+             * 
+             */
+            const deviceInfo = {
+                deviceType: deviceType,
+                name: tag('friendly-device-name') || tag('user-device-name') || 'Roku TV',
+                room: tag('user-device-location'),
+                screenSize: tag('screen-size'),
+                mfr: tag('vendor-name') || '',
+                id: tag('device-id'),
+                sn: tag('serial-number'),
+                fw: tag('software-version'),
+                uptime: uptime,
+                currentMode: powerState.displayValue,
+                isOn: powerState.isOn,
+                network: {
+                    name: tag('network-name'),
+                    connection: tag('network-type'),
+                    mac: macAddress,
+                },
+                compatibility: {
+                    ecp: tag('ecp-setting-mode') === 'enabled',
+                }
+            };
+            data.push(deviceInfo);
+        } catch(error) {
+            console.log(error);
+        }
+    }));
+    return data;
+}
+async function getNDISources() {
+    return new Promise((resolve, reject) => {
+        try {
+            exec('LD_LIBRARY_PATH=/home/ndpi-server/ndpi ./ndi_discover 3', (error, stdout, stderr) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+                const sources = JSON.parse(stdout.trim());
+                // Set discovered sources 'favorite' to false first.
+                sources.forEach(function (src) {
+                    src.favorite = false;                    
+                });
+                let favoritedSources = [];
+                let favoritedSourcesUpdated = false;
+                try {
+                    if (fs.existsSync(FAVORITED_SOURCES_FILE)) {
+                        const data = fs.readFileSync(FAVORITED_SOURCES_FILE, 'utf8');
+                        favoritedSources = JSON.parse(data);
+                        
+                        // set all favorited sources 'favorite' to true
+                        favoritedSources.forEach(function (src) {
+                            src.favorite = true;
+                        });
+                        
+                        if (!Array.isArray(favoritedSources)) {
+                            favoritedSources = [];
+                        }
+                    }
+                } catch (fileError) {
+                    console.error('Error reading favorited sources:', fileError);
+                    favoritedSources = [];
+                }
+                const mergedSources = [];
+                const usedFavoritedIndices = new Set();
+                for (const discoveredSource of sources) {
+                    /**
+                     *  @const {number} exactMatchIndex
+                     *  -   Evaluates each @const favoritedSources for matching @param name AND @param url to the @const discoveredSource
+                     * 
+                     *  If @const exactMatchIndex - is NOT equal to -1
+                     *  -   Exact Match Found.
+                     *  -   Add the @const discoveredSource to @const mergedSources
+                     */
+                    const exactMatchIndex = favoritedSources.findIndex(fav => 
+                        fav.name === discoveredSource.name && fav.url === discoveredSource.url
+                    );
+                    if (exactMatchIndex !== -1) {
+                        mergedSources.push(favoritedSources[exactMatchIndex]);
+                        usedFavoritedIndices.add(exactMatchIndex);
+                    } else {
+                        /**
+                         *  @const {number} partialMatchIndex
+                         *  -   Evaluates each @const favoritedSources for matching @param name OR @param url to the @const discoveredSource
+                         * 
+                         *  If @const partialMatchIndex - is NOT equal to -1
+                         *  -   Exact Match Found.
+                         *  -   Add the @const discoveredSource to @const mergedSources
+                         *  -   Update the @const favoritedSources with the @const discoveredSource
+                         *  Else
+                         *  -   Add the @const discoveredSource to @const mergedSources
+                         */
+                        const partialMatchIndex = favoritedSources.findIndex(fav =>
+                            fav.name === discoveredSource.name || fav.url === discoveredSource.url
+                        );
+                        if (partialMatchIndex !== -1) {
+                            discoveredSource.favorite = true;
+                            mergedSources.push(discoveredSource);
+                            favoritedSources[partialMatchIndex] = discoveredSource;
+                            usedFavoritedIndices.add(partialMatchIndex);
+                            favoritedSourcesUpdated = true;
+                        } else {
+                            mergedSources.push(discoveredSource);
+                        }
+                    }
+                }
+                /**
+                 *  Add the remaining @const favoritedSources that werent discovered to @const mergedSources
+                 */
+                for (let i = 0; i < favoritedSources.length; i++) {
+                    if (!usedFavoritedIndices.has(i)) {
+                        mergedSources.push(favoritedSources[i]);
+                    }
+                }
+                /**
+                 *  If @const favoritedSources were updated, then save to fs
+                 */
+                if (favoritedSourcesUpdated) {
+                    try {
+                        fs.writeFileSync(FAVORITED_SOURCES_FILE, JSON.stringify(favoritedSources, null, 2));
+                    } catch (saveError) {
+                        console.error('Error saving favorited sources:', saveError);
+                    }
+                }
+                /**
+                 *  Parse IP Port for sorting.
+                 *  @param {string} addr 
+                 *  @returns Last Octet of IP Addr and Port Number w/o colon
+                 */
+                const  ipPortKey = (addr) => {
+                    const match = addr.match(/\.([0-9]+):([0-9]+)/);
+                    if (!match) return Infinity;
+                    const lastOctet = match[1];
+                    const port = match[2];
+                    return Number(lastOctet + port);
+                }
+                mergedSources.sort((a,b) => {
+                    if (a.favorite !== b.favorite) {
+                        return b.favorite - a.favorite;
+                    }
+                    return ipPortKey(a.url) - ipPortKey(b.url);
+                });
+                resolve(mergedSources);
+            });
+        } catch (parseError) {
+            console.error('NDI discovery error:', parseError);
+            resolve([]); 
+        }
+    });
+}
+function hashPIN(pin) {
+    return crypto.createHash('sha256').update(pin.toString()).digest('hex');
+}
+async function getSystemStats() {
+    return new Promise((resolve, reject) => {
+        exec('top -bn1 | head -5 && free -m && df -h /', (error, stdout, stderr) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+            try {
+                const lines = stdout.split('\n');
+                // Parse load average
+                const loadLine = lines.find(line => line.includes('load average'));
+                const loadMatch = loadLine.match(/load average: ([^,]+), ([^,]+), ([^,]+)/);
+                const load = loadMatch ? [parseFloat(loadMatch[1]), parseFloat(loadMatch[2]), parseFloat(loadMatch[3])] : [0, 0, 0];
+                // Parse CPU usage
+                const cpuLine = lines.find(line => line.includes('%Cpu'));
+                const cpuMatch = cpuLine.match(/([0-9.]+) us.*?([0-9.]+) id/);
+                const cpuUsage = cpuMatch ? parseFloat(cpuMatch[1]) : 0;
+                // Parse memory
+                const memLine = lines.find(line => line.includes('Mem:'));
+                const memMatch = memLine.match(/Mem:\s+(\d+)\s+(\d+)\s+(\d+)/);
+                const memTotal = memMatch ? parseInt(memMatch[1]) : 0;
+                const memUsed = memMatch ? parseInt(memMatch[2]) : 0;
+                // Parse disk
+                const diskLine = lines.find(line => line.includes('/dev/'));
+                const diskMatch = diskLine.match(/\s+(\d+)%/);
+                const diskUsage = diskMatch ? parseInt(diskMatch[1]) : 0;
+                // Temperature - read from thermal zone
+                let temp;
+                const tempFile = '/sys/class/thermal/thermal_zone0/temp';
+                if (fs.existsSync(tempFile)) {
+                    temp = parseInt(fs.readFileSync(tempFile, 'utf8')) / 1000;
+                } else {
+                    temp = 0
+                }
+                resolve({
+                    cpuUsage: Math.round(cpuUsage * 10) / 10,
+                    cpuTemp: temp,
+                    memoryUsage: Math.round((memUsed / memTotal) * 100),
+                    memoryTotal: Math.round(memTotal / 1024 * 10) / 10, // Convert to GB
+                    memoryUsed: Math.round(memUsed / 1024 * 10) / 10,
+                    diskUsage: diskUsage,
+                    loadAverage: load,
+                    uptime: os.uptime()
+                });
+            } catch (parseError) {
+                reject(parseError);
+            }
+        });
+    });
+}
+function loadAccounts() {
+    try {
+        if (fs.existsSync(ACCOUNTS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8'));
+            accounts = new Map(Object.entries(data));
+            console.log(`Found ${accounts.size} user accounts`);
+        } else {
+            // Create default admin account
+            createAdminAccount();
+        }
+    } catch (error) {
+        console.log('Creating admin account');
+        createAdminAccount();
+    }
+}
+function createAdminAccount() {
+    const adminId = crypto.randomUUID();
+    accounts.set(adminId, {
+        id: adminId,
+        firstName: 'Admin',
+        lastName: 'User',
+        username: 'admin',
+        pinHash: hashPIN('0000'),
+        createdAt: new Date().toISOString(),
+        isAdmin: true,
+        isSystemAccount: true,
+        firstTimeLogin: false,
+
+    });
+    saveAccounts();
+    console.log('Admin account created - Username: admin, PIN: 0000');
+}
+function saveAccounts() {
+    try {
+        const data = Object.fromEntries(accounts);
+        fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error('Failed to save accounts:', error);
+    }
+}
+function loadRokuTvs() {
+    try {
+        if (fs.existsSync(ROKU_TVS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(ROKU_TVS_FILE, 'utf8'));
+            rokuTvs = Array.isArray(data) ? data : [];
+            console.log(`Found ${rokuTvs.length} Saved Roku TVs`);
+        } else {
+            rokuTvs = [];
+            saveRokuTvs();
+        }
+    } catch (error) {
+        console.error('Failed to load Roku TVs:', error);
+        rokuTvs = [];
+    }
+}
+function saveRokuTvs() {
+    try {
+        fs.writeFileSync(ROKU_TVS_FILE, JSON.stringify(rokuTvs, null, 2));
+    } catch (error) {
+        console.error('Failed to save Roku TVs:', error);
+    }
+}
+function loadClients() {
+    try {
+        if (fs.existsSync(CLIENTS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(CLIENTS_FILE, 'utf8'));
+            clients = new Map(Object.entries(data));
+            console.log(`Found ${clients.size} NDPi Client Devices`);
+        }
+    } catch (error) {
+        console.log('No NDPi Client Devices saved.');
+    }
+}
+function updateDevicesToUI(origin = '') {
+    broadcastToGUI({
+        type: 'devices-update',
+        origin: origin,
+        devices: Array.from(clients.values()).map(client => ({
+            id: client.deviceId,
+            deviceId: client.deviceId,
+            name: client.deviceName,
+            ip: client.ip,
+            port: client.port,
+            status: client.status,
+            currentSource: client.currentSource || 'None',
+            displayMode: client.displayMode || 'overlay',
+            streamStatus: client.streamStatus || 'unknown',
+            ndiInfo: client.ndiInfo || null,
+            systemStats: client.systemStats || null,
+            lastSeen: client.lastSeen,
+            lastStatusUpdate: client.lastStatusUpdate,
+            group: client.groupName || client.group || 'Ungrouped',
+            groupId: client.groupId || null,
+            groupName: client.groupName || null
+        }))
+    });
+}
+const updateUiDebounce = 5000;
+let updateTimer = null;
+function saveClients() {
+    if (updateTimer) {
+        clearTimeout(updateTimer);
+        updateTimer = null;
+    }
+    updateTimer = setTimeout(() => {
+        try {
+            const data = Object.fromEntries(clients);
+            fs.writeFileSync(CLIENTS_FILE, JSON.stringify(data, null, 2));
+            updateDevicesToUI('function saveClients()');
+        } catch (error) {
+            console.error('Failed to save clients:', error);
+        }
+    }, updateUiDebounce);
+}
+function loadGroups() {
+    try {
+        if (fs.existsSync(GROUPS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(GROUPS_FILE, 'utf8'));
+            groups = new Map(Object.entries(data));
+            console.log(`Found ${groups.size} groups`);
+        }
+    } catch (error) {
+        console.log('No saved groups');
+    }
+}
+function saveGroups() {
+    try {
+        const data = Object.fromEntries(groups);
+        fs.writeFileSync(GROUPS_FILE, JSON.stringify(data, null, 2));
+        
+        // Broadcast update to all GUI clients
+        broadcastToGUI({
+            type: 'groups-update',
+            origin: 'function saveGroups()',
+            groups: Array.from(groups.values())
+        });
+    } catch (error) {
+        console.error('Failed to save groups:', error);
+    }
+}
 function applyServerNetworkSettings(config, isServer = false) {
     const { exec } = require('child_process');
     const fs = require('fs');
@@ -1903,6 +1991,8 @@ function sendCommandToClient(deviceId, command, userInfo = {}) {
         const enrichedCommand = {
             ...command,
             serverAddress: `${localIp}:${PORT}`,
+            serverIp: String(localIp),
+            serverPort: String(PORT),
             user: userInfo.user || 'system',
             timestamp: new Date().toISOString()
         };
@@ -1919,7 +2009,7 @@ function sendCommandToClient(deviceId, command, userInfo = {}) {
         }
 
         // Fall back to creating new WebSocket connection
-        const ws = new WebSocket(`ws://${client.ip}:3001`);
+        const ws = new WebSocket(`ws://${client.ip}:${client.port || 3001}`);
 
         ws.on('open', () => {
             ws.send(JSON.stringify(enrichedCommand));
@@ -1982,6 +2072,7 @@ clientDeviceMDNS.on('up', (service) => {
     if (clients.has(deviceId)) {
         const client = clients.get(deviceId);
         client.ip = ip;
+        client.port = commandPort;
         client.status = 'online';
         client.lastSeen = new Date().toISOString();
         clients.set(deviceId, client);
@@ -2003,8 +2094,8 @@ clientDeviceMDNS.on('down', (service) => {
         client.status = 'offline';
         client.lastSeen = new Date().toISOString();
         clients.set(deviceId, client);
-        console.log(`Client offline: ${client.deviceName} (${deviceId})`);
         saveClients();
+        console.log(`Client offline: ${client.deviceName} (${deviceId})`);
     }
 });
 

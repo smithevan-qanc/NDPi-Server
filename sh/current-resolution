@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+# xrandr
+
+# xrandr --listactivemonitors
+
+# Get Current Framerate
+# xrandr | grep -oP '[0-9.]+(?=\*)'
+
+# Get Prefered Framerate
+# xrandr | grep -oP '[0-9.]+(?=\*\+)'
+# xrandr | grep -oP '[0-9.]+(?=\s\+)'
+
+export DISPLAY=:0
+
+# List Connected Display
+#   -F (Fixed Strings): Searches for 'connected' as a single string
+#   -w (Whole Word): Searches for 'connected' as a complete word (disregarding 'disconnected')
+echo "$(xrandr | grep -Fw 'connected' | awk '{print "current_output :", $1}')"
+#
+
+# Current Resolution
+echo "$(xrandr | grep '*' | awk '{print "current_resolution :", $1}')"
+echo "$(xrandr | grep -oP '[0-9.]+(?=\*)' | awk '{print "current_framerate :", $1}')"
+#
+
+# Preferred Resolution
+FRAMERATE_PREF="$(xrandr | grep -oP '[0-9.]+(?=\*\+)')"
+if [[ -z "$FRAMERATE_PREF" ]]; then
+    FRAMERATE_PREF="$(xrandr | grep -oP '[0-9.]+(?=\s\+)')"
+fi
+echo "$(xrandr | grep -F '+ ' | awk '{print "preferred_resolution :", $1}')"
+echo "preferred_framerate : $FRAMERATE_PREF"
+#
+
+# EDID
+echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | grep -wF 'Manufacturer:' | awk '{print "manufacturer :", $2}')"
+echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | grep -wF 'Display Product Name:' | tr -d "'" | awk '{print "model :", $4}')"
+#
+
+# List Resolutions
+#   -v (Invert Match): Removes lines containg the letter 'm'
+echo "$(xrandr | grep -v 'm' | tr -d "*" | tr -d "+" | awk '{print "list_resolutions :", $1, $2, "::", $1}')"
+
+# echo "$(xrandr | grep -v 'm' | tr -d "*" | tr -d "+" | awk '{print "list_resolutions :", $1, "::", "--mode", $1, "--rate", $2}')"
+  # Example Return:
+    # list_resolutions : 1920x1080 :: --mode 1920x1080 --rate 60.00*+
+    # list_resolutions : 1680x1050 :: --mode 1680x1050 --rate 59.88
+    # list_resolutions : 1600x900  :: --mode 1600x900  --rate 60.00
+    # list_resolutions : 1280x1024 :: --mode 1280x1024 --rate 60.02
+    # list_resolutions : 1440x900  :: --mode 1440x900  --rate 59.90
+    # list_resolutions : 1366x768  :: --mode 1366x768  --rate 59.96
+    # list_resolutions : 1280x800  :: --mode 1280x800  --rate 59.91
+    # list_resolutions : 1152x864  :: --mode 1152x864  --rate 59.97
+    # list_resolutions : 1280x720  :: --mode 1280x720  --rate 60.00
+    # list_resolutions : 1024x768  :: --mode 1024x768  --rate 60.00
+    # list_resolutions : 800x600   :: --mode 800x600   --rate 60.32
+    # list_resolutions : 720x576   :: --mode 720x576   --rate 50.00
+    # list_resolutions : 720x480   :: --mode 720x480   --rate 60.00
+    # list_resolutions : 640x480   :: --mode 640x480   --rate 60.00
+#
+
+
+exit 0

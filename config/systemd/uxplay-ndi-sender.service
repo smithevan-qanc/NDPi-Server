@@ -1,0 +1,34 @@
+[Unit]
+Description=UXPlay to NDI Sender - AirPlay to NDI Stream Converter
+Documentation=https://github.com/yourusername/NDPi_Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6
+
+# Set DISPLAY if using X11
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/pi/.Xauthority"
+
+# Main executable
+ExecStart=/home/pi/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6/uxplay_ndi_sender --name "uxplay-airplay" --bitrate 5000 --fps 30
+
+# Auto-restart on failure
+Restart=on-failure
+RestartSec=10
+
+# Memory and CPU limits (optional, for Raspberry Pi resource protection)
+MemoryLimit=512M
+CPUQuota=80%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=uxplay-ndi-sender
+
+[Install]
+WantedBy=multi-user.target

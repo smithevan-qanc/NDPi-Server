@@ -1,6 +1,6 @@
 [Unit]
 Description=NDPi Monitor GUI
-After=graphical.target ndpi-monitor.service
+After=graphical.target ndpi.service
 Wants=graphical.target
 
 [Service]
@@ -8,7 +8,7 @@ Type=simple
 User=ndpi-server
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/ndpi-server/.Xauthority
-ExecStart=/usr/bin/chromium --kiosk --disable-infobars --disable-session-crashed-bubble --disable-component-extensions-with-background-pages --no-first-run --disable-default-apps --disable-translate --hide-scrollbars --disable-features=TranslateUI --noerrdialogs --disable-web-security --touch-events=enabled --user-data-dir=/home/ndpi-server/.config/chromium-kiosk http://localhost:3000/
+ExecStart=/usr/bin/chromium --kiosk --disable-infobars --disable-session-crashed-bubble --disable-component-extensions-with-background-pages --no-first-run --disable-default-apps --disable-translate --hide-scrollbars --disable-features=TranslateUI --noerrdialogs --disable-web-security --touch-events=enabled --user-data-dir=/home/ndpi-server/.config/chromium http://localhost:3000/
 Restart=always
 RestartSec=0.5
 

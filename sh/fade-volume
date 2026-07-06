@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -e
+
+FUNC_CALLED_FROM=$2
+FADE_TIME=0.02
+target=$1
+current=$(amixer sget PCM | awk '/Front Left:/ {print $4; exit}')
+
+printLog() {
+    echo "[ $(date '+%Y-%m-%d %H:%M:%S.%3N') ][ $FUNC_CALLED_FROM ] $*" | tee -a "${HOME}/volFadeLog.txt" > /dev/null
+}
+
+# printLog '-----------------'
+# printLog Start
+
+if [[ -z "$target" ]]; then
+    # printLog "No target level provided."
+    echo "Please provide a target volume setpoint."
+    echo ""
+    echo "Usage: $0 <LVL>"
+    echo "           LVL Range: 0-255"
+    # printLog "Exiting."
+    exit 1
+fi
+
+
+# printLog "Fading Volume"
+# printLog " ↳ From: $current"
+# printLog "   ↳ To: $target"
+
+if [ "$current" -lt "$target" ]; then
+    while [ "$current" -lt "$target" ]; do
+        current=$((current + 5))
+        [ "$current" -gt "$target" ] && current=$target
+        amixer set PCM "$current" >/dev/null
+        sleep $FADE_TIME
+    done
+else
+    while [ "$current" -gt "$target" ]; do
+        current=$((current - 5))
+        [ "$current" -lt "$target" ] && current=$target
+        amixer set PCM "$current" >/dev/null
+        sleep $FADE_TIME
+    done
+fi
+
+
+# printLog "Exiting."
+
+exit 0

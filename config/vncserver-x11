@@ -1,0 +1,10 @@
+# RealVNC Custom Settings NDPi Monitor - CLIENT 
+# Revised:
+#       Evan Smith
+#       2026-05-27
+
+RecordNotifyDuration=0
+ConnNotifyTimeout=0
+
+# DisableTrayIcon=2
+DisableTrayIcon=1
