@@ -5,7 +5,7 @@ set -e
 # Write the script (if any is required) inside the install() function below.
 
 # NOTE:
-#   The contents of this file will RESET automatically after running updateGit.sh.
+#   The contents of this file will RESET automatically after running git-hub-push-update.
 
 customInstallInstructions() {
     # Write Custom Update Script Here
@@ -54,7 +54,7 @@ install() {
     
     customInstallInstructions
 
-    echo -ne "\nRestarting NDPi Client"
+    echo -ne "\nRestarting NDPi"
     sudo systemctl restart ndpi
     echo -ne "\rINSTALLATION COMPLETE  \n"
 

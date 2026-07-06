@@ -29,6 +29,6 @@ sudo rpi-eeprom-config --apply "$TMP"
 #   Remove EEPROM Configuration /tmp file.
 rm -f "$TMP"
 echo ""
-echo "Current EEPROM Configuration"
-sudo rpi-eeprom-config
+echo "EEPROM Configuration Complete"
+echo "Device Reboot Required"
 echo ""
