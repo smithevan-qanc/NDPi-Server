@@ -81,47 +81,47 @@ class NDPi {
             this.startApi();
         });
 
-        //  NDI Source Target
-        this.settings.on('ndpi_status_ndi_source_target', (data) => {
-            const output = String(data || 'none');
-            this.startNdiReceiver(output);
-        });
+        // //  NDI Source Target
+        // this.settings.on('ndpi_status_ndi_source_target', (data) => {
+        //     const output = String(data || 'none');
+        //     this.startNdiReceiver(output);
+        // });
 
-        //  NDPi Hub Server IP
-        this.settings.on('ndpi_command_server_host', (data) => {
-            const output = String(data || '').trim() || null;
+        // //  NDPi Hub Server IP
+        // this.settings.on('ndpi_command_server_host', (data) => {
+        //     const output = String(data || '').trim() || null;
 
-            if (!output)
-            { return; }
+        //     if (!output)
+        //     { return; }
 
-            if (this.wsConnection_ndpiServer)
-            {
-                if (output !== this.wsConnection_ndpiServer.ndpiServerIp)
-                {
-                    this.wsConnection_ndpiServer.ndpiServerIp = output;
-                    this.wsConnection_ndpiServer.close();
-                    this.wsConnection_ndpiServer.connect();
-                }
-            }
-        });
+        //     if (this.wsConnection_ndpiServer)
+        //     {
+        //         if (output !== this.wsConnection_ndpiServer.ndpiServerIp)
+        //         {
+        //             this.wsConnection_ndpiServer.ndpiServerIp = output;
+        //             this.wsConnection_ndpiServer.close();
+        //             this.wsConnection_ndpiServer.connect();
+        //         }
+        //     }
+        // });
 
-        //  NDPi Hub Server Port
-        this.settings.on('ndpi_command_server_port', (data) => {
-            const output = String(data || '').trim() || null;
-            if (!output)
-            { return; }
+        // //  NDPi Hub Server Port
+        // this.settings.on('ndpi_command_server_port', (data) => {
+        //     const output = String(data || '').trim() || null;
+        //     if (!output)
+        //     { return; }
 
-            try
-            {
-                if (output !== this.wsConnection_ndpiServer.ndpiServerIp)
-                {
-                    this.wsConnection_ndpiServer.ndpiServerIp = output;
-                    this.wsConnection_ndpiServer.close();
-                    this.wsConnection_ndpiServer.connect();
-                }
-            }
-            catch {}
-        });
+        //     try
+        //     {
+        //         if (output !== this.wsConnection_ndpiServer.ndpiServerIp)
+        //         {
+        //             this.wsConnection_ndpiServer.ndpiServerIp = output;
+        //             this.wsConnection_ndpiServer.close();
+        //             this.wsConnection_ndpiServer.connect();
+        //         }
+        //     }
+        //     catch {}
+        // });
 
         //  Device Name
         this.settings.on('device_name', (data) => {
@@ -132,10 +132,10 @@ class NDPi {
                 return;
             }
 
-            if (this.controller_cec)
-            { this.controller_cec.updateDeviceName(output); }
+            // if (this.controller_cec)
+            // { this.controller_cec.updateDeviceName(output); }
 
-            this.restartAirPlay();
+            // this.restartAirPlay();
         });
 
         //  Device IP
@@ -151,7 +151,7 @@ class NDPi {
 
             if (!output) { return; }
 
-            if (this.service_chromium) { await this.service_chromium.close(); }
+            // if (this.service_chromium) { await this.service_chromium.close(); }
             if (this.server_api) { this.server_api.close(); }
 
             console.info(`[ ${path.basename(__filename).split('.')[0]} ] Updated API Server PORT.`);
@@ -173,10 +173,10 @@ class NDPi {
             func.setDisplayResolution();
         });
 
-        //  ApirPlay PIN
-        this.settings.on('ndpi_airplay_server_pin', () => {
-            this.restartAirPlay();
-        });
+        // //  ApirPlay PIN
+        // this.settings.on('ndpi_airplay_server_pin', () => {
+        //     this.restartAirPlay();
+        // });
     }
 
     async _closeFsData() {
