@@ -31,6 +31,7 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 #include <cstring>
 #include <thread>
 #include <chrono>
@@ -184,6 +185,13 @@ private:
     
     bool is_running = false;
     bool pipeline_created = false;
+    
+    // NAL buffering for complete access units
+    std::vector<uint8_t> nal_buffer;
+    int current_width = 0;
+    int current_height = 0;
+    int current_fps_n = 0;
+    int current_fps_d = 0;
 
 public:
     UXPlayNDISender(const std::string& name = "uxplay-airplay", 
@@ -345,6 +353,51 @@ public:
         return true;
     }
 
+    // Helper: extract NAL type from byte
+    static uint8_t getNalType(uint8_t byte) {
+        return byte & 0x1f;
+    }
+    
+    // Helper: check if NAL is a slice (contains picture data)
+    static bool isSliceNal(uint8_t nal_type) {
+        return (nal_type >= 1 && nal_type <= 5);  // 1=non-IDR, 2-4=part, 5=IDR slice
+    }
+
+    // Send buffered access unit to NDI
+    void sendAccessUnit() {
+        if (nal_buffer.empty()) return;
+
+        NDIlib_video_frame_v2_t video_frame = {};
+        video_frame.xres = current_width;
+        video_frame.yres = current_height;
+        video_frame.frame_rate_N = current_fps_n;
+        video_frame.frame_rate_D = current_fps_d;
+        video_frame.FourCC = (NDIlib_FourCC_video_type_e)NDI_LIB_FOURCC('H', '2', '6', '4');
+        video_frame.picture_aspect_ratio = (float)current_width / (float)current_height;
+        video_frame.frame_format_type = NDIlib_frame_format_type_progressive;
+        video_frame.timecode = NDIlib_send_timecode_synthesize;
+
+        // Copy buffered data
+        uint8_t* frame_data = (uint8_t*)malloc(nal_buffer.size());
+        if (!frame_data) return;
+
+        memcpy(frame_data, nal_buffer.data(), nal_buffer.size());
+        
+        video_frame.p_data = frame_data;
+        video_frame.data_size_in_bytes = nal_buffer.size();
+        video_frame.line_stride_in_bytes = 0;
+
+        static int frame_count = 0;
+        if (++frame_count % 30 == 0) {
+            std::cout << "[NDI] Sent " << frame_count << " access units (" 
+                      << nal_buffer.size() << " bytes total)" << std::endl;
+        }
+
+        g_ndi.send_send_video_v2(ndi_sender, &video_frame);
+        free(frame_data);
+        nal_buffer.clear();
+    }
+
     static GstFlowReturn onNewSample(GstElement* sink, gpointer user_data) {
         UXPlayNDISender* self = (UXPlayNDISender*)user_data;
         
@@ -366,67 +419,58 @@ public:
         int width, height;
         gint fps_n, fps_d;
         
-        if (gst_structure_get_int(structure, "width", &width) &&
-            gst_structure_get_int(structure, "height", &height) &&
-            gst_structure_get_fraction(structure, "framerate", &fps_n, &fps_d)) {
-            
-            // Create NDI video frame
-            NDIlib_video_frame_v2_t video_frame = {};
-            video_frame.xres = width;
-            video_frame.yres = height;
-            video_frame.frame_rate_N = fps_n;
-            video_frame.frame_rate_D = fps_d;
-            video_frame.FourCC = (NDIlib_FourCC_video_type_e)NDI_LIB_FOURCC('H', '2', '6', '4');
-            video_frame.picture_aspect_ratio = (float)width / (float)height;
-            video_frame.frame_format_type = NDIlib_frame_format_type_progressive;
-            video_frame.timecode = NDIlib_send_timecode_synthesize;  // Auto-generate timecode
-
-            // Map buffer to get data pointer
-            GstMapInfo map;
-            if (!gst_buffer_map(buffer, &map, GST_MAP_READ)) {
-                gst_sample_unref(sample);
-                return GST_FLOW_ERROR;
-            }
-
-            // CRITICAL: Copy the buffer data because NDI processes asynchronously
-            // and p_data must remain valid after this callback returns
-            uint8_t* frame_data = (uint8_t*)malloc(map.size);
-            if (!frame_data) {
-                gst_buffer_unmap(buffer, &map);
-                gst_sample_unref(sample);
-                return GST_FLOW_ERROR;
-            }
-            
-            memcpy(frame_data, map.data, map.size);
-            gst_buffer_unmap(buffer, &map);
-
-            video_frame.p_data = frame_data;
-            video_frame.data_size_in_bytes = map.size;
-            video_frame.line_stride_in_bytes = 0;  // 0 for compressed formats like H.264
-
-            // Debug: show first frame and frame count
-            static int frame_count = 0;
-            static bool first_frame = true;
-            if (first_frame) {
-                std::cout << "[NDI] First frame received and copied: " << width << "x" << height 
-                          << " @ " << fps_n << "/" << fps_d << " fps, " 
-                          << map.size << " bytes" << std::endl;
-                first_frame = false;
-            }
-            
-            if (++frame_count % 30 == 0) {  // Log every 30 frames
-                std::cout << "[NDI] Sent " << frame_count << " frames (" 
-                          << map.size << " bytes per frame)" << std::endl;
-            }
-
-            // Send via NDI
-            // Note: We own frame_data and must free it after NDI is done
-            g_ndi.send_send_video_v2(self->ndi_sender, &video_frame);
-            
-            // Free the copied data after send (NDI may copy it internally)
-            free(frame_data);
+        if (!gst_structure_get_int(structure, "width", &width) ||
+            !gst_structure_get_int(structure, "height", &height) ||
+            !gst_structure_get_fraction(structure, "framerate", &fps_n, &fps_d)) {
+            gst_sample_unref(sample);
+            return GST_FLOW_ERROR;
         }
 
+        // Update resolution/fps (in case of stream change)
+        self->current_width = width;
+        self->current_height = height;
+        self->current_fps_n = fps_n;
+        self->current_fps_d = fps_d;
+
+        // Map and extract NAL data
+        GstMapInfo map;
+        if (!gst_buffer_map(buffer, &map, GST_MAP_READ)) {
+            gst_sample_unref(sample);
+            return GST_FLOW_ERROR;
+        }
+
+        // Append this NAL to buffer
+        size_t old_size = self->nal_buffer.size();
+        self->nal_buffer.insert(self->nal_buffer.end(), map.data, map.data + map.size);
+
+        // Check if this NAL completes an access unit
+        // Look for NAL start code and extract type
+        if (map.size > 4) {
+            uint8_t last_nal_byte = ((uint8_t*)map.data)[0];
+            if (map.size > 4 && ((uint8_t*)map.data)[0] == 0x00 && 
+                ((uint8_t*)map.data)[1] == 0x00 && 
+                ((uint8_t*)map.data)[2] == 0x00 &&
+                ((uint8_t*)map.data)[3] == 0x01) {
+                last_nal_byte = ((uint8_t*)map.data)[4];
+            } else if (map.size > 3 && ((uint8_t*)map.data)[0] == 0x00 && 
+                       ((uint8_t*)map.data)[1] == 0x00 && 
+                       ((uint8_t*)map.data)[2] == 0x01) {
+                last_nal_byte = ((uint8_t*)map.data)[3];
+            }
+            
+            uint8_t nal_type = getNalType(last_nal_byte);
+            
+            // Send access unit when we complete a slice (picture data)
+            if (isSliceNal(nal_type) && old_size > 0) {
+                self->sendAccessUnit();
+                
+                // Start new access unit with this slice
+                self->nal_buffer.clear();
+                self->nal_buffer.insert(self->nal_buffer.end(), map.data, map.data + map.size);
+            }
+        }
+
+        gst_buffer_unmap(buffer, &map);
         gst_sample_unref(sample);
         return GST_FLOW_OK;
     }
