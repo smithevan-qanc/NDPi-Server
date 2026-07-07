@@ -176,6 +176,7 @@ private:
     int target_fps;
     int display_width = 1920;
     int display_height = 1080;
+    uint32_t uxplay_window_id = 0;  // Will hold uxplay X11 window ID
     
     GstElement* pipeline = nullptr;
     GstElement* h264_appsink = nullptr;
@@ -246,6 +247,31 @@ public:
         return true;
     }
 
+    bool findUXPlayWindow() {
+        // Use xdotool to find uxplay window
+        FILE* pipe = popen("DISPLAY=:0 xdotool search --name 'uxplay' getwindowfocus 2>/dev/null | head -1", "r");
+        if (!pipe) {
+            std::cerr << "Failed to run xdotool" << std::endl;
+            return false;
+        }
+
+        char buffer[32];
+        if (fgets(buffer, sizeof(buffer), pipe)) {
+            uxplay_window_id = (uint32_t)strtoul(buffer, nullptr, 10);
+            pclose(pipe);
+            
+            if (uxplay_window_id > 0) {
+                std::cout << "Found uxplay window: " << uxplay_window_id << std::endl;
+                return true;
+            }
+        }
+        pclose(pipe);
+        
+        std::cerr << "Could not find uxplay window, using root window (xid=0)" << std::endl;
+        uxplay_window_id = 0;
+        return false;
+    }
+
     bool createPipeline() {
         if (pipeline_created) return true;
 
@@ -266,65 +292,23 @@ public:
         // Check if X11 is available
         const char* display = getenv("DISPLAY");
         if (display && display[0] != '\0') {
-            // X11 pipeline
+            // X11 pipeline - use uxplay window if found, otherwise root
+            uint32_t xid = (uxplay_window_id > 0) ? uxplay_window_id : 0;
             snprintf(pipeline_str, sizeof(pipeline_str),
-                "ximagesrc xid=0 use-damage=false do-timestamp=true "
-                "! video/x-raw,framerate=%d/1 ! videoscale ! video/x-raw,width=%d,height=%d "
-                "! queue ! videoconvert ! video/x-raw,format=I420 "
-                "! omxh264enc target-bitrate=%d control-rate=2 "
-                "! h264parse config-interval=1 "
-                "! appsink name=h264_sink emit-signals=true sync=false max-buffers=5",
-                target_fps, display_width, display_height, target_bitrate * 1000);
+                "ximagesrc xid=%u use-damage=false "
+                "! videoscale ! video/x-raw,width=%d,height=%d,framerate=%d/1 "
+                "! videoconvert ! video/x-raw,format=I420 "
+                "! x264enc speed-preset=ultrafast bitrate=%d key-int-max=30 "
+                "! appsink name=h264_sink emit-signals=true sync=false max-buffers=3",
+                xid, display_width, display_height, target_fps, target_bitrate);
         } else {
             // Fallback to fbdevsrc (framebuffer)
             snprintf(pipeline_str, sizeof(pipeline_str),
-                "fbdevsrc ! video/x-raw,framerate=%d/1 ! videoscale ! video/x-raw,width=%d,height=%d "
-                "! queue ! videoconvert ! video/x-raw,format=I420 "
-                "! omxh264enc target-bitrate=%d control-rate=2 "
-                "! h264parse config-interval=1 "
-                "! appsink name=h264_sink emit-signals=true sync=false max-buffers=5",
-                target_fps, display_width, display_height, target_bitrate * 1000);
-        }
-
-        std::cout << "GStreamer pipeline: " << pipeline_str << std::endl;
-
-        GError* error = nullptr;
-        pipeline = gst_parse_launch(pipeline_str, &error);
-
-        if (error) {
-            std::cerr << "Failed to create pipeline: " << error->message << std::endl;
-            g_error_free(error);
-            error = nullptr;  // Reset error for next attempt
-            
-            // Fallback: Try software encoder (x264enc)
-            std::cout << "Falling back to software H.264 encoder (x264enc)..." << std::endl;
-            
-            if (display && display[0] != '\0') {
-                // X11 + x264 fallback (simplified, NO h264parse)
-                snprintf(pipeline_str, sizeof(pipeline_str),
-                    "ximagesrc xid=0 use-damage=false "
-                    "! videoscale ! video/x-raw,width=%d,height=%d,framerate=%d/1 "
-                    "! videoconvert ! video/x-raw,format=I420 "
-                    "! x264enc speed-preset=ultrafast bitrate=%d key-int-max=30 "
-                    "! appsink name=h264_sink emit-signals=true sync=false max-buffers=3",
-                    display_width, display_height, target_fps, target_bitrate);
-            } else {
-                // Framebuffer + x264 fallback (simplified, NO h264parse)
-                snprintf(pipeline_str, sizeof(pipeline_str),
-                    "fbdevsrc ! videoscale ! video/x-raw,width=%d,height=%d,framerate=%d/1 "
-                    "! videoconvert ! video/x-raw,format=I420 "
-                    "! x264enc speed-preset=ultrafast bitrate=%d key-int-max=30 "
-                    "! appsink name=h264_sink emit-signals=true sync=false max-buffers=3",
-                    display_width, display_height, target_fps, target_bitrate);
-            }
-
-            std::cout << "Simplified fallback pipeline: " << pipeline_str << std::endl;
-            pipeline = gst_parse_launch(pipeline_str, &error);
-            if (error) {
-                std::cerr << "Software encoder also failed: " << error->message << std::endl;
-                g_error_free(error);
-                return false;
-            }
+                "fbdevsrc ! videoscale ! video/x-raw,width=%d,height=%d,framerate=%d/1 "
+                "! videoconvert ! video/x-raw,format=I420 "
+                "! x264enc speed-preset=ultrafast bitrate=%d key-int-max=30 "
+                "! appsink name=h264_sink emit-signals=true sync=false max-buffers=3",
+                display_width, display_height, target_fps, target_bitrate);
         }
 
         // Get the appsink element
@@ -538,18 +522,15 @@ public:
             return false;
         }
 
-        // Create GStreamer pipeline
-        if (!createPipeline()) {
-            std::cerr << "Failed to create pipeline" << std::endl;
-            return false;
-        }
+        // Note: uxplay window will be found when we try to create the pipeline
+        // (after uxplay process has been launched)
 
-        // Start main loop thread
+        // Start main loop thread first
         main_loop = g_main_loop_new(nullptr, FALSE);
         std::thread(&UXPlayNDISender::gstMainLoopThread, this).detach();
 
         is_running = true;
-        std::cout << "UXPlay NDI Sender started successfully" << std::endl;
+        std::cout << "UXPlay NDI Sender started successfully (waiting for pipeline)" << std::endl;
         return true;
     }
 
@@ -700,6 +681,19 @@ int main(int argc, char* argv[]) {
     // Launch uxplay subprocess
     if (!launchUXPlay()) {
         std::cerr << "Failed to launch uxplay" << std::endl;
+        sender.stop();
+        return 1;
+    }
+
+    // Wait for uxplay to start and find its window
+    std::cout << "Waiting for uxplay to start..." << std::endl;
+    sleep(2);
+    sender.findUXPlayWindow();
+
+    // Now create the pipeline (which will capture from uxplay window)
+    std::cout << "Creating pipeline..." << std::endl;
+    if (!sender.createPipeline()) {
+        std::cerr << "Failed to create pipeline" << std::endl;
         sender.stop();
         return 1;
     }
