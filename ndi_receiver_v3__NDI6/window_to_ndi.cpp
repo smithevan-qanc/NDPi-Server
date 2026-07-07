@@ -152,7 +152,7 @@ public:
             "ximagesrc xid=%u use-damage=false "
             "! videoscale ! videoconvert ! video/x-raw,format=I420 "
             "! x264enc speed-preset=ultrafast bitrate=%d key-int-max=30 "
-            "! appsink name=h264_sink emit-signals=true sync=false max-buffers=3",
+            "! appsink name=h264_sink emit-signals=true sync=false max-buffers=8",
             window_id, target_bitrate);
 
         std::cout << "Pipeline: " << pipeline_str << std::endl;
@@ -256,9 +256,9 @@ public:
             first = false;
         }
 
-        if (++frame_count % 60 == 0) {
-            std::cout << "[NDI] Frame " << frame_count << " (" << map.size << " bytes)" << std::endl;
-        }
+        // if (++frame_count % 60 == 0) {
+        //     std::cout << "[NDI] Frame " << frame_count << " (" << map.size << " bytes)" << std::endl;
+        // }
 
         g_ndi.send_send_video_v2(self->ndi_sender, &video_frame);
         free(frame_data);
