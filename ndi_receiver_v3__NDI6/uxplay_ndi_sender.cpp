@@ -518,8 +518,9 @@ bool launchUXPlay() {
     g_uxplay_pid = fork();
     if (g_uxplay_pid == 0) {
         // Child process: exec uxplay
-        // TODO: Configure uxplay arguments (framebuffer output, etc.)
-        execlp("uxplay", "uxplay", "-ov", "fbdev", nullptr);
+        // -as 0: turn off audio (we only capture video)
+        // -vs ximagesink: output to X11 display for ximagesrc capture
+        execlp("uxplay", "uxplay", "-as", "0", "-vs", "ximagesink", nullptr);
         std::cerr << "Failed to exec uxplay" << std::endl;
         exit(1);
     } else if (g_uxplay_pid > 0) {
