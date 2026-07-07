@@ -278,6 +278,8 @@ public:
         uxplay_window_id = 0;
         return false;
     }
+
+    bool createPipeline() {
         if (pipeline_created) return true;
 
         std::cout << "Creating GStreamer H.264 encoding pipeline..." << std::endl;
