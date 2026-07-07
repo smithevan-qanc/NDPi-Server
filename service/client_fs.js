@@ -549,9 +549,6 @@ class FileSystemMonitor extends EventEmitter {
             }
             catch (err)
             { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving File: Name:${setting.key}, Value: ${setting.value}`, err) }
-            
-            if (this.sendToLCD.includes(setting.key))
-            { fs.writeFileSync(path.join(__dirname, '..', 'python', 'script', setting.key), setting.value, 'utf8'); }
         };
 
         this.start();
