@@ -248,31 +248,36 @@ public:
     }
 
     bool findUXPlayWindow() {
-        // Use xdotool to find uxplay window
-        FILE* pipe = popen("DISPLAY=:0 xdotool search --name 'uxplay' getwindowfocus 2>/dev/null | head -1", "r");
-        if (!pipe) {
-            std::cerr << "Failed to run xdotool" << std::endl;
-            return false;
-        }
+        // Use xdotool to find uxplay window - retry several times as it takes a moment to appear
+        for (int attempt = 0; attempt < 5; ++attempt) {
+            FILE* pipe = popen("DISPLAY=:0 xdotool search --name 'uxplay' 2>/dev/null | head -1", "r");
+            if (!pipe) {
+                sleep(1);
+                continue;
+            }
 
-        char buffer[32];
-        if (fgets(buffer, sizeof(buffer), pipe)) {
-            uxplay_window_id = (uint32_t)strtoul(buffer, nullptr, 10);
+            char buffer[32];
+            if (fgets(buffer, sizeof(buffer), pipe)) {
+                uxplay_window_id = (uint32_t)strtoul(buffer, nullptr, 10);
+                pclose(pipe);
+                
+                if (uxplay_window_id > 0) {
+                    std::cout << "Found uxplay window: " << uxplay_window_id << std::endl;
+                    return true;
+                }
+            }
             pclose(pipe);
             
-            if (uxplay_window_id > 0) {
-                std::cout << "Found uxplay window: " << uxplay_window_id << std::endl;
-                return true;
+            if (attempt < 4) {
+                std::cout << "  Retrying window search (" << (attempt + 1) << "/5)..." << std::endl;
+                sleep(1);
             }
         }
-        pclose(pipe);
         
-        std::cerr << "Could not find uxplay window, using root window (xid=0)" << std::endl;
+        std::cerr << "Could not find uxplay window after retries, using root window (xid=0)" << std::endl;
         uxplay_window_id = 0;
         return false;
     }
-
-    bool createPipeline() {
         if (pipeline_created) return true;
 
         std::cout << "Creating GStreamer H.264 encoding pipeline..." << std::endl;
@@ -311,7 +316,21 @@ public:
                 display_width, display_height, target_fps, target_bitrate);
         }
 
-        // Get the appsink element
+        std::cout << "GStreamer pipeline: " << pipeline_str << std::endl;
+
+        GError* error = nullptr;
+        pipeline = gst_parse_launch(pipeline_str, &error);
+
+        if (error) {
+            std::cerr << "Failed to create pipeline: " << error->message << std::endl;
+            g_error_free(error);
+            return false;
+        }
+
+        if (!pipeline) {
+            std::cerr << "Failed to create pipeline: returned NULL" << std::endl;
+            return false;
+        }
         h264_appsink = gst_bin_get_by_name(GST_BIN(pipeline), "h264_sink");
         if (!h264_appsink) {
             std::cerr << "Failed to get h264_sink element" << std::endl;
@@ -522,9 +541,6 @@ public:
             return false;
         }
 
-        // Note: uxplay window will be found when we try to create the pipeline
-        // (after uxplay process has been launched)
-
         // Start main loop thread first
         main_loop = g_main_loop_new(nullptr, FALSE);
         std::thread(&UXPlayNDISender::gstMainLoopThread, this).detach();
@@ -687,7 +703,7 @@ int main(int argc, char* argv[]) {
 
     // Wait for uxplay to start and find its window
     std::cout << "Waiting for uxplay to start..." << std::endl;
-    sleep(2);
+    sleep(1);
     sender.findUXPlayWindow();
 
     // Now create the pipeline (which will capture from uxplay window)
