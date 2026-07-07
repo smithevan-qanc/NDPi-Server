@@ -383,31 +383,48 @@ public:
 
             // Map buffer to get data pointer
             GstMapInfo map;
-            gst_buffer_map(buffer, &map, GST_MAP_READ);
-            {
-                video_frame.p_data = map.data;
-                video_frame.data_size_in_bytes = map.size;
-                video_frame.line_stride_in_bytes = 0;  // 0 for compressed formats like H.264
-
-                // Debug: show first frame and frame count
-                static int frame_count = 0;
-                static bool first_frame = true;
-                if (first_frame) {
-                    std::cout << "[NDI] First frame received: " << width << "x" << height 
-                              << " @ " << fps_n << "/" << fps_d << " fps, " 
-                              << map.size << " bytes" << std::endl;
-                    first_frame = false;
-                }
-                
-                if (++frame_count % 30 == 0) {  // Log every 30 frames
-                    std::cout << "[NDI] Sent " << frame_count << " frames (" 
-                              << map.size << " bytes per frame)" << std::endl;
-                }
-
-                // Send via NDI
-                g_ndi.send_send_video_v2(self->ndi_sender, &video_frame);
+            if (!gst_buffer_map(buffer, &map, GST_MAP_READ)) {
+                gst_sample_unref(sample);
+                return GST_FLOW_ERROR;
             }
+
+            // CRITICAL: Copy the buffer data because NDI processes asynchronously
+            // and p_data must remain valid after this callback returns
+            uint8_t* frame_data = (uint8_t*)malloc(map.size);
+            if (!frame_data) {
+                gst_buffer_unmap(buffer, &map);
+                gst_sample_unref(sample);
+                return GST_FLOW_ERROR;
+            }
+            
+            memcpy(frame_data, map.data, map.size);
             gst_buffer_unmap(buffer, &map);
+
+            video_frame.p_data = frame_data;
+            video_frame.data_size_in_bytes = map.size;
+            video_frame.line_stride_in_bytes = 0;  // 0 for compressed formats like H.264
+
+            // Debug: show first frame and frame count
+            static int frame_count = 0;
+            static bool first_frame = true;
+            if (first_frame) {
+                std::cout << "[NDI] First frame received and copied: " << width << "x" << height 
+                          << " @ " << fps_n << "/" << fps_d << " fps, " 
+                          << map.size << " bytes" << std::endl;
+                first_frame = false;
+            }
+            
+            if (++frame_count % 30 == 0) {  // Log every 30 frames
+                std::cout << "[NDI] Sent " << frame_count << " frames (" 
+                          << map.size << " bytes per frame)" << std::endl;
+            }
+
+            // Send via NDI
+            // Note: We own frame_data and must free it after NDI is done
+            g_ndi.send_send_video_v2(self->ndi_sender, &video_frame);
+            
+            // Free the copied data after send (NDI may copy it internally)
+            free(frame_data);
         }
 
         gst_sample_unref(sample);
