@@ -43,12 +43,11 @@ bool loadNDI() {
         #ifdef _WIN32
         ndi_path += "\\Processing.NDI.Lib.x64.dll";
         #else
-        ndi_path += "/libndi.so.6";
+        ndi_path += "lib/arm-rpi4-linux-gnueabihf/libndi.so.6";
         #endif
     } else {
         // Try multiple paths
         const char* lib_paths[] = {
-            "lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
             "lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
             "/opt/NDI SDK for Linux/lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
             "/usr/local/lib/libndi.so.6",
