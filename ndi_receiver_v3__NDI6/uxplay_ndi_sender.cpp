@@ -248,35 +248,56 @@ public:
     }
 
     bool findUXPlayWindow() {
-        // Use xdotool to find uxplay window - retry several times as it takes a moment to appear
-        for (int attempt = 0; attempt < 5; ++attempt) {
-            FILE* pipe = popen("DISPLAY=:0 xdotool search --name 'uxplay' 2>/dev/null | head -1", "r");
-            if (!pipe) {
-                sleep(1);
-                continue;
-            }
+        // Use xdotool to find uxplay window - single attempt
+        FILE* pipe = popen("DISPLAY=:0 xdotool search --name 'uxplay' 2>/dev/null | head -1", "r");
+        if (!pipe) {
+            return false;
+        }
 
-            char buffer[32];
-            if (fgets(buffer, sizeof(buffer), pipe)) {
-                uxplay_window_id = (uint32_t)strtoul(buffer, nullptr, 10);
-                pclose(pipe);
-                
-                if (uxplay_window_id > 0) {
-                    std::cout << "Found uxplay window: " << uxplay_window_id << std::endl;
-                    return true;
-                }
-            }
+        char buffer[32];
+        if (fgets(buffer, sizeof(buffer), pipe)) {
+            uint32_t new_id = (uint32_t)strtoul(buffer, nullptr, 10);
             pclose(pipe);
             
-            if (attempt < 4) {
-                std::cout << "  Retrying window search (" << (attempt + 1) << "/5)..." << std::endl;
-                sleep(1);
+            if (new_id > 0 && new_id != uxplay_window_id) {
+                uxplay_window_id = new_id;
+                std::cout << "Found uxplay window: " << uxplay_window_id << std::endl;
+                return true;
             }
         }
-        
-        std::cerr << "Could not find uxplay window after retries, using root window (xid=0)" << std::endl;
-        uxplay_window_id = 0;
+        pclose(pipe);
         return false;
+    }
+
+    // Background thread: continuously search for uxplay window and recreate pipeline when found
+    void windowSearchThread() {
+        while (is_running) {
+            sleep(1);
+            
+            // Try to find the window
+            if (findUXPlayWindow()) {
+                // Window was just found - recreate pipeline with correct window ID
+                std::cout << "Window found! Recreating pipeline with xid=" << uxplay_window_id << std::endl;
+                
+                // Stop old pipeline
+                if (pipeline) {
+                    gst_element_set_state(pipeline, GST_STATE_NULL);
+                    gst_element_get_state(pipeline, nullptr, nullptr, GST_CLOCK_TIME_NONE);
+                    if (h264_appsink) {
+                        gst_object_unref(h264_appsink);
+                        h264_appsink = nullptr;
+                    }
+                    gst_object_unref(pipeline);
+                    pipeline = nullptr;
+                    pipeline_created = false;
+                }
+                
+                // Create new pipeline with correct window
+                if (!createPipeline()) {
+                    std::cerr << "Failed to recreate pipeline with new window" << std::endl;
+                }
+            }
+        }
     }
 
     bool createPipeline() {
@@ -703,18 +724,17 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Wait for uxplay to start and find its window
-    std::cout << "Waiting for uxplay to start..." << std::endl;
-    sleep(1);
-    sender.findUXPlayWindow();
-
-    // Now create the pipeline (which will capture from uxplay window)
-    std::cout << "Creating pipeline..." << std::endl;
+    // Create initial pipeline (will capture root window xid=0 until AirPlay connection)
+    std::cout << "Creating initial pipeline..." << std::endl;
     if (!sender.createPipeline()) {
-        std::cerr << "Failed to create pipeline" << std::endl;
+        std::cerr << "Failed to create initial pipeline" << std::endl;
         sender.stop();
         return 1;
     }
+
+    // Start background window search thread (will recreate pipeline when uxplay window appears)
+    std::thread window_search_thread(&UXPlayNDISender::windowSearchThread, &sender);
+    window_search_thread.detach();
 
     // Monitor uxplay process
     std::thread monitor_thread(&monitorUXPlayProcess);
