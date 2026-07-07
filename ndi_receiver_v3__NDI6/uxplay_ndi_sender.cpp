@@ -387,8 +387,10 @@ public:
             {
                 video_frame.p_data = map.data;
                 video_frame.data_size_in_bytes = map.size;
+                video_frame.line_stride_in_bytes = 0;  // 0 for compressed formats like H.264
 
-                // Debug: show first frame
+                // Debug: show first frame and frame count
+                static int frame_count = 0;
                 static bool first_frame = true;
                 if (first_frame) {
                     std::cout << "[NDI] First frame received: " << width << "x" << height 
@@ -396,8 +398,13 @@ public:
                               << map.size << " bytes" << std::endl;
                     first_frame = false;
                 }
+                
+                if (++frame_count % 30 == 0) {  // Log every 30 frames
+                    std::cout << "[NDI] Sent " << frame_count << " frames (" 
+                              << map.size << " bytes per frame)" << std::endl;
+                }
 
-                // Send via NDI (use global g_ndi)
+                // Send via NDI
                 g_ndi.send_send_video_v2(self->ndi_sender, &video_frame);
             }
             gst_buffer_unmap(buffer, &map);
