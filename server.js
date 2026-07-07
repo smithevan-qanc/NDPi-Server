@@ -75,9 +75,9 @@ class NDPi {
         this.settings.on('ready', () => {
             this.targetSource = this.settings.get('ndpi_status_ndi_source_target') || 'none';
             func.setDisplayResolution();
-            this.startAirPlay();
-            this.startLcdDisplay();
-            this.startMdns();
+            // this.startAirPlay();
+            // this.startLcdDisplay();
+            // this.startMdns();
             this.startApi();
         });
 
