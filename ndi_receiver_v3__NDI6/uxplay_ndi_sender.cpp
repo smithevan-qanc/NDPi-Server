@@ -388,6 +388,15 @@ public:
                 video_frame.p_data = map.data;
                 video_frame.data_size_in_bytes = map.size;
 
+                // Debug: show first frame
+                static bool first_frame = true;
+                if (first_frame) {
+                    std::cout << "[NDI] First frame received: " << width << "x" << height 
+                              << " @ " << fps_n << "/" << fps_d << " fps, " 
+                              << map.size << " bytes" << std::endl;
+                    first_frame = false;
+                }
+
                 // Send via NDI (use global g_ndi)
                 g_ndi.send_send_video_v2(self->ndi_sender, &video_frame);
             }
