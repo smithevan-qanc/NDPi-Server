@@ -370,7 +370,7 @@ public:
             video_frame.yres = height;
             video_frame.frame_rate_N = fps_n;
             video_frame.frame_rate_D = fps_d;
-            video_frame.FourCC = NDIlib_FourCC_type_H264;  // H.264 compressed
+            video_frame.FourCC = NDI_LIB_FOURCC('H', '2', '6', '4');
             video_frame.picture_aspect_ratio = (float)width / (float)height;
             video_frame.frame_format_type = NDIlib_frame_format_type_progressive;
             video_frame.timecode = NDIlib_send_timecode_synthesize;  // Auto-generate timecode

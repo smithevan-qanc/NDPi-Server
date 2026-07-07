@@ -213,7 +213,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         this.Routes
-        .route('/:page/:ext')
+        .route('/:page/:ext/')
         .get((req, res) => {
               // DEV
             res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
