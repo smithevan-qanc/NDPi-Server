@@ -24,6 +24,8 @@
 #include <cstdlib>
 #include <dlfcn.h>
 #include <unistd.h>
+#include <queue>
+#include <mutex>
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
 #include <Processing.NDI.Lib.h>
@@ -145,6 +147,32 @@ private:
     GMainLoop* main_loop = nullptr;
     NDIlib_send_instance_t ndi_sender = nullptr;
     bool is_running = false;
+
+    // Frame memory pool (keep frames briefly to prevent NDI from accessing freed memory)
+    struct FrameBuffer {
+        uint8_t* data;
+        size_t size;
+    };
+    std::queue<FrameBuffer> frame_pool;
+    std::mutex frame_pool_mutex;
+
+    void enqueueFrame(uint8_t* data, size_t size) {
+        std::lock_guard<std::mutex> lock(frame_pool_mutex);
+        frame_pool.push({data, size});
+        // Keep only last 3 frames in pool
+        while (frame_pool.size() > 3) {
+            free(frame_pool.front().data);
+            frame_pool.pop();
+        }
+    }
+
+    void clearFramePool() {
+        std::lock_guard<std::mutex> lock(frame_pool_mutex);
+        while (!frame_pool.empty()) {
+            free(frame_pool.front().data);
+            frame_pool.pop();
+        }
+    }
 
 public:
     WindowToNDI(uint32_t xid, const std::string& name, int width, int height, int fps)
@@ -316,7 +344,8 @@ public:
         // Send to NDI
         g_pNDILib->send_send_video_v2(self->ndi_sender, &video_frame);
 
-        free(frame_data);
+        // Don't free immediately - keep frame in pool for NDI to process
+        self->enqueueFrame(frame_data, map.size);
         gst_sample_unref(sample);
 
         return GST_FLOW_OK;
@@ -354,6 +383,8 @@ public:
             gst_object_unref(pipeline);
             pipeline = nullptr;
         }
+
+        clearFramePool();
 
         if (ndi_sender && g_pNDILib) {
             g_pNDILib->send_destroy(ndi_sender);
