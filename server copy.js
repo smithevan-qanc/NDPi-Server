@@ -292,7 +292,7 @@ wsConsole.on('connection', async (_ws) => {
                 env: {
                     ...process.env,
                     DISPLAY: ':0',
-                    XAUTHORITY: '/home/ndpi-client/.Xauthority'
+                    XAUTHORITY: `${process.env.HOME}/.Xauthority`
                 },
                 stdio: ['ignore', 'pipe', 'pipe']
             });
@@ -376,7 +376,7 @@ wsConsole.on('connection', async (_ws) => {
             env: {
                 ...process.env,
                 DISPLAY: ':0',
-                XAUTHORITY: '/home/ndpi-client/.Xauthority'
+                XAUTHORITY: `${process.env.HOME}/.Xauthority`
             },
             cwd: workingDir
         };

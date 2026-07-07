@@ -88,7 +88,7 @@ echo "$(xrandr | grep -v 'm' | awk '{print "list_resolutions :", $1, "::", "--mo
 
 
 # hostnamectl
-#  Static hostname: NDPi-Client
+#  Static hostname: NDPi-Server
 #        Icon name: computer
 #       Machine ID: 5c2c9c075d03474396188cda33e732be
 #          Boot ID: af61e2c3a2cc4212bb47c3549f9f9e3c

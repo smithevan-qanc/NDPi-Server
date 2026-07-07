@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-USER="ndpi-client"
+USER="ndpi-server"
 IP="192.168.2.45"
 
 consoleColors() {

@@ -8,7 +8,7 @@ fi
 
 _OUTPUT_NAME="ndi_receiver_v4"
 _SOURCE_CODE="ndi_receiver_v4.cpp"
-_HOME="/home/ndpi-client"
+_HOME="/home/ndpi-server"
 
 cd $_HOME/ndpi/ndi_receiver_v3__NDI6
 
