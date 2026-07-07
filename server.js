@@ -208,8 +208,10 @@ class NDPi {
                 // this.connectToNDPiServer();
                 // this.startChromium();
             }
-            else 
-            // { this.startChromium(); }
+            // else 
+            // {
+            //     this.startChromium();
+            // }
         });
 
         this.server_api.on('shutdown-command', () => {
