@@ -32,49 +32,76 @@
 
 static const NDIlib_v6* g_pNDILib = nullptr;
 static void* g_hNDILib = nullptr;
-bool loadNDI() {
-    // Try multiple paths to find the NDI library
-    const char* lib_paths[] = {
-        "lib/aarch64-rpi4-linux-gnueabi/libndi.so.6",
-        "lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
-        "tmp/NDI SDK for Linux (v6)/lib/aarch64-rpi4-linux-gnueabi/libndi.so.6",
-        "tmp/NDI SDK for Linux (v6)/lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
-        "../tmp/NDI SDK for Linux (v6)/lib/aarch64-rpi4-linux-gnueabi/libndi.so.6",
-        "../tmp/NDI SDK for Linux (v6)/lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
-        "/opt/NDI SDK for Linux/lib/aarch64-rpi4-linux-gnueabi/libndi.so.6",
-        "/opt/NDI SDK for Linux/lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
-        "/usr/local/lib/libndi.so.6",
-        "/usr/lib/libndi.so.6",
-        "/usr/lib/aarch64-linux-gnu/libndi.so.6",
-        "/usr/lib/arm-linux-gnueabihf/libndi.so.6",
-        "libndi.so.6",
-        nullptr
-    };
+static bool g_running = true;
 
-    std::cout << "[NDI] Searching for library..." << std::endl;
-    
-    for (const char** path = lib_paths; *path; ++path) {
-        std::cout << "[NDI] Trying: " << *path << std::endl;
-        g_hNDILib = dlopen(*path, RTLD_LOCAL | RTLD_LAZY);
-        if (g_hNDILib) {
-            std::cout << "[NDI] ✓ Library loaded: " << *path << std::endl;
-            break;
-        } else {
-            std::cout << "[NDI]   ✗ " << dlerror() << std::endl;
+bool loadNDI() {
+    std::string ndi_path;
+
+    const char* p_NDI_runtime_folder = getenv("NDILIB_REDIST_FOLDER");
+    if (p_NDI_runtime_folder) {
+        ndi_path = p_NDI_runtime_folder;
+        #ifdef _WIN32
+        ndi_path += "\\Processing.NDI.Lib.x64.dll";
+        #else
+        ndi_path += "lib/arm-rpi4-linux-gnueabihf/libndi.so.6";
+        #endif
+    } else {
+        // Try multiple paths
+        const char* lib_paths[] = {
+            "lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
+            "/opt/NDI SDK for Linux/lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
+            "/usr/local/lib/libndi.so.6",
+            "/usr/lib/libndi.so.6",
+            "libndi.so.6",
+            nullptr
+        };
+
+        for (const char** path = lib_paths; *path; ++path) {
+            g_hNDILib = dlopen(*path, RTLD_LOCAL | RTLD_LAZY);
+            if (g_hNDILib) {
+                std::cout << "[NDI] Library loaded: " << *path << std::endl;
+                break;
+            }
         }
+
+        if (!g_hNDILib) {
+            std::cerr << "[NDI] ERROR: Failed to load NDI library from any path" << std::endl;
+            return false;
+        }
+
+        // Get the v6 loader
+        typedef const NDIlib_v6* (*NDIlib_v6_load_t)(void);
+        NDIlib_v6_load_t NDIlib_v6_load = (NDIlib_v6_load_t)dlsym(g_hNDILib, "NDIlib_v6_load");
+
+        if (!NDIlib_v6_load) {
+            std::cerr << "[NDI] ERROR: Failed to get NDIlib_v6_load" << std::endl;
+            dlclose(g_hNDILib);
+            g_hNDILib = nullptr;
+            return false;
+        }
+
+        g_pNDILib = NDIlib_v6_load();
+        if (!g_pNDILib) {
+            std::cerr << "[NDI] ERROR: NDIlib_v6_load returned NULL" << std::endl;
+            dlclose(g_hNDILib);
+            g_hNDILib = nullptr;
+            return false;
+        }
+
+        return true;
     }
 
+    g_hNDILib = dlopen(ndi_path.c_str(), RTLD_LOCAL | RTLD_LAZY);
     if (!g_hNDILib) {
-        std::cerr << "[NDI] ERROR: Failed to load NDI library from any path" << std::endl;
+        std::cerr << "[NDI] ERROR: Failed to load: " << ndi_path << std::endl;
         return false;
     }
 
-    // Get the v6 loader
     typedef const NDIlib_v6* (*NDIlib_v6_load_t)(void);
     NDIlib_v6_load_t NDIlib_v6_load = (NDIlib_v6_load_t)dlsym(g_hNDILib, "NDIlib_v6_load");
 
     if (!NDIlib_v6_load) {
-        std::cerr << "[NDI] ERROR: Failed to get NDIlib_v6_load: " << dlerror() << std::endl;
+        std::cerr << "[NDI] ERROR: Failed to get NDIlib_v6_load" << std::endl;
         dlclose(g_hNDILib);
         g_hNDILib = nullptr;
         return false;
@@ -88,7 +115,6 @@ bool loadNDI() {
         return false;
     }
 
-    std::cout << "[NDI] Successfully loaded NDI v6 library" << std::endl;
     return true;
 }
 
