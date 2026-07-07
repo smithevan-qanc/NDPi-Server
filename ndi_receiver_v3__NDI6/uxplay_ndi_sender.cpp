@@ -285,29 +285,31 @@ public:
         if (error) {
             std::cerr << "Failed to create pipeline: " << error->message << std::endl;
             g_error_free(error);
+            error = nullptr;  // Reset error for next attempt
             
             // Fallback: Try software encoder (x264enc)
             std::cout << "Falling back to software H.264 encoder (x264enc)..." << std::endl;
             
             if (display && display[0] != '\0') {
-                // X11 + x264 fallback
+                // X11 + x264 fallback (simplified)
                 snprintf(pipeline_str, sizeof(pipeline_str),
-                    "ximagesrc xid=0 use-damage=false do-timestamp=true "
-                    "! video/x-raw,framerate=%d/1 ! videoscale ! video/x-raw,width=%d,height=%d "
-                    "! queue ! videoconvert ! video/x-raw,format=I420 "
-                    "! x264enc speed-preset=fast bitrate=%d ! h264parse config-interval=1 "
-                    "! appsink name=h264_sink emit-signals=true sync=false max-buffers=5",
-                    target_fps, display_width, display_height, target_bitrate);
+                    "ximagesrc xid=0 use-damage=false "
+                    "! videoscale ! video/x-raw,width=%d,height=%d,framerate=%d/1 "
+                    "! videoconvert ! video/x-raw,format=I420 "
+                    "! x264enc speed-preset=ultrafast bitrate=%d ! h264parse config-interval=1 "
+                    "! appsink name=h264_sink emit-signals=true sync=false max-buffers=3",
+                    display_width, display_height, target_fps, target_bitrate);
             } else {
-                // Framebuffer + x264 fallback
+                // Framebuffer + x264 fallback (simplified)
                 snprintf(pipeline_str, sizeof(pipeline_str),
-                    "fbdevsrc ! video/x-raw,framerate=%d/1 ! videoscale ! video/x-raw,width=%d,height=%d "
-                    "! queue ! videoconvert ! video/x-raw,format=I420 "
-                    "! x264enc speed-preset=fast bitrate=%d ! h264parse config-interval=1 "
-                    "! appsink name=h264_sink emit-signals=true sync=false max-buffers=5",
-                    target_fps, display_width, display_height, target_bitrate);
+                    "fbdevsrc ! videoscale ! video/x-raw,width=%d,height=%d,framerate=%d/1 "
+                    "! videoconvert ! video/x-raw,format=I420 "
+                    "! x264enc speed-preset=ultrafast bitrate=%d ! h264parse config-interval=1 "
+                    "! appsink name=h264_sink emit-signals=true sync=false max-buffers=3",
+                    display_width, display_height, target_fps, target_bitrate);
             }
 
+            std::cout << "Simplified fallback pipeline: " << pipeline_str << std::endl;
             pipeline = gst_parse_launch(pipeline_str, &error);
             if (error) {
                 std::cerr << "Software encoder also failed: " << error->message << std::endl;
