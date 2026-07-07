@@ -98,15 +98,19 @@ struct NDILib {
             return false;
         }
 
-        // Load function pointers
-        #define LOAD_SYMBOL(name) do { \
-            name = (decltype(name))dlsym(handle, #name); \
-            if (!name) { std::cerr << "ERROR: Failed to load " << #name << std::endl; return false; } \
-        } while(0)
-
-        LOAD_SYMBOL(initialize);
-        LOAD_SYMBOL(destroy);
-        LOAD_SYMBOL(version);
+        // Load function pointers - core NDI functions with NDIlib_ prefix
+        auto* initialize_ptr = dlsym(handle, "NDIlib_initialize");
+        auto* destroy_ptr = dlsym(handle, "NDIlib_destroy");
+        auto* version_ptr = dlsym(handle, "NDIlib_version");
+        
+        if (!initialize_ptr || !destroy_ptr || !version_ptr) {
+            std::cerr << "ERROR: Failed to load NDI core functions" << std::endl;
+            return false;
+        }
+        
+        initialize = (decltype(initialize))initialize_ptr;
+        destroy = (decltype(destroy))destroy_ptr;
+        version = (decltype(version))version_ptr;
         
         // Load send functions with proper casting
         auto* send_create_ptr = dlsym(handle, "NDIlib_send_create");
