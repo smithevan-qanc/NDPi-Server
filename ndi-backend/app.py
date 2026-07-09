@@ -64,7 +64,7 @@ receiver: Optional[NDIReceiver] = None
 selected_source_name: Optional[str] = None
 
 settings_lock = threading.Lock()
-jpeg_quality: int = 80
+jpeg_quality: int = 70
 output_width: int = 0
 output_height: int = 0
 
@@ -181,12 +181,13 @@ def mjpeg_stream():
     """Stream MJPEG (Motion JPEG) - continuous frame stream"""
     def gen():
         boundary = b"frame"
+        frame_count = 0
         while True:
             with receiver_lock:
                 r = receiver
             
             if r is None:
-                time.sleep(0.1)
+                time.sleep(0.05)
                 continue
             
             with settings_lock:
@@ -194,11 +195,13 @@ def mjpeg_stream():
                 w = int(output_width)
                 h = int(output_height)
             
-            frame = r.get_jpeg_frame(timeout_ms=1000, jpeg_quality=q, output_width=w, output_height=h)
+            # Low timeout to prevent buffering - capture immediately or skip
+            frame = r.get_jpeg_frame(timeout_ms=100, jpeg_quality=q, output_width=w, output_height=h)
             if frame is None:
-                time.sleep(0.01)
+                time.sleep(0.001)  # Minimal sleep, try again immediately
                 continue
             
+            frame_count += 1
             yield (
                 b"--" + boundary + b"\r\n"
                 b"Content-Type: image/jpeg\r\n"
@@ -223,7 +226,7 @@ def get_single_frame():
         w = int(output_width)
         h = int(output_height)
     
-    frame = r.get_jpeg_frame(timeout_ms=2000, jpeg_quality=q, output_width=w, output_height=h)
+    frame = r.get_jpeg_frame(timeout_ms=500, jpeg_quality=q, output_width=w, output_height=h)
     if frame is None:
         raise HTTPException(status_code=504, detail="Failed to capture frame")
     

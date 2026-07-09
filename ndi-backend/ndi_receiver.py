@@ -329,8 +329,8 @@ class NDIReceiver:
     
     def get_jpeg_frame(
         self,
-        timeout_ms: int = 1000,
-        jpeg_quality: int = 80,
+        timeout_ms: int = 100,
+        jpeg_quality: int = 70,
         output_width: int = 0,
         output_height: int = 0,
     ) -> Optional[bytes]:
