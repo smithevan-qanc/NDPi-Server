@@ -1,35 +1,33 @@
 /**
  * NDI Stream Manager Module
  * 
- * Manages NDI to WebRTC streaming for individual sources
- * Handles stream lifecycle, client connections, and video encoding
+ * Manages NDI stream proxying from Python FastAPI backend
+ * Handles stream lifecycle and client WebSocket connections
  */
 
-const { spawn, execSync } = require('child_process');
 const { EventEmitter } = require('events');
 const WebSocket = require('ws');
-const path = require('path');
-const fs = require('fs');
+const http = require('http');
 
 class NDIStreamManager extends EventEmitter {
-    constructor(sourceId, outputDir, ndiReceiverPath, ndiDiscoverPath) {
+    constructor(streamId, pythonBackendUrl = 'http://127.0.0.1:5000') {
         super();
         
-        this.id = sourceId;
-        this.sourceId = sourceId;
-        this.receiver = null;
-        this.ffmpegProcess = null;
+        this.id = streamId;
+        this.pythonBackendUrl = pythonBackendUrl;
         this.clients = new Set();
         this.isRunning = false;
         this.startTime = null;
         this.frameCount = 0;
         this.bandwidth = 0;
-        
-        this.outputDir = outputDir;
-        this.ndiReceiverPath = ndiReceiverPath;
-        this.ndiDiscoverPath = ndiDiscoverPath;
+        this.lastFrameTime = Date.now();
+        this.currentSource = null;
+        this.mjpegRequest = null;
     }
 
+    /**
+     * Start streaming from the Python backend
+     */
     async start(ndiSourceName) {
         if (this.isRunning) {
             console.log(`[${this.id}] Stream already running`);
@@ -38,10 +36,15 @@ class NDIStreamManager extends EventEmitter {
 
         console.log(`[${this.id}] Starting NDI stream for: ${ndiSourceName}`);
         this.startTime = Date.now();
+        this.currentSource = ndiSourceName;
         this.isRunning = true;
 
         try {
-            this.startFFmpegStream(ndiSourceName);
+            // Tell Python backend to select this source
+            await this.selectSourceOnBackend(ndiSourceName);
+            
+            // Start proxying MJPEG stream to connected clients
+            this.startMJPEGProxy();
         } catch (error) {
             console.error(`[${this.id}] Failed to start stream:`, error);
             this.isRunning = false;
@@ -49,54 +52,119 @@ class NDIStreamManager extends EventEmitter {
         }
     }
 
-    startFFmpegStream(ndiSourceName) {
-        try {
-            const args = [
-                '-f', 'lavfi', '-i', 'color=c=black:s=1280x720:d=100',
-                '-c:v', 'libx264',
-                '-preset', 'ultrafast',
-                '-b:v', '2500k',
-                '-c:a', 'aac',
-                '-f', 'matroska',
-                'pipe:1'
-            ];
+    /**
+     * Select NDI source on Python backend
+     */
+    async selectSourceOnBackend(sourceName) {
+        return new Promise((resolve, reject) => {
+            const postData = JSON.stringify({ name: sourceName });
             
-            this.ffmpegProcess = spawn('ffmpeg', args);
-            
-            this.ffmpegProcess.stdout.on('data', (data) => {
-                this.bandwidth += data.length;
-                this.broadcastToClients({
-                    type: 'video-frame',
-                    data: data.toString('base64'),
-                    timestamp: Date.now()
+            const options = {
+                hostname: 'localhost',
+                port: 5000,
+                path: '/api/select',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            };
+
+            const req = http.request(options, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    if (res.statusCode === 200) {
+                        resolve(JSON.parse(data));
+                    } else {
+                        reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                    }
                 });
             });
 
-            this.ffmpegProcess.stderr.on('data', (data) => {
-                console.log(`[${this.id}] FFmpeg:`, data.toString().trim());
-            });
-
-            this.ffmpegProcess.on('close', (code) => {
-                console.log(`[${this.id}] FFmpeg process exited with code ${code}`);
-                this.isRunning = false;
-            });
-
-            this.ffmpegProcess.on('error', (error) => {
-                console.error(`[${this.id}] FFmpeg error:`, error);
-                this.isRunning = false;
-            });
-
-        } catch (error) {
-            console.error(`[${this.id}] Error starting FFmpeg:`, error);
-            this.isRunning = false;
-            throw error;
-        }
+            req.on('error', reject);
+            req.write(postData);
+            req.end();
+        });
     }
 
-    getFFmpegCommand(ndiSourceName) {
-        return `-i "ndi:[${ndiSourceName}]"`;
+    /**
+     * Start proxying MJPEG stream from Python backend to WebSocket clients
+     */
+    startMJPEGProxy() {
+        const backendUrl = `${this.pythonBackendUrl}/mjpeg`;
+        
+        console.log(`[${this.id}] Connecting to MJPEG stream: ${backendUrl}`);
+
+        const options = {
+            hostname: 'localhost',
+            port: 5000,
+            path: '/mjpeg',
+            method: 'GET'
+        };
+
+        this.mjpegRequest = http.request(options, (res) => {
+            console.log(`[${this.id}] MJPEG connected: ${res.statusCode}`);
+            
+            let buffer = Buffer.alloc(0);
+            const boundaryMarker = Buffer.from('\r\n--frame\r\n');
+
+            res.on('data', (chunk) => {
+                buffer = Buffer.concat([buffer, chunk]);
+                
+                // Try to extract complete JPEG frames
+                let boundaryPos;
+                while ((boundaryPos = buffer.indexOf(boundaryMarker)) !== -1) {
+                    const frameEnd = boundaryPos;
+                    const frameData = buffer.slice(0, frameEnd);
+                    buffer = buffer.slice(boundaryPos + boundaryMarker.length);
+                    
+                    // Extract just the JPEG data (skip headers)
+                    const headerEnd = frameData.indexOf('\r\n\r\n');
+                    if (headerEnd !== -1) {
+                        const jpegData = frameData.slice(headerEnd + 4);
+                        this.frameCount++;
+                        this.bandwidth += jpegData.length;
+                        
+                        this.broadcastToClients({
+                            type: 'video-frame',
+                            data: jpegData.toString('base64'),
+                            timestamp: Date.now(),
+                            frameCount: this.frameCount
+                        });
+                    }
+                }
+            });
+
+            res.on('end', () => {
+                console.log(`[${this.id}] MJPEG stream ended`);
+                if (this.isRunning) {
+                    console.log(`[${this.id}] Reconnecting to MJPEG stream...`);
+                    setTimeout(() => this.startMJPEGProxy(), 2000);
+                }
+            });
+
+            res.on('error', (error) => {
+                console.error(`[${this.id}] MJPEG stream error:`, error);
+                if (this.isRunning) {
+                    setTimeout(() => this.startMJPEGProxy(), 2000);
+                }
+            });
+        });
+
+        this.mjpegRequest.on('error', (error) => {
+            console.error(`[${this.id}] Failed to connect to MJPEG stream:`, error);
+            if (this.isRunning) {
+                setTimeout(() => this.startMJPEGProxy(), 2000);
+            }
+        });
+
+        this.mjpegRequest.end();
     }
 
+    /**
+     * Broadcast message to all connected WebSocket clients
+     */
     broadcastToClients(message) {
         this.clients.forEach(client => {
             try {
@@ -110,6 +178,9 @@ class NDIStreamManager extends EventEmitter {
         });
     }
 
+    /**
+     * Add a WebSocket client to this stream
+     */
     addClient(ws) {
         this.clients.add(ws);
         console.log(`[${this.id}] Client connected. Total clients: ${this.clients.size}`);
@@ -118,38 +189,43 @@ class NDIStreamManager extends EventEmitter {
         ws.send(JSON.stringify({
             type: 'status',
             streamId: this.id,
+            source: this.currentSource,
             isRunning: this.isRunning,
             frameCount: this.frameCount,
-            bandwidth: this.bandwidth
+            bandwidth: this.bandwidth,
+            clientCount: this.clients.size
         }));
     }
 
+    /**
+     * Remove a WebSocket client from this stream
+     */
     removeClient(ws) {
         this.clients.delete(ws);
         console.log(`[${this.id}] Client disconnected. Total clients: ${this.clients.size}`);
         
-        // Stop stream if no more clients
+        // Auto-stop stream if no more clients
         if (this.clients.size === 0) {
             this.stop();
         }
     }
 
+    /**
+     * Stop the stream
+     */
     stop() {
         if (!this.isRunning) return;
         
         console.log(`[${this.id}] Stopping NDI stream`);
         this.isRunning = false;
 
-        if (this.ffmpegProcess) {
-            this.ffmpegProcess.kill();
-            this.ffmpegProcess = null;
+        // Kill MJPEG connection
+        if (this.mjpegRequest) {
+            this.mjpegRequest.destroy();
+            this.mjpegRequest = null;
         }
 
-        if (this.receiver) {
-            this.receiver.kill();
-            this.receiver = null;
-        }
-
+        // Notify all clients
         this.broadcastToClients({
             type: 'status',
             streamId: this.id,
@@ -159,9 +235,13 @@ class NDIStreamManager extends EventEmitter {
         this.emit('stopped', this.id);
     }
 
+    /**
+     * Get stream statistics
+     */
     getStats() {
         return {
             id: this.id,
+            source: this.currentSource,
             isRunning: this.isRunning,
             clientCount: this.clients.size,
             frameCount: this.frameCount,

@@ -10,6 +10,14 @@ const { spawn } = require('node:child_process');
 const os = require('node:os');
 const NDIStreamManager = require('./NDIStreamManager');
 const { v4: uuidv4 } = require('uuid');
+const https = require('https');
+const http_lib = require('http');
+
+
+// Python NDI server configuration
+const NDI_SERVER_HOST = process.env.NDI_SERVER_HOST || '127.0.0.1';
+const NDI_SERVER_PORT = process.env.NDI_SERVER_PORT || 3081;
+const NDI_SERVER_URL = `http://${NDI_SERVER_HOST}:${NDI_SERVER_PORT}`;
 
 
 class NDPiCommandServer_Client extends EventEmitter {
@@ -51,7 +59,9 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         // NDI Stream Management
         this.ws_serv_ndi_streams = null;
-        this.ws_conn_ndi_streams = new Map();
+        this.ndiStreams = new Map();
+        this.pythonBackendUrl = 'http://127.0.0.1:5000';
+        this.pythonBackendUrl = 'http://127.0.0.1:5000';
 
         this.App = null;    // express()
         this.Server = null; // http.createServer()
@@ -386,16 +396,15 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         /**
          *  NDI Stream API (v1)
-         *      WebRTC streaming for NDI sources
+         *      WebRTC streaming for NDI sources via Python backend
          */
         this.Routes
         .route('/api/v1/ndi-sources')
         .get(async (req, res) => {
             console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GET /api/v1/ndi-sources');
             try {
-                const sources = await func.discoverNDISources();
-                const formattedSources = func.getNDISourcesForAPI(sources);
-                res.status(200).json(formattedSources);
+                const sources = await this._getPythonNDISources();
+                res.status(200).json(sources);
             } catch (error) {
                 console.error('Error discovering NDI sources:', error);
                 res.status(500).json({ error: error.message });
@@ -404,10 +413,10 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         this.Routes
         .route('/api/v1/ndi-streams')
-        .get((req, res) => {
+        .get(async (req, res) => {
             console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GET /api/v1/ndi-streams');
             try {
-                const activeStreams = Array.from(this.ws_conn_ndi_streams.values()).map(s => s.getStats());
+                const activeStreams = Array.from(this.ndiStreams.values()).map(s => s.getStats());
                 res.status(200).json(activeStreams);
             } catch (error) {
                 console.error('Error getting NDI streams:', error);
@@ -427,25 +436,28 @@ class NDPiCommandServer_Client extends EventEmitter {
                 }
 
                 const streamId = uuidv4().substring(0, 8);
-                const outputDir = path.join(__dirname, '..', 'tmp', 'ndi-webrtc');
-                const ndiReceiverPath = path.join(__dirname, '..', 'ndi_receiver_v3__NDI6', 'ndi_receiver_v4');
-                const ndiDiscoverPath = path.join(__dirname, '..', 'ndi_receiver_v3__NDI6', 'ndpi_discover');
-
-                // Create output directory if needed
-                if (!require('fs').existsSync(outputDir)) {
-                    require('fs').mkdirSync(outputDir, { recursive: true });
-                }
-
-                const manager = new NDIStreamManager(streamId, outputDir, ndiReceiverPath, ndiDiscoverPath);
-                this.ws_conn_ndi_streams.set(streamId, manager);
                 
-                manager.on('stopped', (id) => {
-                    this.ws_conn_ndi_streams.delete(id);
-                });
+                // Request Python server to start stream
+                const pythonRes = await this._fetchFromPythonServer(
+                    '/api/v1/ndi-stream/start',
+                    'POST',
+                    { streamId, sourceName: ndiSource }
+                );
 
-                await manager.start(ndiSource);
-
-                res.status(200).json({ streamId, status: 'starting' });
+                if (pythonRes.status === 'started' || pythonRes.status === 'already_running') {
+                    // Store stream ID in Node.js for WebSocket management
+                    if (!this.ndiStreams.has(streamId)) {
+                        this.ndiStreams.set(streamId, {
+                            id: streamId,
+                            source: ndiSource,
+                            startTime: Date.now(),
+                            isRunning: true
+                        });
+                    }
+                    res.status(200).json({ streamId, status: 'starting' });
+                } else {
+                    throw new Error('Failed to start stream on Python server');
+                }
             } catch (error) {
                 console.error('Error starting NDI stream:', error);
                 res.status(500).json({ error: error.message });
@@ -454,11 +466,11 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         this.Routes
         .route('/api/v1/ndi-stream/stop')
-        .post((req, res) => {
+        .post(async (req, res) => {
             console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'POST /api/v1/ndi-stream/stop');
             try {
                 const { streamId } = req.body;
-                const stream = this.ws_conn_ndi_streams.get(streamId);
+                const stream = this.ndiStreams.get(streamId);
                 
                 if (!stream) {
                     return res.status(404).json({ error: 'Stream not found' });
@@ -470,6 +482,81 @@ class NDPiCommandServer_Client extends EventEmitter {
                 console.error('Error stopping NDI stream:', error);
                 res.status(500).json({ error: error.message });
             }
+        });
+    }
+
+    /**
+     * Helper method to fetch from Python NDI server
+     */
+    async _getPythonNDISources() {
+        return new Promise((resolve, reject) => {
+            const options = {
+                hostname: 'localhost',
+                port: 5000,
+                path: '/api/sources',
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            };
+
+            const req = http.request(options, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch (e) {
+                        reject(new Error(`Failed to parse response: ${e.message}`));
+                    }
+                });
+            });
+
+            req.on('error', reject);
+            req.end();
+        });
+    }
+
+    _fetchFromPythonServer(endpoint, method = 'GET', body = null) {
+        return new Promise((resolve, reject) => {
+            const url = new URL(endpoint, NDI_SERVER_URL);
+            
+            const options = {
+                hostname: url.hostname,
+                port: url.port,
+                path: url.pathname + url.search,
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const req = http_lib.request(options, (res) => {
+                let data = '';
+
+                res.on('data', (chunk) => {
+                    data += chunk;
+                });
+
+                res.on('end', () => {
+                    try {
+                        if (res.statusCode >= 200 && res.statusCode < 300) {
+                            const parsed = data ? JSON.parse(data) : {};
+                            resolve(parsed);
+                        } else {
+                            reject(new Error(`Python server returned ${res.statusCode}: ${data}`));
+                        }
+                    } catch (e) {
+                        reject(new Error(`Failed to parse response: ${e.message}`));
+                    }
+                });
+            });
+
+            req.on('error', reject);
+
+            if (body) {
+                req.write(JSON.stringify(body));
+            }
+
+            req.end();
         });
     }
 

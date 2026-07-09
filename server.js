@@ -28,6 +28,8 @@ class NDPi {
         this.controller_cec = null;
         this.ndiReceiver = null;
 
+        this.pythonBackend = null;
+
         this.lcdDisplayRestartTimer = null;
         this.lcdDisplay = null;
 
@@ -78,6 +80,7 @@ class NDPi {
             // this.startAirPlay();
             // this.startLcdDisplay();
             // this.startMdns();
+            this.startPythonBackend();
             this.startApi();
         });
 
@@ -232,6 +235,70 @@ class NDPi {
             this.server_api = null;
         }
     }
+
+    /**
+     * START PYTHON BACKEND (NDI)
+     */
+    startPythonBackend() {
+        try {
+            const pythonScript = path.join(__dirname, 'ndi-backend', 'app.py');
+            const pythonProcess = spawn('python3', [pythonScript], {
+                cwd: path.join(__dirname, 'ndi-backend'),
+                stdio: ['ignore', 'pipe', 'pipe'],
+                detached: false
+            });
+
+            pythonProcess.stdout.on('data', (data) => {
+                console.log(`[Python Backend] ${data.toString().trim()}`);
+            });
+
+            pythonProcess.stderr.on('data', (data) => {
+                console.error(`[Python Backend Error] ${data.toString().trim()}`);
+            });
+
+            pythonProcess.on('error', (err) => {
+                console.error(`Failed to start Python backend: ${err.message}`);
+                this.pythonBackend = null;
+            });
+
+            pythonProcess.on('exit', (code) => {
+                console.warn(`Python backend exited with code ${code}`);
+                this.pythonBackend = null;
+            });
+
+            this.pythonBackend = pythonProcess;
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ] Python Backend (NDI) started successfully`);
+        } catch (err) {
+            console.error(`[ ${path.basename(__filename).split('.')[0]} ] Failed to start Python Backend: ${err.message}`);
+        }
+    }
+
+    async _closePythonBackend() {
+        return new Promise((resolve) => {
+            if (this.pythonBackend) {
+                console.log('*** SHUTDOWN ⎯ 7.5 (1 of 2) [ Start [_closePythonBackend] ]');
+                
+                const timeout = setTimeout(() => {
+                    console.warn('Python backend did not exit gracefully, forcing kill');
+                    this.pythonBackend.kill('SIGKILL');
+                    this.pythonBackend = null;
+                    console.log('*** SHUTDOWN ⎯ 7.5 (2 of 2) [ End   [_closePythonBackend] (forced) ]');
+                    resolve();
+                }, 3000);
+
+                this.pythonBackend.once('exit', () => {
+                    clearTimeout(timeout);
+                    this.pythonBackend = null;
+                    console.log('*** SHUTDOWN ⎯ 7.5 (2 of 2) [ End   [_closePythonBackend] ]');
+                    resolve();
+                });
+
+                this.pythonBackend.kill('SIGTERM');
+            } else {
+                resolve();
+            }
+        });
+    }
 }
 
 // ******************************************************
@@ -305,6 +372,9 @@ async function quitNDPi(signal) {
         // try { index.wsConnection_ndpiServer.close(); }
         // catch {}
         // finally {}
+
+        console.log('*** SHUTDOWN ⎯ 7.5');
+        await index._closePythonBackend().catch();
 
         console.log('*** SHUTDOWN ⎯ 8');
         await index._closeApi().catch();
