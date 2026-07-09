@@ -205,7 +205,7 @@ int main(int argc, char* argv[]) {
     recv_create_desc.source_to_connect_to = selectedSource;
     recv_create_desc.p_ndi_recv_name = "H264 Encoder";
     recv_create_desc.bandwidth = NDIlib_recv_bandwidth_highest;
-    recv_create_desc.color_format = NDIlib_recv_color_format_highest;
+    recv_create_desc.color_format = NDIlib_recv_color_format_fastest;
     
     NDIlib_recv_instance_t pNDI_recv = ndiLib.recv_create_v3(&recv_create_desc);
     
