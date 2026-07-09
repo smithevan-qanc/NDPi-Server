@@ -202,6 +202,11 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.App.use(this.Routes);
         this.startServer();
 
+        this.Routes.route('/test-page').get((req, res) => {
+            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            res.sendFile(path.join(__dirname, '..', 'ndi-webrtc-example.html'))
+        });
+
         this.Routes
         .route('/')
         .get((req, res) => {
