@@ -590,7 +590,7 @@
             if (!state.streamId) return;
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws/stream/${state.streamId}`;
+            const wsUrl = `${protocol}//${window.location.host}/ws/ndi-stream/${state.streamId}`;
 
             log(`Connecting to: ${wsUrl}`, 'info');
             state.ws = new WebSocket(wsUrl);
