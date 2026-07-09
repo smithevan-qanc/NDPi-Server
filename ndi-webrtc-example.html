@@ -489,7 +489,8 @@
                     body: JSON.stringify({ type: "get-sources" })
                 });
                 // const response = await fetch('/api/ndi-sources');
-                const sources = await response.json();
+                const res = await response.json();
+                const sources = res.data.sources || [];
 
                 if (!sources || sources.length === 0) {
                     sourcesList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No sources found</div>';
