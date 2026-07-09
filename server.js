@@ -241,8 +241,8 @@ class NDPi {
      */
     startPythonBackend() {
         try {
-            const pythonScript = path.join(__dirname, 'ndi-backend', 'app.py');
-            const pythonProcess = spawn('python3', [pythonScript], {
+            const startupScript = path.join(__dirname, 'ndi-backend', 'startup.sh');
+            const pythonProcess = spawn('bash', [startupScript], {
                 cwd: path.join(__dirname, 'ndi-backend'),
                 stdio: ['ignore', 'pipe', 'pipe'],
                 detached: false
