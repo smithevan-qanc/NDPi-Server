@@ -987,6 +987,71 @@ const { exec, spawn } = require('node:child_process');
             return response;
         }
 
+        /**
+         * Discover available NDI sources
+         * 
+         * @returns {Promise<Array>} Array of NDI source objects
+         */
+        async function discoverNDISources() {
+            const ndiDiscoverPath = path.join(__dirname, '..', 'ndi_receiver_v3__NDI6', 'ndpi_discover');
+            
+            return new Promise((resolve) => {
+                try {
+                    if (!fs.existsSync(ndiDiscoverPath)) {
+                        console.warn('NDI Discover not found at', ndiDiscoverPath);
+                        resolve([]);
+                        return;
+                    }
+
+                    exec(`${ndiDiscoverPath}`, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+                        if (error) {
+                            console.error('Error discovering NDI sources:', error.message);
+                            resolve([]);
+                            return;
+                        }
+
+                        try {
+                            const sources = JSON.parse(stdout || '[]');
+                            resolve(Array.isArray(sources) ? sources : []);
+                        } catch (parseError) {
+                            console.error('Error parsing NDI sources JSON:', parseError.message);
+                            resolve([]);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error in discoverNDISources:', error.message);
+                    resolve([]);
+                }
+            });
+        }
+
+        /**
+         * Format NDI source information for display
+         * 
+         * @param {Object} source - NDI source object
+         * @returns {Object} Formatted source data
+         */
+        function formatNDISource(source) {
+            return {
+                name: source.name || 'Unknown',
+                url: source.url || source.name || '',
+                ip: source.ip || '',
+                addresses: source.addresses || []
+            };
+        }
+
+        /**
+         * Convert NDI source list for API response
+         * 
+         * @param {Array} sources - Raw NDI sources
+         * @returns {Array} Formatted sources for API
+         */
+        function getNDISourcesForAPI(sources) {
+            return Array.isArray(sources) 
+                ? sources.map(source => formatNDISource(source))
+                : [];
+        }
+
 
 module.exports = {
     processCommand,
@@ -1018,4 +1083,9 @@ module.exports = {
     activateWindow_AirPlay,
 
     activateDisplay,
+    
+    // NDI Stream Functions
+    discoverNDISources,
+    formatNDISource,
+    getNDISourcesForAPI,
 };

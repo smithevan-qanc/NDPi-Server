@@ -9,6 +9,8 @@ set -e
 
 customInstallInstructions() {
     # Write Custom Update Script Here
+    cd /home/ndpi-server/ndpi
+    sudo npm install uuid
     sleep 0.1
 }
 

@@ -8,6 +8,8 @@ const func = require('./functions');
 const { randomUUID } = require('crypto');
 const { spawn } = require('node:child_process');
 const os = require('node:os');
+const NDIStreamManager = require('./NDIStreamManager');
+const { v4: uuidv4 } = require('uuid');
 
 
 class NDPiCommandServer_Client extends EventEmitter {
@@ -47,6 +49,10 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_sources = null;
         this.ws_conn_sources = null;
 
+        // NDI Stream Management
+        this.ws_serv_ndi_streams = null;
+        this.ws_conn_ndi_streams = new Map();
+
         this.App = null;    // express()
         this.Server = null; // http.createServer()
         this.Routes = null; // express.Router()
@@ -77,6 +83,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.__ws_System();
         this.__ws_Stats();
         this.__ws_Sources();
+        this.__ws_NDIStreams();
         this.__Routers();
     }
 
@@ -193,6 +200,51 @@ class NDPiCommandServer_Client extends EventEmitter {
             ws.onclose = async () => {
                 this.ws_conn_sources.delete(ws);
                 console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'NDI Source WebSocket connection REMOVED.');
+            };
+        });
+    }
+
+    /**
+     *      NDI Streams - WebSocket Connection Handler
+     */
+    __ws_NDIStreams() {
+        this.ws_serv_ndi_streams = new WebSocket.Server({ noServer: true });
+
+        this.ws_serv_ndi_streams.on('connection', (ws, request) =>{
+            const streamId = request.url.split('/').pop();
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDI Stream [${streamId}] WebSocket connection ADDED.`);
+
+            let stream = this.ws_conn_ndi_streams.get(streamId);
+
+            if (!stream) {
+                console.error(`[ ${path.basename(__filename).split('.')[0]} ]`, `Stream ${streamId} not found`);
+                ws.close(1008, 'Stream not found');
+                return;
+            }
+
+            stream.addClient(ws);
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'start') {
+                        stream.start(data.ndiSource);
+                    } else if (data.type === 'stop') {
+                        stream.stop();
+                    }
+                } catch (error) {
+                    console.error('Error handling WebSocket message:', error);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `NDI Stream [${streamId}] WebSocket Server`, error);
+            };
+
+            ws.onclose = () => {
+                stream.removeClient(ws);
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDI Stream [${streamId}] WebSocket connection REMOVED.`);
             };
         });
     }
@@ -331,6 +383,94 @@ class NDPiCommandServer_Client extends EventEmitter {
                     break;
             }
         });
+
+        /**
+         *  NDI Stream API (v1)
+         *      WebRTC streaming for NDI sources
+         */
+        this.Routes
+        .route('/api/v1/ndi-sources')
+        .get(async (req, res) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GET /api/v1/ndi-sources');
+            try {
+                const sources = await func.discoverNDISources();
+                const formattedSources = func.getNDISourcesForAPI(sources);
+                res.status(200).json(formattedSources);
+            } catch (error) {
+                console.error('Error discovering NDI sources:', error);
+                res.status(500).json({ error: error.message });
+            }
+        });
+
+        this.Routes
+        .route('/api/v1/ndi-streams')
+        .get((req, res) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GET /api/v1/ndi-streams');
+            try {
+                const activeStreams = Array.from(this.ws_conn_ndi_streams.values()).map(s => s.getStats());
+                res.status(200).json(activeStreams);
+            } catch (error) {
+                console.error('Error getting NDI streams:', error);
+                res.status(500).json({ error: error.message });
+            }
+        });
+
+        this.Routes
+        .route('/api/v1/ndi-stream/start')
+        .post(async (req, res) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'POST /api/v1/ndi-stream/start');
+            try {
+                const { ndiSource } = req.body;
+                
+                if (!ndiSource) {
+                    return res.status(400).json({ error: 'NDI source name required' });
+                }
+
+                const streamId = uuidv4().substring(0, 8);
+                const outputDir = path.join(__dirname, '..', 'tmp', 'ndi-webrtc');
+                const ndiReceiverPath = path.join(__dirname, '..', 'ndi_receiver_v3__NDI6', 'ndi_receiver_v4');
+                const ndiDiscoverPath = path.join(__dirname, '..', 'ndi_receiver_v3__NDI6', 'ndpi_discover');
+
+                // Create output directory if needed
+                if (!require('fs').existsSync(outputDir)) {
+                    require('fs').mkdirSync(outputDir, { recursive: true });
+                }
+
+                const manager = new NDIStreamManager(streamId, outputDir, ndiReceiverPath, ndiDiscoverPath);
+                this.ws_conn_ndi_streams.set(streamId, manager);
+                
+                manager.on('stopped', (id) => {
+                    this.ws_conn_ndi_streams.delete(id);
+                });
+
+                await manager.start(ndiSource);
+
+                res.status(200).json({ streamId, status: 'starting' });
+            } catch (error) {
+                console.error('Error starting NDI stream:', error);
+                res.status(500).json({ error: error.message });
+            }
+        });
+
+        this.Routes
+        .route('/api/v1/ndi-stream/stop')
+        .post((req, res) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'POST /api/v1/ndi-stream/stop');
+            try {
+                const { streamId } = req.body;
+                const stream = this.ws_conn_ndi_streams.get(streamId);
+                
+                if (!stream) {
+                    return res.status(404).json({ error: 'Stream not found' });
+                }
+
+                stream.stop();
+                res.status(200).json({ status: 'stopped' });
+            } catch (error) {
+                console.error('Error stopping NDI stream:', error);
+                res.status(500).json({ error: error.message });
+            }
+        });
     }
 
     startServer() {
@@ -360,6 +500,10 @@ class NDPiCommandServer_Client extends EventEmitter {
             } else if (pathname === '/ws/sources') {
                 this.ws_serv_sources.handleUpgrade(request, socket, head, (ws) => {
                     this.ws_serv_sources.emit('connection', ws, request);
+                });
+            } else if (pathname.startsWith('/ws/ndi-stream/')) {
+                this.ws_serv_ndi_streams.handleUpgrade(request, socket, head, (ws) => {
+                    this.ws_serv_ndi_streams.emit('connection', ws, request);
                 });
             } else {
                 socket.destroy();
@@ -588,6 +732,27 @@ class NDPiCommandServer_Client extends EventEmitter {
                 }
             }),
         ]);
+        
+        // Close all NDI streams
+        this.ws_conn_ndi_streams.forEach((stream) => {
+            try {
+                stream.stop();
+            } catch (error) {
+                console.error(`Error stopping NDI stream ${stream.id}:`, error);
+            }
+        });
+        this.ws_conn_ndi_streams.clear();
+
+        // Close NDI stream WebSocket server
+        if (this.ws_serv_ndi_streams) {
+            this.ws_serv_ndi_streams.close((err) => {
+                if (err) {
+                    console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR CLOSING ] NDI Stream WebSocket`, err);
+                } else {
+                    console.info(`[ -CLOSED ][ ${path.basename(__filename).split('.')[0]} ] NDI Stream WebSocket`);
+                }
+            });
+        }
         
         await this._tryCloseDiscovery();
 
