@@ -464,6 +464,69 @@ class NDPiCommandServer_Client extends EventEmitter {
                 res.status(500).json({ error: error.message });
             }
         });
+
+        this.Routes
+        .route('/api/v1/ndi-stream/:streamId/mjpeg')
+        .get(async (req, res) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `GET /api/v1/ndi-stream/${req.params.streamId}/mjpeg`);
+            try {
+                const streamId = req.params.streamId;
+                const stream = this.ndiStreams.get(streamId);
+                
+                if (!stream) {
+                    return res.status(404).json({ error: 'Stream not found' });
+                }
+
+                // Set MJPEG headers
+                res.setHeader('Content-Type', 'multipart/x-mixed-replace; boundary=frame');
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                res.setHeader('Connection', 'keep-alive');
+                res.setHeader('Pragma', 'no-cache');
+
+                // Proxy directly to Python backend MJPEG
+                const http = require('http');
+                const options = {
+                    hostname: 'localhost',
+                    port: 5000,
+                    path: '/mjpeg',
+                    method: 'GET'
+                };
+
+                const backendReq = http.request(options, (backendRes) => {
+                    console.log(`[${streamId}] MJPEG proxy connected: ${backendRes.statusCode}`);
+                    
+                    backendRes.on('data', (chunk) => {
+                        res.write(chunk);
+                    });
+
+                    backendRes.on('end', () => {
+                        console.log(`[${streamId}] MJPEG proxy ended`);
+                        res.end();
+                    });
+
+                    backendRes.on('error', (error) => {
+                        console.error(`[${streamId}] MJPEG proxy error:`, error);
+                        res.end();
+                    });
+                });
+
+                backendReq.on('error', (error) => {
+                    console.error(`[${streamId}] MJPEG proxy connection failed:`, error);
+                    res.status(500).json({ error: error.message });
+                });
+
+                backendReq.end();
+
+                // Clean up on disconnect
+                req.on('close', () => {
+                    console.log(`[${streamId}] MJPEG client disconnected`);
+                    backendReq.destroy();
+                });
+            } catch (error) {
+                console.error('Error proxying MJPEG stream:', error);
+                res.status(500).json({ error: error.message });
+            }
+        });
     }
 
     /**
