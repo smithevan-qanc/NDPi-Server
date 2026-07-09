@@ -10,7 +10,7 @@ cd "$SCRIPT_DIR"
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     echo "[NDI Backend] Creating Python virtual environment..."
-    python3 -m venv venv
+    sudo python3 -m venv venv
 fi
 
 # Activate virtual environment
