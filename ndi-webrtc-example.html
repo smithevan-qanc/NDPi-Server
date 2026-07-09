@@ -249,7 +249,9 @@
     try {
       const r = await fetch('/api/v1/ndi-sources');
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return await r.json();
+      const data = await r.json();
+      // Handle both formats: { sources: [...] } and bare array
+      return Array.isArray(data) ? data : (data.sources || []);
     } catch (e) {
       console.error('Error fetching sources:', e);
       return [];
@@ -265,13 +267,21 @@
 
     for (const source of sources) {
       const o = document.createElement('option');
-      o.value = source.name;
-      o.textContent = source.name;
+      // Handle both string sources and object sources with .name property
+      const sourceStr = typeof source === 'string' ? source : source.name;
+      o.value = sourceStr;
+      o.textContent = sourceStr;
       selectEl.appendChild(o);
     }
 
-    if (preferred && sources.find(s => s.name === preferred)) {
-      selectEl.value = preferred;
+    if (preferred) {
+      const match = sources.find(s => {
+        const sourceStr = typeof s === 'string' ? s : s.name;
+        return sourceStr === preferred;
+      });
+      if (match) {
+        selectEl.value = preferred;
+      }
     }
   }
 
@@ -342,22 +352,23 @@
         console.log('WebSocket connected');
         setStreamStatus('connected');
         setStatus(`Monitoring: ${sourceName}`);
-        
-        // Send start command
-        currentWs.send(JSON.stringify({
-          type: 'start',
-          ndiSource: sourceName
-        }));
       };
 
       currentWs.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'stats') {
+          
+          if (data.type === 'video-frame' && data.data) {
+            // Display JPEG frame
+            const frameBlob = new Blob([Uint8Array.from(atob(data.data), c => c.charCodeAt(0))], { type: 'image/jpeg' });
+            const frameUrl = URL.createObjectURL(frameBlob);
+            videoEl.src = frameUrl;
+            setStreamStatus('streaming');
+          } else if (data.type === 'status') {
             setStreamStatus('streaming', data.clientCount, data.frameCount);
           }
         } catch (e) {
-          // Might be binary stream data
+          console.error('Error handling WebSocket message:', e);
         }
       };
 

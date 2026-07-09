@@ -224,7 +224,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             const streamId = request.url.split('/').pop();
             console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDI Stream [${streamId}] WebSocket connection ADDED.`);
 
-            let stream = this.ws_conn_ndi_streams.get(streamId);
+            let stream = this.ndiStreams.get(streamId);
 
             if (!stream) {
                 console.error(`[ ${path.basename(__filename).split('.')[0]} ]`, `Stream ${streamId} not found`);
@@ -235,17 +235,8 @@ class NDPiCommandServer_Client extends EventEmitter {
             stream.addClient(ws);
 
             ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'start') {
-                        stream.start(data.ndiSource);
-                    } else if (data.type === 'stop') {
-                        stream.stop();
-                    }
-                } catch (error) {
-                    console.error('Error handling WebSocket message:', error);
-                }
+                // No commands expected from browser - stream is managed via REST API
+                // This handler is here for future extensibility
             };
 
             ws.onerror = (error) => {
@@ -436,28 +427,17 @@ class NDPiCommandServer_Client extends EventEmitter {
                 }
 
                 const streamId = uuidv4().substring(0, 8);
+                const NDIStreamManager = require('./NDIStreamManager');
+                const manager = new NDIStreamManager(streamId, this.pythonBackendUrl);
                 
-                // Request Python server to start stream
-                const pythonRes = await this._fetchFromPythonServer(
-                    '/api/v1/ndi-stream/start',
-                    'POST',
-                    { streamId, sourceName: ndiSource }
-                );
-
-                if (pythonRes.status === 'started' || pythonRes.status === 'already_running') {
-                    // Store stream ID in Node.js for WebSocket management
-                    if (!this.ndiStreams.has(streamId)) {
-                        this.ndiStreams.set(streamId, {
-                            id: streamId,
-                            source: ndiSource,
-                            startTime: Date.now(),
-                            isRunning: true
-                        });
-                    }
-                    res.status(200).json({ streamId, status: 'starting' });
-                } else {
-                    throw new Error('Failed to start stream on Python server');
-                }
+                // Start streaming from Python backend
+                await manager.start(ndiSource);
+                
+                // Store manager in map for WebSocket handler to find it
+                this.ndiStreams.set(streamId, manager);
+                
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ] Stream started: ${streamId} (${ndiSource})`);
+                res.status(200).json({ streamId, status: 'started', source: ndiSource });
             } catch (error) {
                 console.error('Error starting NDI stream:', error);
                 res.status(500).json({ error: error.message });
@@ -477,6 +457,7 @@ class NDPiCommandServer_Client extends EventEmitter {
                 }
 
                 stream.stop();
+                this.ndiStreams.delete(streamId);
                 res.status(200).json({ status: 'stopped' });
             } catch (error) {
                 console.error('Error stopping NDI stream:', error);
