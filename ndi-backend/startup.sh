@@ -27,4 +27,4 @@ fi
 
 # Start the FastAPI server
 echo "[NDI Backend] Starting FastAPI server..."
-sudo python3 app.py
+sudo ./venv/bin/python3 app.py
