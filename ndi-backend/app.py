@@ -4,6 +4,8 @@ Provides MJPEG and JPEG endpoints for Node.js WebRTC server to consume
 """
 import threading
 import time
+import urllib.request
+import json
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -20,6 +22,7 @@ from ndi_receiver import NDIReceiver, NDISourceFinder, NDIError
 
 PORT = 5000
 HOST = "127.0.0.1"
+NODE_SERVER_URL = "http://127.0.0.1:3080"
 
 
 # ============================================================================
@@ -78,12 +81,19 @@ def health():
 
 @app.get("/api/sources")
 def list_sources():
-    """List all available NDI sources"""
+    """List all available NDI sources from Node.js server"""
     try:
-        sources = finder.list_sources(timeout_ms=500)
-        return {"sources": sources}
-    except NDIError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        url = f"{NODE_SERVER_URL}/api/v1/ndi-sources"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return {"sources": data.get("sources", [])}
+    except Exception as e:
+        # Fallback: try ctypes discovery if Node.js server not available
+        try:
+            sources = finder.list_sources(timeout_ms=500)
+            return {"sources": sources}
+        except NDIError:
+            raise HTTPException(status_code=503, detail=f"NDI source discovery unavailable: {str(e)}")
 
 
 @app.get("/api/selected")
