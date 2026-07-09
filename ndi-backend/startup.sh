@@ -16,15 +16,15 @@ source venv/bin/activate 2>/dev/null || . venv/Scripts/activate 2>/dev/null || t
 
 # Upgrade pip and setuptools first (fixes build issues on ARM)
 echo "[NDI Backend] Upgrading pip and setuptools..."
-python3 -m pip install --upgrade pip setuptools wheel 2>/dev/null || true
+sudo python3 -m pip install --upgrade pip setuptools wheel 2>/dev/null || true
 
 # Install/upgrade requirements with pre-built wheels only
 if [ -f "requirements.txt" ]; then
     echo "[NDI Backend] Installing dependencies..."
-    python3 -m pip install --only-binary :all: -r requirements.txt 2>/dev/null || \
-    python3 -m pip install -r requirements.txt
+    sudo python3 -m pip install --only-binary :all: -r requirements.txt 2>/dev/null || \
+    sudo python3 -m pip install -r requirements.txt
 fi
 
 # Start the FastAPI server
 echo "[NDI Backend] Starting FastAPI server..."
-python3 app.py
+sudo python3 app.py
