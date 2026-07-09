@@ -537,7 +537,7 @@
 
             try {
                 log('Starting stream...', 'info');
-                const response = await fetch('/api/stream/start', {
+                const response = await fetch('/api/v1/ndi-stream/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ndiSource: state.currentSource })
@@ -569,7 +569,7 @@
             }
 
             try {
-                await fetch('/api/stream/stop', {
+                await fetch('/api/v1/ndi-stream/stop', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ streamId: state.streamId })
