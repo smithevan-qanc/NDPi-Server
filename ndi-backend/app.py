@@ -4,6 +4,7 @@ Provides MJPEG and JPEG endpoints for Node.js WebRTC server to consume
 """
 import threading
 import time
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -25,7 +26,34 @@ HOST = "127.0.0.1"
 # Application State
 # ============================================================================
 
-app = FastAPI(title="NDPi NDI Backend", version="1.0.0")
+# Lifespan event handler
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events"""
+    # Startup
+    yield
+    # Shutdown - cleanup resources
+    global receiver, finder
+    
+    with receiver_lock:
+        if receiver is not None:
+            try:
+                receiver.close()
+            except Exception:
+                pass
+            receiver = None
+    
+    try:
+        finder.close()
+    except Exception:
+        pass
+
+
+app = FastAPI(
+    title="NDPi NDI Backend",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 finder = NDISourceFinder()
 receiver_lock = threading.Lock()
@@ -190,23 +218,6 @@ def get_single_frame():
         raise HTTPException(status_code=504, detail="Failed to capture frame")
     
     return StreamingResponse(iter([frame]), media_type="image/jpeg")
-
-
-# ============================================================================
-# Cleanup
-# ============================================================================
-
-@app.on_event("shutdown")
-def shutdown_event():
-    """Clean up resources on shutdown"""
-    global receiver
-    
-    with receiver_lock:
-        if receiver is not None:
-            receiver.close()
-            receiver = None
-    
-    finder.close()
 
 
 # ============================================================================
