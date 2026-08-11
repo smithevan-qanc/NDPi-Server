@@ -80,7 +80,7 @@ class NDPi {
             // this.startAirPlay();
             // this.startLcdDisplay();
             // this.startMdns();
-            this.startPythonBackend();
+            // this.startPythonBackend();
             this.startApi();
         });
 
