@@ -354,6 +354,44 @@ gaps rather than needing to rebuild this from scratch:
    grid (already has dedicated "Display Overlay"/"Blank Display" buttons —
    would otherwise show as a redundant second control for the same field).
 
+**Fixed 4 more bugs from real usage**, two of which share a root cause:
+1. **`settings.html` crashed on load** (`Cannot read properties of null
+   (reading 'isAdmin')`) — `renderSections()` was called at top-level script
+   scope, which runs *before* `01-scripts/functions.js`'s async
+   `loadUserAccount()` call resolves, so the global `account` was still
+   `null`. Fixed by moving the call into `initPage()`, the hook
+   `functions.js`'s bootstrap already calls once `account` is actually
+   loaded (same pattern `console.html` already used correctly).
+2. **`set-pin.html` silently did nothing on submit** — same root cause, more
+   severe: line 1 of the script synchronously read `account.firstName`
+   before `account` loaded, threw immediately, and since it's a top-level
+   statement that killed the rest of the script before it ever reached
+   `form.addEventListener('submit', ...)` — the button had no handler at
+   all. Fixed the same way (wrapped in `initPage()`). Also un-commented the
+   PIN-match live-validation listeners while in there (previously dead
+   stubs — one of the "lower priority" items below, now done).
+3. **Root page redirected to `/signin.html` instead of `/sign-in.html`**
+   (missing hyphen — the real page is `public/sign-in/sign-in.html`). Before
+   my routing fix earlier this session this typo'd path would 404 with a
+   bare Express error page; now it 404s to the styled not-found page
+   instead — neither is the sign-in page. Fixed in `01-scripts/auth.js`
+   (`redirectSignIn()` + the token-clear check) and a dead/commented
+   reference in `advanced-account-settings.html`.
+4. **Sign Out button "didn't work"** — same `/signin.html` typo:
+   `signOut()` in `auth.js` correctly clears `localStorage` and calls
+   `redirectSignIn()`, it just landed on the 404/not-found page instead of
+   sign-in, which reads as "nothing happened." Fixed by the auth.js change
+   above (bugs 3 and 4 are the same fix).
+
+Checked every other page for the same "reads `account.x` before it's
+loaded" crash pattern: `advanced-account-settings.html`/`create-account.html`
+guard their admin check in a `setTimeout(…, 1000)` (works in practice,
+lower-severity timing hazard, not a hard crash — left as-is, already listed
+as a known issue above); `groups.html`'s is inside a commented-out dead
+block; `group.html`'s and `device.html`'s only run from inside
+data-dependent render functions invoked after their own async fetches
+resolve, not at top-level scope — not the same bug.
+
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
 page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/
@@ -436,8 +474,8 @@ Confirmed gaps, roughly by impact:
 - Dead `showOfflineOverlay()`/`hideOfflineOverlay()` duplicates (referencing
   nonexistent DOM) on `devices.html`, `groups.html`, `users.html` — the real
   ones live inside `ws-client.js` itself.
-- `set-pin.html`'s live PIN-match validation listeners are stubbed out
-  (commented bodies) — only server-side validation on submit actually runs.
+- ~~`set-pin.html`'s live PIN-match validation listeners were stubbed out~~
+  — fixed, see "Fixed 4 more bugs from real usage" above.
 
 Pages that are otherwise complete/working end-to-end (module the routing bug
 above, which affects all of them equally): `account-settings`,

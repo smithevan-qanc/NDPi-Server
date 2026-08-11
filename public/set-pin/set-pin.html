@@ -53,84 +53,90 @@
 	<script src="/scripts/functions.js"></script>
 	<script>
 
-		// Show welcome message with name
-		document.getElementById('welcomeMessage').textContent = `Welcome, ${account.firstName}! Please set your own PIN to continue.`;
+		// Called by 01-scripts/functions.js's bootstrap once `account` has
+		// actually loaded. This page used to read account.firstName and
+		// wire up the form at top-level script scope, which ran before the
+		// async loadUserAccount() call resolved — account was still null,
+		// so it threw immediately and the submit handler never even got
+		// registered (the whole rest of the script never ran).
+		function initPage() {
+			// Show welcome message with name
+			document.getElementById('welcomeMessage').textContent = `Welcome, ${account.firstName}! Please set your own PIN to continue.`;
 
-		const form = document.getElementById('setPinForm');
-		const newPinInput = document.getElementById('newPin');
-		const confirmPinInput = document.getElementById('confirmPin');
-		const pinError = document.getElementById('pinError');
-		const confirmError = document.getElementById('confirmError');
-		const formError = document.getElementById('formError');
+			const form = document.getElementById('setPinForm');
+			const newPinInput = document.getElementById('newPin');
+			const confirmPinInput = document.getElementById('confirmPin');
+			const pinError = document.getElementById('pinError');
+			const confirmError = document.getElementById('confirmError');
+			const formError = document.getElementById('formError');
 
-		newPinInput.addEventListener('input', () => {
-			//const pin = newPinInput.value;
-			//if (pin.length > 0 && pin.length !== 4 && pin.length !== 6) {
-			//	pinError.style.display = 'block';
-			//} else {
-			//	pinError.style.display = 'none';
-			//}
-		});
-
-		confirmPinInput.addEventListener('input', () => {
-			//if (confirmPinInput.value && confirmPinInput.value !== newPinInput.value) {
-			//	confirmError.style.display = 'block';
-			//} else {
-			//	confirmError.style.display = 'none';
-			//}
-		});
-
-		form.addEventListener('submit', async (e) => {
-			e.preventDefault();
-			
-			formError.style.display = 'none';
-			
-			const newPin = newPinInput.value;
-			const confirmPin = confirmPinInput.value;
-			
-			// Validation
-			if (newPin !== confirmPin) {
-				confirmError.style.display = 'block';
-				return;
-			}
-			
-			if (newPin.length !== 4 && newPin.length !== 5 && newPin.length !== 6) {
-				pinError.style.display = 'block';
-				return;
-			}
-			
-			//const account = JSON.parse(localStorage.getItem('ndpi_account'));
-			
-			try {
-				const res = await fetch(`/api/account/${account.id}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ 
-						pin: newPin,
-						clearFirstTime: true
-					})
-				});
-				
-				const data = await res.json();
-				
-				if (res.ok) {
-					// Update localStorage to clear firstTimeLogin flag
-					account.firstTimeLogin = false;
-					localStorage.setItem('ndpi_account', JSON.stringify(account));
-					
-					// Redirect to dashboard
-					const returnUrl = sessionStorage.getItem('signin_return') || '/';
-					sessionStorage.removeItem('signin_return');
-					window.location.href = returnUrl;
+			newPinInput.addEventListener('input', () => {
+				const pin = newPinInput.value;
+				if (pin.length > 0 && pin.length !== 4 && pin.length !== 5 && pin.length !== 6) {
+					pinError.style.display = 'block';
 				} else {
-					formError.textContent = data.error || 'Failed to set PIN';
+					pinError.style.display = 'none';
+				}
+			});
+
+			confirmPinInput.addEventListener('input', () => {
+				if (confirmPinInput.value && confirmPinInput.value !== newPinInput.value) {
+					confirmError.style.display = 'block';
+				} else {
+					confirmError.style.display = 'none';
+				}
+			});
+
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
+
+				formError.style.display = 'none';
+
+				const newPin = newPinInput.value;
+				const confirmPin = confirmPinInput.value;
+
+				// Validation
+				if (newPin !== confirmPin) {
+					confirmError.style.display = 'block';
+					return;
+				}
+
+				if (newPin.length !== 4 && newPin.length !== 5 && newPin.length !== 6) {
+					pinError.style.display = 'block';
+					return;
+				}
+
+				try {
+					const res = await fetch(`/api/account/${account.id}`, {
+						method: 'PUT',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							pin: newPin,
+							clearFirstTime: true
+						})
+					});
+
+					const data = await res.json();
+
+					if (res.ok) {
+						// Update localStorage to clear firstTimeLogin flag
+						account.firstTimeLogin = false;
+						localStorage.setItem('ndpi_account', JSON.stringify(account));
+
+						// Redirect to dashboard
+						const returnUrl = sessionStorage.getItem('signin_return') || '/';
+						sessionStorage.removeItem('signin_return');
+						window.location.href = returnUrl;
+					} else {
+						formError.textContent = data.error || 'Failed to set PIN';
+						formError.style.display = 'block';
+					}
+				} catch (error) {
+					formError.textContent = 'Network error. Please try again.';
 					formError.style.display = 'block';
 				}
-			} catch (error) {
-				formError.textContent = 'Network error. Please try again.';
-				formError.style.display = 'block';
-			}
-		});
+			});
+		}
 	</script>
 </body>
 </html>

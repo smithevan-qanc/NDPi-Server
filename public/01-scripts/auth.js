@@ -1,9 +1,9 @@
-const redirectSignIn = () => { window.location.href = '/signin.html'; }
+const redirectSignIn = () => { window.location.href = '/sign-in.html'; }
 let account = null;
 
 (() => {
     //console.log(window.location);
-    if (window.location.pathname === '/signin.html') {
+    if (window.location.pathname === '/sign-in.html') {
         localStorage.removeItem('ndpi_token');
         localStorage.removeItem('ndpi_account_id');
     }

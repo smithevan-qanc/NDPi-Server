@@ -38,7 +38,13 @@
 			applyActiveNav('navSettings');
 		})();
 
-		renderSections();
+		// Called by 01-scripts/functions.js's bootstrap once `account` has
+		// actually loaded (renderSections() reads account.isAdmin) — do not
+		// call renderSections() directly at top level, it runs before the
+		// async loadUserAccount() call has resolved.
+		function initPage() {
+			renderSections();
+		}
 
 		function renderSections() {
 			const section_UserPreferences = document.createElement('div');//<div class="card" style="grid-column: 1 / -1;">
