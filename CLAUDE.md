@@ -271,6 +271,27 @@ case) so a broken discovery binary just disables source discovery
 (`/api/ndi-sources` returns `[]`) instead of crashing the Hub. Verified live:
 repeated calls both return `200 []` and the process stays up.
 
+**Fixed from real deployment logs**: `account-settings.html` loaded its own
+page script via `/scripts/account-settings.js` — but `/scripts/` is mounted
+to `public/01-scripts/` (shared utilities), not to each page's own folder;
+the real file is `public/account-settings/account-settings.js`, reachable
+at `/account-settings/account-settings.js` via the root `public/` static
+mount. This was the only page with a real (non-empty) page-specific JS file
+that actually got this wrong — checked all other `/scripts/*.js` references
+across every page and they all correctly resolve into `01-scripts/`.
+
+Also improved: `startMdnsDiscovery()`'s "Discovered NDPi Client without a
+device ID" log now includes `service.name`/`host`/`fqdn`/`txt` instead of a
+bare message. Client's `client_bonjour.js` gates on `deviceId` being set
+before it ever calls `bonjour.publish()`, so this shouldn't be reachable in
+steady state — most likely explanation is the mDNS browser firing `up` from
+a PTR/SRV response that arrived before the TXT record resolved (a known
+`bonjour`-package race, plausibly more likely right after Client's 60s
+republish cycle stops+restarts its own advertisement). Not treated as a bug
+fix since there's no evidence devices are lost permanently (a later `up`
+event should carry the full TXT data) — just made diagnosable if it
+recurs or turns out to be persistent for a specific device.
+
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
 page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/

@@ -495,7 +495,16 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             if (!deviceId)
             {
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Discovered NDPi Client without a device ID.');
+                // Client__v3_1_0/service/client_bonjour.js gates on deviceId
+                // being set before it ever calls bonjour.publish(), so this
+                // should be unreachable in steady state — most likely cause
+                // is the mDNS browser firing 'up' from a PTR/SRV response
+                // that arrived before the TXT record (common right after
+                // Client's 60s republish cycle stops+restarts its
+                // advertisement). Harmless as long as a later 'up' event for
+                // the same service carries the full TXT data; logged with
+                // enough detail to tell which device it was if it doesn't.
+                console.warn(`⚠️   [ ${path.basename(__filename).split('.')[0]} ] Discovered a service on 'ndpi-monitor-client' without a deviceId in its TXT record (likely still resolving) — name: '${service.name}', host: '${service.host}', fqdn: '${service.fqdn}', txt: ${JSON.stringify(service.txt || {})}`);
                 return;
             }
 
