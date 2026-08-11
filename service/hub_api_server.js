@@ -430,6 +430,11 @@ class NDPiCommandServer_Client extends EventEmitter {
                         streamStatus: message.streamStatus || 'unknown',
                         ndiInfo: message.ndiInfo || null,
                         systemStats: message.systemStats || null,
+                        // Full remote-settings snapshot (mirrors what Client__v3_1_0's
+                        // own local `/ws/system` UI receives) so the Hub dashboard can
+                        // offer the same per-device controls (settings editor, overlay
+                        // upload, update checks, etc).
+                        settings: Array.isArray(message.settings) ? message.settings : (this.settings.getClient(deviceId)?.settings || null),
                         lastSeen: new Date().toISOString(),
                         lastStatusUpdate: new Date().toISOString(),
                     });
@@ -1196,6 +1201,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             group: client.groupName || client.group || 'Ungrouped',
             groupId: client.groupId || null,
             groupName: client.groupName || null,
+            settings: client.settings || null,
         });
 
         this.Routes
@@ -1310,6 +1316,30 @@ class NDPiCommandServer_Client extends EventEmitter {
         deviceCommandRoute('blank', () => ({ type: 'show-blank' }));
         deviceCommandRoute('rename', (req) => ({ type: 'rename-device', data: req.body.newName }));
         deviceCommandRoute('cec', (req) => ({ type: 'send-cec', data: req.body.command }));
+
+        // Remote settings editor — mirrors every `allowEditExternal` field
+        // exposed by Client__v3_1_0/public/system.js (device_volume, output
+        // resolution/framerate preference, NDI receiver bandwidth/color
+        // format/scale method, AirPlay PIN, Hub hostname/port, etc).
+        deviceCommandRoute('setting', (req) => ({ type: 'set-setting', data: { name: req.body.name, value: req.body.value } }));
+
+        // Overlay image upload (base64 image data URI + metadata), matching
+        // the file-upload flow in Client__v3_1_0/public/system.js.
+        deviceCommandRoute('overlay-image', (req) => ({
+            type: 'set-overlay',
+            data: {
+                name: req.body.name || '',
+                type: req.body.type || '',
+                size: req.body.size || 0,
+                dateLastModified: req.body.dateLastModified || '',
+                dateUploaded: req.body.dateUploaded || Date.now(),
+                src: req.body.src || '',
+            },
+        }));
+
+        // Software update checks/installs.
+        deviceCommandRoute('check-for-update', () => ({ type: 'check-for-update' }));
+        deviceCommandRoute('install-update', () => ({ type: 'install-update' }));
 
         this.Routes
         .route('/api/device/:deviceId/network')
