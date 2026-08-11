@@ -1,0 +1,334 @@
+# NDPi Monitor — Hub (this repo)
+
+Working notes for completing this repo. Do not trust any `*.md` file in either
+repo for architecture facts (they're stale) — this file is the exception,
+since it's derived directly from reading the actual source and from live
+repros, and is meant to be kept current as work proceeds.
+
+## The two repos
+
+- **This repo** (`Server__v3_1_0`, package name `ndpi-monitor-server`) — the
+  **Hub**. User has renamed "Server" → "Hub" conceptually; code/config/comments
+  still say "server" / "SERVER" / even "CLIENT" in leftover copy-pasted spots.
+  Don't be surprised by mismatched naming — it's cosmetic debt, not a signal
+  of a different architecture.
+- **`../Client__v3_1_0`** (package name `ndpi-monitor-client`) — the
+  **Client**: runs on each Raspberry Pi device, receives/displays one NDI
+  source on its HDMI output, and exposes a local web UI + REST/WS API. This
+  is "application version 3" — the **authoritative reference**. The Hub's job
+  is to match what the Client actually does, not the other way around.
+  **Do not edit files under `Client__v3_1_0` unless explicitly asked** — it's
+  the fixed target, not part of this task.
+- Files/folders prefixed `DEP_`, `XYZ_`, or named `*copy*` in either repo are
+  deprecated/backup — ignore them as implementation references, but don't
+  delete without asking.
+
+## What the Hub is
+
+A central dashboard + backend that discovers, tracks, and remote-controls
+many Client devices on the LAN. It is **not** itself an NDI receiver/display
+for arbitrary sources — it manages devices that are. It does, however, appear
+to run its own kiosk-mode browser on an attached screen (`config/kiosk.service`,
+`config/openbox`, `config/lightdm-autologin.conf`) showing its **own**
+dashboard UI (`public/dashboard/dashboard.html`), which is why Hub-local
+display-resolution/CEC settings could legitimately still matter — unlike
+Client-only concerns (NDI receiver tuning, overlay image, audio volume),
+which do not apply to the Hub at all.
+
+## Hub architecture (as built)
+
+- `server.js` — process entrypoint. Boots `hub_fs.js`, then `hub_api_server.js`.
+  Cloned from Client's `index.js` and already correctly has Client-only
+  subsystems (CEC controller, chromium kiosk launcher, AirPlay, LCD display,
+  mDNS *broadcast*, Python NDI backend) commented out / never started. This
+  part of the adaptation was already done correctly by a prior session.
+- `service/hub_fs.js` — settings + data persistence layer, modeled on
+  Client's `client_fs.js`. Two kinds of storage:
+  - Per-key flat files under `process.env.DATA_NDPI_PATH` (`this.fileMap`),
+    mirroring Client's pattern — **but most of these keys are still
+    Client-device settings copy-pasted wholesale** (CEC, NDI receiver
+    bandwidth/color/scale, `device_volume` w/ 256 dropdown options,
+    `media_overlay_image`, `ndi_source_discovery_exec`) that don't apply to
+    a Hub. Needs pruning to just what a Hub genuinely needs (device
+    identity, API port, display resolution *if* Hub kiosk-mode is real,
+    update-check bookkeeping).
+  - JSON collection files (`accounts.json`, `clients.json`, `groups.json`,
+    `roku-tvs.json`, `favorited-sources.json`) — this part is Hub-appropriate
+    and already well-built (accounts w/ PIN auth, managed Client devices,
+    groups, Roku TVs, favorited NDI sources).
+- `service/hub_api_server.js` (2076 lines) — Express + WS server. Two
+  generations of API coexist here:
+  - **Hub-appropriate (new, keep)**: `/api/devices`, `/api/discovered-devices`,
+    `/api/groups`, `/api/group/...`, `/api/roku-*`, `/api/account*`,
+    `/api/admin/accounts`, `/api/favorite-ndi-sources`, `/api/active-viewers`,
+    `/ws` (GUI live-update socket), `/ws/client` (persistent Client-device
+    connection — **this one matches the real Client protocol correctly**,
+    see below), mDNS discovery of Clients (`bonjour.find({type:'ndpi-monitor-client'})`).
+  - **Vestigial single-Pi-client code (copy-pasted from Client, mostly dead
+    weight on a Hub)**: `/ws/display`, `/ws/system`, `/ws/stats`, `/ws/sources`,
+    `/api/v1/rpc`, `/api/v1/__internal/*` (cec/ndi/shutdown/reboot against
+    `localhost`), the root `./ndi-discover` + `func.processCommand()` local
+    NDI-source-selection flow. `this.controller_cec` is always `null` (never
+    instantiated on the Hub), so the CEC internal route always 400s.
+- `service/functions.js` (1090 lines) — near-verbatim copy of Client's
+  `functions.js`. Almost entirely single-Pi concerns (xrandr, cec-compliance,
+  xdotool window management, fadeVolume, NDI receiver window handling) that
+  don't apply to a Hub. `processCommand()` here is dead code path from the
+  Hub's own `/api/v1/rpc` — real device control goes through
+  `hub_api_server.js`'s `sendCommandToClient()` over `/ws/client` instead.
+- `service/NDIStreamManager.js` — legitimate, Hub-specific feature: proxies
+  MJPEG frames from a local Python backend (`ndi-backend/`, FastAPI) over
+  WebSocket for **live-preview thumbnails of NDI sources in the browser**,
+  independent of any Client device. Compiled binaries
+  (`ndi_receiver_v3__NDI6/ndpi_discover`, root `./ndi-discover`) are ARM64 —
+  can't be exercised locally on macOS, only on the real Pi.
+- `public/` — the Hub's own multi-page dashboard, one folder per page
+  (`dashboard/`, `devices/`, `device/`, `groups/`, `group/`,
+  `device-discovery/`, `users/`, `settings/`, `account-settings/`,
+  `advanced-account-settings/`, `create-account/`, `set-pin/`, `sign-in/`,
+  `console/`, `not-found/`), plus shared `public/01-scripts/*.js` and
+  `public/styles.css`. Auth is PIN-based; the PIN's SHA-256 hash doubles as
+  the bearer token (stored in `localStorage['ndpi_token']`), sent back to
+  `POST /api/account` to resolve the session — no rotation/expiry.
+
+## Running locally (dev/testing)
+
+Nothing in this repo sets `DATA_NDPI_PATH` / `PORT_API` — they're presumably
+provisioned externally on real Pi hardware (not tracked here). For local
+testing:
+
+```bash
+DATA_NDPI_PATH=/tmp/hubdata PORT_API=3080 node server.js
+```
+
+Boots cleanly on macOS; only Linux-only tooling fails gracefully
+(`udevadm`, `ip`, `xrandr`, etc. — all wrapped in try/catch or exec-error
+handlers already). Default admin account created on first run:
+**username `admin`, PIN `0000`**.
+
+## Client protocol reference (ground truth — Hub must match this exactly)
+
+Full detail was captured via a dedicated research pass; condensed here.
+
+- **Client HTTP port**: `local_port_number_api` setting → `process.env.PORT_API`
+  → default `3080`. **Hub uses the same default/convention for its own port.**
+- **Client → Hub connection**: Client opens `ws://<ndpi_hub_hostname>:<ndpi_hub_port>/ws/client`
+  and only connects once both are configured (and hostname isn't `localhost`).
+  No auth/handshake beyond the first message.
+- **Client → Hub message** (`type: 'client-status'`, sent on connect + every
+  5000ms + on any local setting change):
+  ```json
+  {
+    "type": "client-status",
+    "deviceId": "...", "deviceName": "...", "ip": "...",
+    "currentSource": "...", "displayMode": "overlay|blank",
+    "streamStatus": "idle|streaming|stalled",
+    "ndiInfo": { "resolution": "...", "framerate": 0, "displayName": "...",
+                 "displayResolution": "...", "uptime": 0 },
+    "systemStats": { "cpu": 0, "memory": {"percent":0,"used":0,"total":0},
+                      "temperature": 0, "uptime": 0 },
+    "settings": [ ["key", {"key":"...","value":"...","group":"...",
+                   "allowEditInternal":bool,"allowEditExternal":bool,
+                   "options":[...]?}], ... ]
+  }
+  ```
+  Hub's `__ws_Devices()` handler in `hub_api_server.js` already consumes this
+  shape correctly.
+- **Hub → Client commands**: sent as raw JSON over the same open socket,
+  **fire-and-forget — the Client never sends a response back over this
+  channel**, regardless of command type. `sendCommandToClient()` in
+  `hub_api_server.js` correctly resolves immediately after `ws.send()`; don't
+  try to add a request/response pattern here without changing the Client too.
+  Valid `type` values (exact strings, matching Client's `processCommand`
+  switch in `functions.js`): `ping`, `show-blank`, `show-overlay`,
+  `set-overlay`, `set-source`, `get-sources`, `send-cec`, `shutdown-device`,
+  `reboot-device`, `rename-device`, `set-setting`, `check-for-update`,
+  `install-update`.
+  - ⚠️ **`show-blank` / `show-overlay` are a trap**: Client's handler for
+    both calls `setNdi(command, response)`, which re-applies `command.data`
+    as the NDI source target. If `data` is omitted (as Hub currently sends
+    it), the source gets reset to `'none'`. Client's own local UI
+    (`system.js`) never actually calls these two types — it toggles overlay
+    vs. blank via `{type:'set-setting', data:{name:'ndpi_status_no_source_display_mode', value:'overlay'|'blank'}}`
+    instead. **Hub should do the same**, not send `show-overlay`/`show-blank`.
+  - `set-overlay` data shape: `{name,type,size,dateLastModified,dateUploaded,src}` — Hub's `/api/device/:id/overlay-image` route already builds this correctly.
+  - `set-setting` data shape: `{name, value}` — Hub's `/api/device/:id/setting` route already builds this correctly. Client's `updateSetting()` only checks that a file with that key name already exists — it does **not** enforce `allowEditExternal` server-side (that flag is UI-only, used to grey out inputs).
+  - `send-cec` data: a single already-encoded string, e.g. `encodeURI('standby 0')`. Confirm Hub's device page encodes the same way before sending.
+  - Known **Client-side bug** (not ours to fix, but worth knowing): `rename-device`'s handler calls `fs.writeFileSync(path)` with no data argument — this throws inside Client's `processCommand`. Renaming a device remotely is currently broken on the Client side regardless of what Hub sends.
+- **mDNS**: Client advertises service type **`ndpi-monitor-client`**, name
+  `` `${type}-${deviceId}` ``, TXT fields `deviceId, deviceName, ip,
+  commandPort, type, status, version`. Hub's `startMdnsDiscovery()` already
+  matches this correctly.
+- **Client settings** (`client_fs.js` fileMap) include many keys that are
+  genuinely Client-only (CEC, NDI receiver tuning, `device_volume`, overlay
+  image, chromium/NDI PIDs) — do not add Hub equivalents of these. The ones
+  relevant to a Hub-side settings model: `device_name`, `device_id`,
+  `device_ip`, `local_port_number_api`, `ndpi_version*`,
+  `output_display_*` (if Hub kiosk mode is real).
+
+## Status: fixes applied so far
+
+Items 1-4 below (routing, shutdown crash, show-overlay/blank, port mismatch)
+are **fixed** as of this pass, plus one additional bug found while verifying
+fix #1 live: the generic `/:page/:ext/` catch-all was registered *before*
+the real `/api/*` routes in `__Routers()`, so Express matched it first for
+*any* two-segment path — including `/api/devices`, `/api/groups`,
+`/api/discovered-devices`, `/api/admin/accounts`, `/api/roku-tvs`,
+`/api/favorite-ndi-sources`, `/api/active-viewers`, `/api/resolution`,
+`/api/system-logs`, `/api/account` (all exactly two segments). Every one of
+these silently returned an Express file-not-found error page instead of
+JSON — meaning no page's data ever actually loaded, independent of the
+navigation bug. **Fixed by reordering `__Routers()`**: all `/api/*`
+route-registration methods (`__RoutesAccounts`, `__RoutesDevices`,
+`__RoutesGroups`, `__RoutesRoku`, `__RoutesSystem`, plus the `/api/v1/ndi-*`
+block) now run *before* the generic page-serving routes (`/`,
+`/:page/:ext/`, `/:page.html`, `/test-page`), which in turn run before the
+final 404 catch-all. **Lesson: any future route added to this file must go
+through one of the `__Routes*` methods (or otherwise be registered before
+the generic page block), never after it.**
+
+Also removed as part of this pass (zero consumers anywhere in the repo,
+confirmed via repo-wide grep before deleting): `/ws/display`, `/ws/system`,
+`/ws/stats`, `/ws/sources` WebSocket endpoints, `/api/v1/rpc`,
+`/api/v1/__internal/:path`, and the corresponding dead code in
+`functions.js` (`processCommand`, `setNdi`, `checkCecCompliance`, `exe`,
+`wait`, `fadeVolume`, `launchPicom`, `killPicom`, `updateSetting`,
+`updateInstall`, all `*Window_*` helpers, `activateWindow_AirPlay`,
+`activateDisplay`, `discoverNDISources`, `formatNDISource`,
+`getNDISourcesForAPI`, `getLocalIp`). `functions.js` now only exports
+`stdoutToArray`, `waitForNetwork`, `setDisplayResolution`, `checkForUpdate`
+— all four confirmed still in active use by `server.js`/`hub_fs.js`. The
+public OBS-overlay pages (`public/02-custom-overlays/*.html`) were checked
+first and confirmed to be pure static CSS with zero JS/API wiring, so they
+were not affected by any of this.
+
+`hub_fs.js`'s fileMap has also been pruned: removed `device_volume` (256-entry
+dropdown), `ndpi_airplay_server_pin`, `ndpi_command_log`,
+`ndi_source_discovery_exec`, `media_overlay_image` (all Client-only, zero
+Hub consumers, confirmed via grep before removing), and the dead
+`output_display_cec_*` writes inside `updateOutputDisplayFiles()` (wrote to
+keys that were never in the fileMap to begin with — silent no-ops).
+`device_type` default changed from `"NDPi Monitor Server"` to
+`"NDPi Monitor Hub"`. Kept: device identity, ports, version/update
+bookkeeping, and all `output_display_*` keys (Hub's own kiosk-screen
+resolution — confirmed live via `server.js`'s active
+`output_display_port`/`output_display_resolution_preference` listeners
+calling `func.setDisplayResolution()`).
+
+Frontend fixes also applied: `groups.html` now loads `/scripts/functions.js`
+(was `/functions.js`, 404ing and breaking nav-bar wiring on that page only);
+`01-scripts/functions.js`'s bootstrap no longer throws when `initPage` isn't
+defined (guarded with `typeof initPage === 'function'`); `ws-client.js`'s
+`sendViewerLeave()` now reads `localStorage['ndpi_account']` like
+`sendViewerJoin()` does instead of relying on an accidental global; and
+`users.html`'s grant/revoke-admin feature is restored (re-enabled
+`toggleAdminPrivileges()`, wired off the already-loaded `account` global
+instead of the never-populated `currentUser`, removed the dead local
+`showToast()`). All verified live: full page sweep (200 on every page),
+full `/api/*` sweep (200), PIN sign-in flow (`admin`/`0000`) all pass.
+
+Still open (lower priority, not blocking, nothing crashes): dead
+`public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
+page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/
+`showServerNetworkSettings()` (complete functions, no button wired — and
+the backend routes they'd call are intentional `501 Not Implemented`
+stubs, so low value to wire up); half-built "active viewers" UI (transport
+works, no page renders it); duplicate `addRokuTv()` definition in
+`settings.html`; `set-pin.html`'s live PIN-match validation listeners are
+stubbed (server-side validation on submit still works). See "Frontend
+audit findings" above for full detail on each.
+
+## Confirmed bugs (verified by source + live repro — fixed)
+
+1. **CRITICAL — all internal navigation is broken.** Every page links via
+   `window.location.href='/devices.html'` / `<a href="/account-settings.html">`
+   etc. (single path segment + `.html`). The only generic page route is
+   `.route('/:page/:ext/')` (two segments, e.g. `/devices/html`), and there's
+   no flat `public/devices.html` for `express.static` to serve either. Live
+   repro: `GET /devices.html` → `404`; `GET /devices/html` → `200`. This
+   means essentially every button/link in the app 404s today. **Fix in
+   `hub_api_server.js`**: add a route that maps `/:page.html` (and ideally
+   `/:page` with no extension) to `public/<page>/<page>.html`, in addition to
+   (or instead of) the slash-style route. Cheapest, lowest-risk fix — don't
+   rewrite every HTML file's links instead.
+2. **Shutdown crash.** `hub_api_server.js` `_tryCloseDiscovery()` does
+   `if (!this.discoveryExec.killed)` without checking `this.discoveryExec`
+   for `null` first. If no browser ever opened `/ws/sources` (so
+   `startDiscovery()` never ran), `this.discoveryExec` is `null` and this
+   throws inside a Promise executor → unhandled rejection → `process.exit(1)`
+   on every graceful `SIGTERM`/`SIGINT`. Reproduced live.
+3. **`show-overlay`/`show-blank` device commands blank the NDI source** — see
+   protocol note above. `deviceCommandRoute('overlay', ...)` and
+   `('blank', ...)` in `hub_api_server.js` need to send `set-setting` /
+   `ndpi_status_no_source_display_mode` instead.
+4. **Port mismatch**: `config/kiosk.service` and `complete-deploy-server.sh`
+   hardcode `http://localhost:3000/`, but the server's real default port is
+   `3080` (`local_port_number_api` / `PORT_API` default). Pick one
+   canonical default (recommend `3080`, matching the actual app default and
+   Client's convention) and fix the deploy/kiosk files to match.
+5. Cosmetic leftovers from being cloned off the Client repo: `config/openbox/autostart` header comment says "NDPi Monitor - CLIENT".
+
+## Frontend audit findings (not yet fixed)
+
+Per-page JS files (`public/*/*.js`) are almost all **empty placeholders** —
+real logic lives in inline `<script>` blocks in the paired `.html` file
+instead (only `account-settings.js` is actually used). This is consistent,
+not accidental, so don't "fix" it by moving code out into the empty `.js`
+files unless asked — just be aware when searching for a page's logic to look
+in the `.html`, not the `.js`.
+
+Confirmed gaps, roughly by impact:
+
+- `public/0app.js` and `public/01-scripts/set-page.js` are dead code, loaded
+  by no page (legacy Socket.IO prototype / duplicate bootstrap). Safe to
+  delete once confirmed unused, or leave alone — not currently doing harm.
+- `01-scripts/functions.js`'s bootstrap IIFE calls `initPage(account)`
+  unconditionally, but `initPage` is only defined on `console.html`. Every
+  other page throws a `ReferenceError` in that IIFE on load (console-only
+  noise today — the rest of each page's own inline script still runs
+  independently — but worth a real fix, e.g. guard with
+  `if (typeof initPage === 'function')`).
+- `public/groups/groups.html` loads `/functions.js` (404 — no such file)
+  instead of `/scripts/functions.js`. Breaks nav-bar wiring on that page
+  specifically.
+- "Active viewers" UI is half-removed: transport (`ws-client.js`,
+  `active-viewers` messages) and per-page handler assignment all still
+  exist, but the actual DOM-rendering function is commented out /
+  guarded-false on every page. Either finish it or strip the dead wiring.
+- `public/users/users.html`: grant/revoke-admin action is fully broken
+  (`toggleAdminPrivileges` commented out, `currentUser` never populated so
+  the button never even renders).
+- Orphaned-but-complete functions never wired to a button:
+  `device.html`'s `showNetworkSettings()` and `cecInactiveSource()`,
+  `settings.html`'s `showServerNetworkSettings()`.
+- `settings.html` defines `addRokuTv()` twice (once via
+  `01-scripts/rokuControl.js`, once inline) — the inline one silently wins.
+- `01-scripts/ws-client.js`'s `sendViewerLeave()` reads a bare `account`
+  global instead of `localStorage` like `sendViewerJoin()` does — works only
+  by accidental collision with `auth.js`'s module-scope `account`.
+- Dead `showOfflineOverlay()`/`hideOfflineOverlay()` duplicates (referencing
+  nonexistent DOM) on `devices.html`, `groups.html`, `users.html` — the real
+  ones live inside `ws-client.js` itself.
+- `set-pin.html`'s live PIN-match validation listeners are stubbed out
+  (commented bodies) — only server-side validation on submit actually runs.
+
+Pages that are otherwise complete/working end-to-end (module the routing bug
+above, which affects all of them equally): `account-settings`,
+`advanced-account-settings`, `create-account`, `set-pin`, `sign-in`,
+`devices`, `groups`, `group`, `device`, `device-discovery`, `settings`,
+`console`, `not-found`.
+
+## Priority order for remaining work
+
+1. Fix routing bug (#1 above) — nothing else matters until navigation works.
+2. Fix shutdown crash (#2).
+3. Fix `show-overlay`/`show-blank` semantics (#3).
+4. Fix port mismatch in kiosk/deploy config (#4).
+5. Prune `hub_fs.js`'s fileMap to Hub-appropriate settings only.
+6. Decide fate of vestigial single-Pi code in `hub_api_server.js` /
+   `functions.js` (`/ws/display`, `/ws/system`, `/ws/stats`, `/ws/sources`,
+   `/api/v1/rpc`, `/api/v1/__internal/*`) — likely remove, but confirm Hub
+   kiosk-mode display-resolution/CEC needs before deleting those specific
+   pieces.
+7. Work through the frontend gap list above.
+8. Re-verify end-to-end (boot locally, click through every page).

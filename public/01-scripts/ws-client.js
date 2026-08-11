@@ -74,7 +74,10 @@ class NDPiWebSocket {
     }
     
     sendViewerLeave() {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN && this.viewerJoined) {
+        const accountData = localStorage.getItem('ndpi_account');
+
+        if (accountData && this.ws && this.ws.readyState === WebSocket.OPEN && this.viewerJoined) {
+            const account = JSON.parse(accountData);
             this.ws.send(JSON.stringify({
                 type: 'viewer-leave',
                 accountId: account.id,

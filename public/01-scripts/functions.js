@@ -6,7 +6,7 @@
 	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
 	await loadUserAccount();
 	setNavigationButtons();
-	initPage(account);
+	if (typeof initPage === 'function') { initPage(account); }
 })();
 
 function setScale() {
