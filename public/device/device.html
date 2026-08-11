@@ -413,8 +413,10 @@
 
 		async function cecPowerOn() {
 			try {
-				const resDevice = await fetch(`http://${device.ip}:3001/api/cec/on`, {
+				const resDevice = await fetch(`/api/device/${device.id}/cec`, {
 					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ command: 'on 0' })
 				});
 				if (resDevice.ok) {
 					toast.success('Powered On - Connected TV');
@@ -427,8 +429,10 @@
 		}
 		async function cecPowerOff() {
 			try {
-				const resDevice = await fetch(`http://${device.ip}:3001/api/cec/standby`, {
+				const resDevice = await fetch(`/api/device/${device.id}/cec`, {
 					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ command: 'standby 0' })
 				});
 				if (resDevice.ok) {
 					toast.success('Powered Off - Connected TV');
@@ -448,15 +452,6 @@
 			}
 			
 			try {
-				const resDevice = await fetch(`http://${device.ip}:3001/api/deviceName`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ deviceName: newName })
-				});
-				if (!resDevice.ok) {
-					toast.warning('Failed to update device name.');
-					return;
-				}
 				const res = await fetch(`/api/device/${device.id}`, {
 					method: 'PUT',
 					headers: { 'Content-Type': 'application/json' },

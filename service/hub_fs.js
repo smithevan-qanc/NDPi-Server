@@ -2,6 +2,7 @@ const { EventEmitter } = require('events');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('node:crypto');
 const { setInterval, clearInterval } = require('timers');
 const func = require('./functions.js');
 const { exec, spawn } = require('node:child_process');
@@ -43,6 +44,29 @@ class FileSystemMonitor extends EventEmitter {
 
         this.drmMonitor = null;
         this.debounceTimerDrmEvents = null;
+
+        /**
+         *  Hub Data Collections
+         *  ---------------------
+         *  Unlike the per-key settings above (mirrored from the NDPi Client's
+         *  FileSystemMonitor), the Hub also needs to persist *collections* of
+         *  data: user accounts, known/managed NDPi Client devices, device
+         *  groups, Roku TVs, and favorited NDI sources. These are each stored
+         *  as a single JSON file inside `dataDir` (matching the pattern used
+         *  by the legacy tmp/server.js prototype).
+         */
+        this.accountsFile          = null;
+        this.clientsFile           = null;
+        this.groupsFile            = null;
+        this.rokuTvsFile           = null;
+        this.favoritedSourcesFile  = null;
+
+        this.accounts           = new Map();   // accountId    -> account record
+        this.clients             = new Map();   // deviceId     -> saved/managed NDPi Client device
+        this.discoveredClients   = new Map();   // deviceId     -> mDNS-discovered device (in-memory only, not persisted)
+        this.groups              = new Map();   // groupId      -> device group
+        this.rokuTvs             = [];          // array of Roku TV records
+        this.favoritedSources    = [];          // array of favorited NDI source records
 
         process.nextTick(() => { this.init(); });
     }
@@ -551,6 +575,19 @@ class FileSystemMonitor extends EventEmitter {
             { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving File: Name:${setting.key}, Value: ${setting.value}`, err) }
         };
 
+        // Hub Data Collections (accounts / devices / groups / roku / favorites)
+        this.accountsFile         = path.join(this.dataDir, 'accounts.json');
+        this.clientsFile          = path.join(this.dataDir, 'clients.json');
+        this.groupsFile           = path.join(this.dataDir, 'groups.json');
+        this.rokuTvsFile          = path.join(this.dataDir, 'roku-tvs.json');
+        this.favoritedSourcesFile = path.join(this.dataDir, 'favorited-sources.json');
+
+        this.loadAccounts();
+        this.loadClients();
+        this.loadGroups();
+        this.loadRokuTvs();
+        this.loadFavoritedSources();
+
         this.start();
     }
 
@@ -908,6 +945,363 @@ class FileSystemMonitor extends EventEmitter {
             });
         }
         return;
+    }
+
+    /* =====================================================================
+     *  ACCOUNTS
+     * ===================================================================== */
+
+    hashPin(pin) {
+        return crypto.createHash('sha256').update(String(pin)).digest('hex');
+    }
+
+    loadAccounts() {
+        try
+        {
+            if (fs.existsSync(this.accountsFile))
+            { this.accounts = new Map(Object.entries(JSON.parse(fs.readFileSync(this.accountsFile, 'utf8')))); }
+        }
+        catch (error)
+        {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Loading accounts.json`, error);
+            this.accounts = new Map();
+        }
+
+        if (this.accounts.size === 0)
+        { this.createDefaultAdminAccount(); }
+    }
+
+    createDefaultAdminAccount() {
+        const id = crypto.randomUUID();
+        this.accounts.set(id, {
+            id,
+            firstName: 'Admin',
+            lastName: 'User',
+            username: 'admin',
+            pinHash: this.hashPin('0000'),
+            isAdmin: true,
+            firstTimeLogin: true,
+            createdAt: new Date().toISOString(),
+        });
+        this.saveAccounts();
+        console.info(`[ ${path.basename(__filename).split('.')[0]} ] Default admin account created — Username: admin, PIN: 0000`);
+    }
+
+    saveAccounts() {
+        try
+        { fs.writeFileSync(this.accountsFile, JSON.stringify(Object.fromEntries(this.accounts), null, 2)); }
+        catch (error)
+        { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving accounts.json`, error); }
+    }
+
+    getAccounts() { return Array.from(this.accounts.values()); }
+    getAccount(id) { return this.accounts.get(id) || null; }
+
+    findAccountByPinHash(pinHash) {
+        return Array.from(this.accounts.values()).find((acc) => acc.pinHash === pinHash) || null;
+    }
+
+    findAccountByUsername(username) {
+        return Array.from(this.accounts.values()).find((acc) => acc.username.toLowerCase() === String(username || '').toLowerCase()) || null;
+    }
+
+    createAccount({ firstName, lastName, username, pin, isAdmin = false } = {}) {
+        const id = crypto.randomUUID();
+        const account = {
+            id,
+            firstName,
+            lastName,
+            username,
+            pinHash: this.hashPin(pin),
+            isAdmin: !!isAdmin,
+            firstTimeLogin: true,
+            createdAt: new Date().toISOString(),
+        };
+        this.accounts.set(id, account);
+        this.saveAccounts();
+        return account;
+    }
+
+    updateAccount(id, updates = {}) {
+        const account = this.accounts.get(id);
+        if (!account) return null;
+
+        for (const key of ['firstName', 'lastName', 'username'])
+        { if (key in updates) { account[key] = updates[key]; } }
+
+        if ('isAdmin' in updates)
+        { account.isAdmin = !!updates.isAdmin; }
+
+        if (updates.pin)
+        {
+            account.pinHash = this.hashPin(updates.pin);
+            account.firstTimeLogin = false;
+        }
+
+        if (updates.clearFirstTime)
+        { account.firstTimeLogin = false; }
+
+        this.accounts.set(id, account);
+        this.saveAccounts();
+        return account;
+    }
+
+    deleteAccount(id) {
+        const existed = this.accounts.delete(id);
+        if (existed) { this.saveAccounts(); }
+        return existed;
+    }
+
+    /* =====================================================================
+     *  NDPi CLIENT DEVICES ("clients")
+     * ===================================================================== */
+
+    loadClients() {
+        try
+        {
+            if (fs.existsSync(this.clientsFile))
+            { this.clients = new Map(Object.entries(JSON.parse(fs.readFileSync(this.clientsFile, 'utf8')))); }
+        }
+        catch (error)
+        {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Loading clients.json`, error);
+            this.clients = new Map();
+        }
+    }
+
+    saveClients() {
+        try
+        { fs.writeFileSync(this.clientsFile, JSON.stringify(Object.fromEntries(this.clients), null, 2)); }
+        catch (error)
+        { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving clients.json`, error); }
+        this.emit('clients-update');
+    }
+
+    getClients() { return Array.from(this.clients.values()); }
+    getClient(deviceId) { return this.clients.get(deviceId) || null; }
+
+    upsertClient(deviceId, data = {}) {
+        const existing = this.clients.get(deviceId) || {};
+        const merged = { ...existing, ...data, deviceId };
+        this.clients.set(deviceId, merged);
+        this.saveClients();
+        return merged;
+    }
+
+    deleteClient(deviceId) {
+        const existed = this.clients.delete(deviceId);
+        if (existed) { this.saveClients(); }
+        return existed;
+    }
+
+    deleteAllClients() {
+        const count = this.clients.size;
+        this.clients.clear();
+        this.saveClients();
+        return count;
+    }
+
+    /* ---- mDNS Discovered (not-yet-added) devices — in-memory only ---- */
+
+    upsertDiscoveredClient(deviceId, data = {}) {
+        this.discoveredClients.set(deviceId, { ...(this.discoveredClients.get(deviceId) || {}), ...data, deviceId });
+        this.emit('discovered-clients-update');
+    }
+
+    removeDiscoveredClient(deviceId) {
+        if (this.discoveredClients.delete(deviceId))
+        { this.emit('discovered-clients-update'); }
+    }
+
+    getDiscoveredClients() {
+        return Array.from(this.discoveredClients.values()).filter((d) => !this.clients.has(d.deviceId));
+    }
+
+    /* =====================================================================
+     *  GROUPS
+     * ===================================================================== */
+
+    loadGroups() {
+        try
+        {
+            if (fs.existsSync(this.groupsFile))
+            { this.groups = new Map(Object.entries(JSON.parse(fs.readFileSync(this.groupsFile, 'utf8')))); }
+        }
+        catch (error)
+        {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Loading groups.json`, error);
+            this.groups = new Map();
+        }
+    }
+
+    saveGroups() {
+        try
+        { fs.writeFileSync(this.groupsFile, JSON.stringify(Object.fromEntries(this.groups), null, 2)); }
+        catch (error)
+        { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving groups.json`, error); }
+        this.emit('groups-update');
+    }
+
+    getGroups() { return Array.from(this.groups.values()); }
+    getGroup(groupId) { return this.groups.get(groupId) || null; }
+
+    createGroup({ name, devices = [] } = {}) {
+        const id = `group-${Date.now()}`;
+        const group = { id, name, devices, currentSource: null, createdAt: new Date().toISOString() };
+        this.groups.set(id, group);
+        this.saveGroups();
+        return group;
+    }
+
+    updateGroup(groupId, updates = {}) {
+        const group = this.groups.get(groupId);
+        if (!group) return null;
+
+        for (const key of ['name', 'currentSource', 'devices'])
+        { if (key in updates) { group[key] = updates[key]; } }
+
+        this.groups.set(groupId, group);
+        this.saveGroups();
+        return group;
+    }
+
+    deleteGroup(groupId) {
+        const existed = this.groups.delete(groupId);
+        if (existed)
+        {
+            // Clear the group assignment from any devices that referenced it.
+            this.clients.forEach((client, deviceId) => {
+                if (client.groupId === groupId)
+                {
+                    client.groupId = null;
+                    client.groupName = null;
+                    this.clients.set(deviceId, client);
+                }
+            });
+            this.saveClients();
+            this.saveGroups();
+        }
+        return existed;
+    }
+
+    addDeviceToGroup(groupId, deviceId) {
+        const group = this.groups.get(groupId);
+        const client = this.clients.get(deviceId);
+        if (!group || !client) return null;
+
+        const alreadyInGroup = group.devices.some((d) => (d.id || d.deviceId) === deviceId);
+        if (!alreadyInGroup)
+        {
+            group.devices.push({
+                id: client.deviceId,
+                deviceId: client.deviceId,
+                name: client.deviceName,
+                ip: client.ip,
+                status: client.status,
+            });
+        }
+
+        client.groupId = groupId;
+        client.groupName = group.name;
+
+        this.clients.set(deviceId, client);
+        this.groups.set(groupId, group);
+
+        this.saveClients();
+        this.saveGroups();
+        return group;
+    }
+
+    removeDeviceFromGroup(groupId, deviceId) {
+        const group = this.groups.get(groupId);
+        if (!group) return null;
+
+        const before = group.devices.length;
+        group.devices = group.devices.filter((d) => (d.id || d.deviceId) !== deviceId);
+
+        if (group.devices.length === before)
+        { return group; }
+
+        const client = this.clients.get(deviceId);
+        if (client)
+        {
+            client.groupId = null;
+            client.groupName = null;
+            this.clients.set(deviceId, client);
+            this.saveClients();
+        }
+
+        this.groups.set(groupId, group);
+        this.saveGroups();
+        return group;
+    }
+
+    /* =====================================================================
+     *  ROKU TVs
+     * ===================================================================== */
+
+    loadRokuTvs() {
+        try
+        { this.rokuTvs = fs.existsSync(this.rokuTvsFile) ? JSON.parse(fs.readFileSync(this.rokuTvsFile, 'utf8')) : []; }
+        catch (error)
+        {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Loading roku-tvs.json`, error);
+            this.rokuTvs = [];
+        }
+        if (!Array.isArray(this.rokuTvs))
+        { this.rokuTvs = []; }
+    }
+
+    saveRokuTvs() {
+        try
+        { fs.writeFileSync(this.rokuTvsFile, JSON.stringify(this.rokuTvs, null, 2)); }
+        catch (error)
+        { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving roku-tvs.json`, error); }
+        this.emit('roku-tvs-update');
+    }
+
+    getRokuTvs() { return this.rokuTvs; }
+
+    addRokuTv(data = {}) {
+        const tv = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...data };
+        this.rokuTvs.push(tv);
+        this.saveRokuTvs();
+        return tv;
+    }
+
+    deleteRokuTv(id) {
+        const index = this.rokuTvs.findIndex((tv) => tv.id === id);
+        if (index === -1) return false;
+        this.rokuTvs.splice(index, 1);
+        this.saveRokuTvs();
+        return true;
+    }
+
+    /* =====================================================================
+     *  FAVORITED NDI SOURCES
+     * ===================================================================== */
+
+    loadFavoritedSources() {
+        try
+        { this.favoritedSources = fs.existsSync(this.favoritedSourcesFile) ? JSON.parse(fs.readFileSync(this.favoritedSourcesFile, 'utf8')) : []; }
+        catch (error)
+        {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Loading favorited-sources.json`, error);
+            this.favoritedSources = [];
+        }
+        if (!Array.isArray(this.favoritedSources))
+        { this.favoritedSources = []; }
+    }
+
+    getFavoritedSources() { return this.favoritedSources; }
+
+    setFavoritedSources(list = []) {
+        this.favoritedSources = Array.isArray(list) ? list : [];
+        try
+        { fs.writeFileSync(this.favoritedSourcesFile, JSON.stringify(this.favoritedSources, null, 2)); }
+        catch (error)
+        { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving favorited-sources.json`, error); }
+        return this.favoritedSources;
     }
 }
 

@@ -1991,7 +1991,7 @@ function sendCommandToClient(deviceId, command, userInfo = {}) {
         const enrichedCommand = {
             ...command,
             serverAddress: `${localIp}:${PORT}`,
-            serverIp: String(localIp),
+            hubIp: String(localIp),
             serverPort: String(PORT),
             user: userInfo.user || 'system',
             timestamp: new Date().toISOString()

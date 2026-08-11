@@ -6,14 +6,14 @@ const { exit } = require('node:process');
 
 const VERSION_DIR = path.join(__dirname, 'version');
 const NDPi_VERSION = (
-    fs.existsSync(`${VERSION_DIR}/current`)
-    ? fs.readFileSync(`${VERSION_DIR}/current`, 'utf8')
-    : '3.1.0'
+    fs.existsSync(`${VERSION_DIR}/current`) ?
+    fs.readFileSync(`${VERSION_DIR}/current`, 'utf8') :
+    '3.1.0'
 );
 const NDPi_VERSION_DATE = (
-    fs.existsSync(`${VERSION_DIR}/current-date`)
-    ? fs.readFileSync(`${VERSION_DIR}/current-date`, 'utf8')
-    : '2026-02-04'
+    fs.existsSync(`${VERSION_DIR}/current-date`) ?
+    fs.readFileSync(`${VERSION_DIR}/current-date`, 'utf8') :
+    '2026-02-04'
 );
 
 
@@ -71,7 +71,7 @@ class NDPi {
      * START FILE SYSTEM WATCHER
      */
     startFsData() {
-        this.settings = new (require('./service/client_fs.js'))(NDPi_VERSION, NDPi_VERSION_DATE);
+        this.settings = new (require('./service/hub_fs.js'))(NDPi_VERSION, NDPi_VERSION_DATE);
 
         //  FS System Ready
         this.settings.on('ready', () => {
@@ -201,7 +201,7 @@ class NDPi {
      * START API
      */
     startApi() {
-        this.server_api = new (require('./service/client_api_server.js'))(this.settings);
+        this.server_api = new (require('./service/hub_api_server.js'))(this.settings);
 
         this.server_api.on('online', () => {
             if (!this.isInitialized)

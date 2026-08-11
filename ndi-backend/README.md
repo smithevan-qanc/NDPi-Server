@@ -55,7 +55,7 @@ The server will start on `http://127.0.0.1:5000`
 
 ## Integration with Node.js Server
 
-The Node.js WebRTC server (`service/client_api_server.js`) proxies requests to this backend:
+The Node.js WebRTC server (`service/hub_api_server.js`) proxies requests to this backend:
 
 ```javascript
 // Example from NDIStreamManager

@@ -64,7 +64,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Start Node.js server in background
-node service/client_api_server.js &
+node service/hub_api_server.js &
 NODE_PID=$!
 echo "   ✓ Node.js server started (PID: $NODE_PID)"
 

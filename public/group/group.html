@@ -321,11 +321,11 @@
 						${statsHtml}
 					</div>
 					${removeButton}
-					<button class="device-tile-remove" onclick="cecPowerOn('${dev.ipAddress}')">
+					<button class="device-tile-remove" onclick="cecPowerOn('${dev.id || dev.deviceId}')">
 						TV Power |
 						<span style="font-weight: 800;">ON</span>
 					</button>
-					<button class="device-tile-remove" onclick="cecPowerOff('${dev.ipAddress}')">
+					<button class="device-tile-remove" onclick="cecPowerOff('${dev.id || dev.deviceId}')">
 						TV Power |
 						<span style="font-weight: 800;">OFF</span>
 					</button>
@@ -551,11 +551,13 @@
 			}, 4500);
 		}
 
-		async function cecPowerOn(deviceIp) {
-			if (!deviceIp) return;
+		async function cecPowerOn(deviceId) {
+			if (!deviceId) return;
 			try {
-				const resDevice = await fetch(`http://${device.ip}:3001/api/cec/on`, {
+				const resDevice = await fetch(`/api/device/${deviceId}/cec`, {
 					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ command: 'on 0' })
 				});
 				if (resDevice.ok) {
 					toast.success('Powered On - Connected TV');
@@ -566,11 +568,13 @@
 				toast.error('Error Powerering On - Connected TV');
 			}
 		}
-		async function cecPowerOff(deviceIp) {
-			if (!deviceIp) return;
+		async function cecPowerOff(deviceId) {
+			if (!deviceId) return;
 			try {
-				const resDevice = await fetch(`http://${device.ip}:3001/api/cec/standby`, {
+				const resDevice = await fetch(`/api/device/${deviceId}/cec`, {
 					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ command: 'standby 0' })
 				});
 				if (resDevice.ok) {
 					toast.success('Powered Off - Connected TV');
