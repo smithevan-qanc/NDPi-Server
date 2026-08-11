@@ -308,6 +308,37 @@
 			sourceGrid.innerHTML = noneCard + sourceCards;
 		}
 
+		function updateStatsHeader() {
+			const statsHeader = document.getElementById('systemStatsHeader');
+			if (!device || !device.systemStats || !statsHeader) return;
+
+			const cpuColor = device.systemStats.cpu > 80 ? '#f87171' : device.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
+			const memColor = device.systemStats.memory.percent > 80 ? '#f87171' : device.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
+			const tempColor = device.systemStats.temperature > 78 ? '#f87171' : device.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
+			const tempF = ((device.systemStats.temperature * 9/5) + 32).toFixed(0);
+
+			statsHeader.innerHTML = `
+				<!--div style="display:flex;gap:24px;align-items:flex-start;font-size:14px;background:rgba(255,255,255,0.03);padding:12px 20px;border-radius:12px;"-->
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">CPU</span>
+						<span style="color:${cpuColor};font-weight:600;font-size:16px;">${device.systemStats.cpu}%</span>
+					</div>
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">TEMP</span>
+						<span style="color:${tempColor};font-weight:600;font-size:16px;">${tempF}°F</span>
+					</div>
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">MEM</span>
+						<span style="color:${memColor};font-weight:600;font-size:16px;">${device.systemStats.memory.percent}%</span>
+					</div>
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Uptime</span>
+						<span style="color:#4ade80;font-weight:600;font-size:16px;">${formatUptime(device.systemStats.uptime)}</span>
+					</div>
+				<!--/div-->
+			`;
+		}
+
 		function updateDevice() {
 			if (!device) return;
 
@@ -316,35 +347,7 @@
 
 			const statusColor = (device.status === 'online' || device.status === 'connected') ? 'rgb(129, 193, 39)' : '#888';
 
-			// Update system stats header
-			const statsHeader = document.getElementById('systemStatsHeader');
-			if (device.systemStats && statsHeader) {
-				const cpuColor = device.systemStats.cpu > 80 ? '#f87171' : device.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
-				const memColor = device.systemStats.memory.percent > 80 ? '#f87171' : device.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
-				const tempColor = device.systemStats.temperature > 78 ? '#f87171' : device.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
-				const tempF = ((device.systemStats.temperature * 9/5) + 32).toFixed(0);
-				
-				statsHeader.innerHTML = `
-					<!--div style="display:flex;gap:24px;align-items:flex-start;font-size:14px;background:rgba(255,255,255,0.03);padding:12px 20px;border-radius:12px;"-->
-						<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-							<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">CPU</span>
-							<span style="color:${cpuColor};font-weight:600;font-size:16px;">${device.systemStats.cpu}%</span>
-						</div>
-						<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-							<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">TEMP</span>
-							<span style="color:${tempColor};font-weight:600;font-size:16px;">${tempF}°F</span>
-						</div>
-						<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-							<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">MEM</span>
-							<span style="color:${memColor};font-weight:600;font-size:16px;">${device.systemStats.memory.percent}%</span>
-						</div>
-						<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-							<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Uptime</span>
-							<span style="color:#4ade80;font-weight:600;font-size:16px;">${formatUptime(device.systemStats.uptime)}</span>
-						</div>
-					<!--/div-->
-				`;
-			}
+			updateStatsHeader();
 
 			// Update info grid
 			const infoGrid = document.getElementById('infoGrid');
@@ -418,9 +421,13 @@
 		}
 
 		/**
-		 *  Device Settings — mirrors the remote-settings editor in
-		 *  Client__v3_1_0/public/system.js (every `allowEditExternal` field,
-		 *  sent 'set-setting' commands through the Hub relay).
+		 *  Device Settings — full parity with the remote-settings editor in
+		 *  Client__v3_1_0/public/system.js: every setting the device reports
+		 *  (Array.from(fileMap), relayed here via the Hub's /ws GUI socket),
+		 *  grouped the same way Client's own local UI groups them, editable
+		 *  fields sending 'set-setting' commands through the Hub relay and
+		 *  read-only fields shown disabled (not hidden) for full visibility —
+		 *  matching Client's own treatment rather than filtering them out.
 		 */
 		function renderSettings() {
 			const grid = document.getElementById('deviceSettingsGrid');
@@ -432,30 +439,46 @@
 			}
 
 			// Fields already covered by dedicated controls elsewhere on this page.
-			const excluded = ['device_name', 'media_overlay_image'];
+			const excluded = ['device_name', 'media_overlay_image', 'ndpi_status_no_source_display_mode'];
 
-			const editable = device.settings.filter(([key, obj]) => obj.allowEditExternal && !excluded.includes(key));
+			const fieldGroups = new Map(); // group label -> [[key, obj], ...]
+			device.settings.forEach(([key, obj]) => {
+				if (excluded.includes(key)) return;
+				const groupKey = obj.group || 'Other';
+				if (!fieldGroups.has(groupKey)) { fieldGroups.set(groupKey, []); }
+				fieldGroups.get(groupKey).push([key, obj]);
+			});
 
-			if (editable.length === 0) {
-				grid.innerHTML = '<p style="color:#888;grid-column:1/-1;">No remotely-editable settings available.</p>';
+			if (fieldGroups.size === 0) {
+				grid.innerHTML = '<p style="color:#888;grid-column:1/-1;">No settings available.</p>';
 				return;
 			}
 
-			grid.innerHTML = editable.map(([key, obj]) => {
-				const label = key.split('_').join(' ');
-				let control;
-				if (Array.isArray(obj.options) && obj.options.length > 0) {
-					control = `<select class="mono" data-setting="${key}" onchange="saveSetting('${key}', this.value)">` +
-						obj.options.map(([k, v]) => `<option value="${v}" ${v === obj.value ? 'selected' : ''}>${k}</option>`).join('') +
-						`</select>`;
-				} else {
-					control = `<input type="text" class="mono" data-setting="${key}" value="${String(obj.value ?? '').replace(/"/g, '&quot;')}" onchange="saveSetting('${key}', this.value)">`;
-				}
+			const groupLabel = (name) => name.split('_').join(' ').replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
+			grid.innerHTML = Array.from(fieldGroups.entries()).map(([groupKey, fields]) => {
+				const fieldsHtml = fields.map(([key, obj]) => {
+					const label = key.split('_').join(' ');
+					const disabled = obj.allowEditExternal ? '' : 'disabled';
+					let control;
+					if (Array.isArray(obj.options) && obj.options.length > 0) {
+						control = `<select class="mono" data-setting="${key}" ${disabled} onchange="saveSetting('${key}', this.value)">` +
+							obj.options.map(([k, v]) => `<option value="${v}" ${v === obj.value ? 'selected' : ''}>${k}</option>`).join('') +
+							`</select>`;
+					} else {
+						control = `<input type="text" class="mono" data-setting="${key}" value="${String(obj.value ?? '').replace(/"/g, '&quot;')}" ${disabled} onchange="saveSetting('${key}', this.value)">`;
+					}
+					return `
+						<div class="info-item">
+							<span class="info-label" style="text-transform:capitalize;">${label}</span>
+							<span class="info-value">${control}</span>
+						</div>
+					`;
+				}).join('');
+
 				return `
-					<div class="info-item">
-						<span class="info-label" style="text-transform:capitalize;">${label}</span>
-						<span class="info-value">${control}</span>
-					</div>
+					<div style="grid-column:1/-1;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#888;margin-top:12px;">${groupLabel(groupKey)}</div>
+					${fieldsHtml}
 				`;
 			}).join('');
 		}
@@ -874,25 +897,33 @@
 		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
 		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
 
-		// Handle device updates from WebSocket - update stats and info only
+		// Handle device updates pushed from the Hub's own /ws (GUI) socket —
+		// this is the Hub-side equivalent of Client's local `ws/system` live
+		// feed: every Client pushes its full settings snapshot to the Hub
+		// over the persistent `/ws/client` connection, and the Hub relays
+		// the current device list to every connected browser here.
 		ws.onDevicesUpdate = (devices) => {
 			if (!device) return;
 			const updatedDevice = devices.find(d => d.id === device.id);
-			let curDeviceInfo = device;
-			let updateDeviceInfo = updatedDevice;
-			if (updatedDevice) {
-				if (JSON.stringify(device.systemStats) !== JSON.stringify(updatedDevice.systemStats)) {
-					console.log('updating system stats');
-				}
-				curDeviceInfo.systemStats = null
-				updateDeviceInfo.systemStats = null;
-				if (JSON.stringify(curDeviceInfo) !== JSON.stringify(updateDeviceInfo)) {
-					console.log('updating device info');
-				}
-				if (JSON.stringify(device) !== JSON.stringify(updatedDevice)) {
-					device = updatedDevice;
-					updateDevice();
-				}
+			if (!updatedDevice) return;
+
+			// Compare everything except systemStats (which legitimately
+			// changes on almost every broadcast) without mutating either
+			// object, so a stats-only tick updates just the stats header
+			// instead of triggering a full re-render, and a real change
+			// still carries its systemStats through intact.
+			const { systemStats: oldStats, ...oldRest } = device;
+			const { systemStats: newStats, ...newRest } = updatedDevice;
+
+			const statsChanged = JSON.stringify(oldStats) !== JSON.stringify(newStats);
+			const otherChanged = JSON.stringify(oldRest) !== JSON.stringify(newRest);
+
+			device = updatedDevice;
+
+			if (otherChanged) {
+				updateDevice();
+			} else if (statsChanged) {
+				updateStatsHeader();
 			}
 		};
 

@@ -292,6 +292,68 @@ fix since there's no evidence devices are lost permanently (a later `up`
 event should carry the full TXT data) — just made diagnosable if it
 recurs or turns out to be persistent for a specific device.
 
+**Root-caused "Discovered NDPi Client without a device ID" from real logs**:
+it's a decoding bug in the old `bonjour`/`dns-txt` dependency chain, not a
+Client or Hub application bug. A DNS TXT record is supposed to be multiple
+length-prefixed `<character-string>` entries; the library was instead
+handing back one field whose value was every entry concatenated together,
+with each entry's own length byte leaking through as a literal control
+character (0x00-0x1F) — confirmed exactly from the user's real log line:
+key `"\x19deviceid"` → value `"F564BD8290C80176\x1bdeviceName=HV Camp
+Entryway\rip=10.0.1.182\x10commandPort=3080\x18type=..."`, where `0x19` =
+25 decimal = the exact length of `"deviceId=F564BD8290C80176"`. Since the
+field names and `=` delimiters always survive intact regardless of exactly
+how the corruption lands, added `_extractMdnsTxtField(service, key)` in
+`hub_api_server.js` — reconstructs the raw blob from `service.txt`'s
+entries and regex-matches `key=<run of non-control characters>` as a
+fallback whenever the clean `service.txt.<key>` lookup comes up empty.
+Verified against the exact corrupted payload from the log: correctly
+recovers `deviceId`, `deviceName`, `ip`, and `commandPort`. Applied to both
+the `'up'` and `'down'` mDNS handlers.
+
+**Verified the Hub's `device/device.html` against the Client's real local UI**
+(fetched live from a production device at `ndpi-client.local:3080` — its
+`system.html`/`system.js`/`socket.js` were byte-for-byte identical to
+`Client__v3_1_0/public/`, so no drift to account for). Client's own UI opens
+three sockets from the browser directly to that one device
+(`ws/system` bidirectional settings editor, `ws/sources` read-only,
+`ws/stats` read-only) and renders one form control per key in its settings
+`fileMap`, grouped by `object.group`. **Those three sockets only accept
+connections from the same local network segment as that specific device —
+the Hub's browser can't (and shouldn't) connect to them directly**, since
+that would bypass the Hub's own centralization and break for remote/VPN
+access to the Hub. The Hub already has the right architecture in place
+instead: every Client pushes its full settings `fileMap` to the Hub every
+5s (+on change) over the persistent `/ws/client` connection
+(`clientServer_websocket.js`), the Hub stores it per-device
+(`client.settings`), and relays the whole device list to every connected
+admin browser over its own `/ws` GUI socket — `device.html` was already
+built to consume exactly this (`ws.onDevicesUpdate`), and already rendered
+every `allowEditExternal` setting generically. Found and fixed three real
+gaps rather than needing to rebuild this from scratch:
+1. **Live updates were silently broken**: `ws.onDevicesUpdate`'s diffing
+   logic aliased `device`/`updatedDevice` (not copies) and mutated
+   `.systemStats = null` on *both* before comparing, intending to ignore
+   noisy per-tick stat changes — but since they were the same references,
+   this corrupted the incoming data itself, so `device.systemStats` got
+   permanently nulled the first time any other field changed after page
+   load, and the CPU/temp/mem header would silently vanish and never
+   recover. Rewritten to diff via destructured copies (never mutates either
+   object) and always assign the real `updatedDevice` through, with a new
+   `updateStatsHeader()` (extracted out of `updateDevice()`) called on
+   stats-only ticks so the header stays live without forcing a full
+   re-render every 5 seconds.
+2. `renderSettings()` only showed `allowEditExternal` fields, silently
+   dropping every read-only diagnostic (CEC power status, process IDs,
+   output display manufacturer/model, mDNS status, etc.) — Client's own UI
+   shows these too, just `disabled`. Changed to render every reported
+   setting, read-only ones disabled but visible, matching Client exactly.
+3. Added grouping by `obj.group` (mirrors Client's per-card grouping:
+   Device/Backend/Receiver/Display_Resolution/etc.) instead of one flat
+   list, and excluded `ndpi_status_no_source_display_mode` from the generic
+   grid (already has dedicated "Display Overlay"/"Blank Display" buttons —
+   would otherwise show as a redundant second control for the same field).
+
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
 page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/
