@@ -482,29 +482,48 @@ class NDPiCommandServer_Client extends EventEmitter {
     /**
      *      mDNS Discovery of NDPi Client devices on the network
      */
+    /**
+     *  The `bonjour`/`dns-txt` dependency chain this (and Client__v3_1_0)
+     *  relies on has a known TXT-record decoding bug: instead of splitting
+     *  the DNS TXT RDATA into its separate length-prefixed
+     *  <character-string> entries, it can hand back a single field whose
+     *  key/value still contains every entry concatenated together, with
+     *  each entry's own length byte leaking through as a literal control
+     *  character (0x00-0x1F) in place of the boundary between entries —
+     *  e.g. `{ "deviceid": "F564BD8290C80176deviceName=HV Camp
+     *  Entryway\rip=10.0.1.182..." }` (the leading control byte is 0x19 = 25
+     *  decimal = the exact length of `"deviceId=F564BD8290C80176"`). The field names and `=` delimiters
+     *  always survive intact even when this happens, so a value can be
+     *  recovered by matching "the run of printable characters right after
+     *  `key=`", regardless of which key it landed under.
+     */
+    _extractMdnsTxtField(service, key) {
+        const raw = Object.entries(service.txt || {}).map(([k, v]) => `${k}=${v}`).join('');
+        const match = new RegExp(`(?:^|[\\x00-\\x1f])${key}=([^\\x00-\\x1f]*)`, 'i').exec(raw);
+        return match ? match[1] : null;
+    }
+
     startMdnsDiscovery() {
         console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Starting NDPi Client device discovery (mDNS).');
 
         this.bonjourBrowser = bonjour.find({ type: 'ndpi-monitor-client' });
 
         this.bonjourBrowser.on('up', (service) => {
-            const deviceId = service.txt?.deviceId || service.txt?.deviceid;
-            const deviceName = service.txt?.deviceName || service.txt?.devicename || 'NDPi Client';
-            const ip = service.txt?.ip || service.addresses?.[0] || service.host;
-            const commandPort = service.txt?.commandPort || service.txt?.commandport || service.port;
+            const deviceId = service.txt?.deviceId || service.txt?.deviceid || this._extractMdnsTxtField(service, 'deviceid');
+            const deviceName = service.txt?.deviceName || service.txt?.devicename || this._extractMdnsTxtField(service, 'devicename') || 'NDPi Client';
+            const ip = service.txt?.ip || this._extractMdnsTxtField(service, 'ip') || service.addresses?.[0] || service.host;
+            const commandPort = service.txt?.commandPort || service.txt?.commandport || this._extractMdnsTxtField(service, 'commandport') || service.port;
 
             if (!deviceId)
             {
                 // Client__v3_1_0/service/client_bonjour.js gates on deviceId
-                // being set before it ever calls bonjour.publish(), so this
-                // should be unreachable in steady state — most likely cause
-                // is the mDNS browser firing 'up' from a PTR/SRV response
-                // that arrived before the TXT record (common right after
-                // Client's 60s republish cycle stops+restarts its
-                // advertisement). Harmless as long as a later 'up' event for
-                // the same service carries the full TXT data; logged with
-                // enough detail to tell which device it was if it doesn't.
-                console.warn(`⚠️   [ ${path.basename(__filename).split('.')[0]} ] Discovered a service on 'ndpi-monitor-client' without a deviceId in its TXT record (likely still resolving) — name: '${service.name}', host: '${service.host}', fqdn: '${service.fqdn}', txt: ${JSON.stringify(service.txt || {})}`);
+                // being set before it ever calls bonjour.publish(), and the
+                // TXT-corruption fallback above recovers it even when the
+                // library mangles the record (see _extractMdnsTxtField), so
+                // reaching here means deviceId genuinely isn't in the TXT
+                // data at all. Logged with enough detail to tell which
+                // device it was.
+                console.warn(`⚠️   [ ${path.basename(__filename).split('.')[0]} ] Discovered a service on 'ndpi-monitor-client' with no deviceId recoverable from its TXT record — name: '${service.name}', host: '${service.host}', fqdn: '${service.fqdn}', txt: ${JSON.stringify(service.txt || {})}`);
                 return;
             }
 
@@ -530,7 +549,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         this.bonjourBrowser.on('down', (service) => {
-            const deviceId = service.txt?.deviceId || service.txt?.deviceid;
+            const deviceId = service.txt?.deviceId || service.txt?.deviceid || this._extractMdnsTxtField(service, 'deviceid');
             if (!deviceId) return;
 
             const existingClient = this.settings.getClient(deviceId);
