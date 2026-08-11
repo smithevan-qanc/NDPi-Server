@@ -33,6 +33,22 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.pythonBackendUrl = 'http://127.0.0.1:5000';
 
         /**
+         *  NDI Source Discovery WebSocket ( /ws/sources )
+         *  ------------------------------------------------
+         *  Long-running `ndpi_discover` subprocess (same binary Client
+         *  devices use — Client__v3_1_0/service/client_api_server.js
+         *  `startDiscovery()`) that pushes the live NDI source list to
+         *  connected browser clients as it changes, rather than polling.
+         *  The current list itself is NOT kept here — it's written straight
+         *  through to `this.settings` (hub_fs.js, `discovered-ndi-sources.json`)
+         *  on every change, and every reader (this socket's initial send,
+         *  `getNDISources()`, `/api/ndi-sources`) reads it back from there.
+         */
+        this.discoveryExec = null;
+        this.ws_serv_sources = null;
+        this.ws_conn_sources = null;
+
+        /**
          *  GUI WebSocket ( /ws )
          *  ---------------------
          *  Used by the Hub's own web dashboard (public/) for real-time
@@ -109,6 +125,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         );
 
         this.__ws_NDIStreams();
+        this.__ws_Sources();
         this.__ws_Gui();
         this.__ws_Devices();
         this.__Routers();
@@ -149,6 +166,128 @@ class NDPiCommandServer_Client extends EventEmitter {
                 stream.removeClient(ws);
                 console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDI Stream [${streamId}] WebSocket connection REMOVED.`);
             };
+        });
+    }
+
+    /**
+     *      NDI Source - WebSocket Connection Handler ( /ws/sources )
+     */
+    __ws_Sources() {
+        this.ws_serv_sources = new WebSocket.Server({ noServer: true });
+        this.ws_conn_sources = new Set();
+
+        this.ws_serv_sources.on('connection', (ws) =>{
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'NDI Source WebSocket connection ADDED.');
+
+            this.ws_conn_sources.add(ws);
+
+            const knownSources = this.settings.getDiscoveredSources();
+            if (Array.isArray(knownSources) && knownSources.length > 0)
+            { ws.send(JSON.stringify(knownSources)); }
+
+            if (!this.discoveryExec)
+            { this.startDiscovery(); }
+
+            ws.onerror = (error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `NDI Source WebSocket Server`, error);
+            };
+
+            ws.onclose = async () => {
+                this.ws_conn_sources.delete(ws);
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'NDI Source WebSocket connection REMOVED.');
+            };
+        });
+    }
+
+    /**
+     *      NDI Source Discovery — spawns the long-running `ndpi_discover`
+     *      binary (same one Client__v3_1_0's `client_api_server.js`
+     *      `startDiscovery()` uses) and streams updates to `/ws/sources`
+     *      clients as they arrive.
+     */
+    startDiscovery() {
+        const discoveryPath = path.join(__dirname, '..', 'ndi_receiver_v3__NDI6');
+        const programName = './ndpi_discover';
+
+        console.info(`[ ${path.basename(__filename).split('.')[0]} ] Starting NDI Source Discovery.`);
+
+        this.discoveryExec = null;
+
+        // A missing/wrong-arch/non-executable binary makes spawn() throw
+        // *synchronously* (not just an async 'error' event). Since
+        // getNDISources() calls this from inside an async function, an
+        // uncaught synchronous throw here rejects that promise; Express 4
+        // does not catch async route-handler rejections, so it would reach
+        // process.on('unhandledRejection') and take the whole Hub down.
+        // Guard it so a broken discovery binary only disables source
+        // discovery, not the entire Hub.
+        try
+        {
+            this.discoveryExec = spawn(programName, {
+                cwd: discoveryPath
+            });
+        }
+        catch (error)
+        {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] NDI Discovery ('${programName}') failed to start.`, error.message);
+            this.discoveryExec = null;
+            return;
+        }
+
+        this.discoveryExec.on('error', (error) => {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] NDI Discovery ('${programName}') failed to start.`, error.message);
+            this.discoveryExec = null;
+        });
+
+        this.discoveryExec.stdout.on('data', (data) => {
+            const output = data.toString() || '[]';
+            try
+            {
+                const sources = JSON.parse(output);
+                if (Array.isArray(sources))
+                {
+                    this.settings.setDiscoveredSources(sources);
+                    this.ws_conn_sources.forEach((ws) => {
+                        ws.send(JSON.stringify(sources));
+                    });
+                }
+            }
+            catch {}
+        });
+    }
+
+    async _tryCloseDiscovery() {
+        return new Promise((resolve) => {
+            if (!this.discoveryExec)
+            {
+                console.info(`[ -CLOSED ][ ${path.basename(__filename).split('.')[0]} ] NDPi NDI® Discovery - Never Started`);
+                resolve();
+                return;
+            }
+
+            if (!this.discoveryExec.killed)
+            {
+                this.discoveryExec.once('exit', () => {
+                    console.info(`[ -CLOSED ][ ${path.basename(__filename).split('.')[0]} ] NDPi NDI® Discovery`);
+                    resolve();
+                });
+
+                console.info(`[ CLOSING ][ ${path.basename(__filename).split('.')[0]} ] NDPi NDI® Discovery`);
+                this.discoveryExec.kill('SIGTERM');
+
+                setTimeout(() => {
+                    if (!this.discoveryExec.killed)
+                    {
+                        console.info(`[ -CLOSED ][ ${path.basename(__filename).split('.')[0]} ] NDPi NDI® Discovery`);
+                        resolve();
+                    }
+                }, 2000);
+            }
+            else
+            {
+                console.info(`[ -CLOSED ][ ${path.basename(__filename).split('.')[0]} ] NDPi NDI® Discovery`);
+                resolve();
+            }
         });
     }
 
@@ -444,71 +583,59 @@ class NDPiCommandServer_Client extends EventEmitter {
     }
 
     /**
-     *      NDI Source Discovery (via compiled `ndi-discover` binary), merged
-     *      with the Hub's favorited-sources list.
+     *      NDI Source Discovery, merged with the Hub's favorited-sources
+     *      list. Reads the last-known source list straight from hub_fs.js
+     *      (`discovered-ndi-sources.json`), which the long-running
+     *      `ndpi_discover` process (`startDiscovery()`) keeps up to date —
+     *      no per-request exec. The old `./ndi-discover` binary this used
+     *      to shell out to is no longer functional.
      */
-    getNDISources() {
-        return new Promise((resolve) => {
-            exec('./ndi-discover 3', { cwd: path.join(__dirname, '..') }, (error, stdout) => {
-                if (error)
+    async getNDISources() {
+        if (!this.discoveryExec)
+        { this.startDiscovery(); }
+
+        const knownSources = this.settings.getDiscoveredSources();
+        const sources = Array.isArray(knownSources)
+            ? knownSources.map((src) => ({ ...src }))
+            : [];
+
+        const favoritedSources = this.settings.getFavoritedSources();
+        sources.forEach((src) => { src.favorite = false; });
+
+        const mergedSources = [];
+        const usedFavoritedIndices = new Set();
+
+        for (const discoveredSource of sources)
+        {
+            const exactMatchIndex = favoritedSources.findIndex((fav) => fav.name === discoveredSource.name && fav.url === discoveredSource.url);
+
+            if (exactMatchIndex !== -1)
+            {
+                mergedSources.push({ ...favoritedSources[exactMatchIndex], favorite: true });
+                usedFavoritedIndices.add(exactMatchIndex);
+            }
+            else
+            {
+                const partialMatchIndex = favoritedSources.findIndex((fav) => fav.name === discoveredSource.name || fav.url === discoveredSource.url);
+                if (partialMatchIndex !== -1)
                 {
-                    console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'NDI discovery', error);
-                    resolve([]);
-                    return;
+                    discoveredSource.favorite = true;
+                    mergedSources.push(discoveredSource);
+                    usedFavoritedIndices.add(partialMatchIndex);
                 }
+                else
+                { mergedSources.push(discoveredSource); }
+            }
+        }
 
-                let sources = [];
-                try
-                {
-                    const jsonStart = stdout.indexOf('[');
-                    sources = jsonStart === -1 ? [] : JSON.parse(stdout.slice(jsonStart));
-                }
-                catch (parseError)
-                {
-                    console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Parsing NDI discovery output', parseError);
-                    resolve([]);
-                    return;
-                }
-
-                const favoritedSources = this.settings.getFavoritedSources();
-                sources.forEach((src) => { src.favorite = false; });
-
-                const mergedSources = [];
-                const usedFavoritedIndices = new Set();
-
-                for (const discoveredSource of sources)
-                {
-                    const exactMatchIndex = favoritedSources.findIndex((fav) => fav.name === discoveredSource.name && fav.url === discoveredSource.url);
-
-                    if (exactMatchIndex !== -1)
-                    {
-                        mergedSources.push({ ...favoritedSources[exactMatchIndex], favorite: true });
-                        usedFavoritedIndices.add(exactMatchIndex);
-                    }
-                    else
-                    {
-                        const partialMatchIndex = favoritedSources.findIndex((fav) => fav.name === discoveredSource.name || fav.url === discoveredSource.url);
-                        if (partialMatchIndex !== -1)
-                        {
-                            discoveredSource.favorite = true;
-                            mergedSources.push(discoveredSource);
-                            usedFavoritedIndices.add(partialMatchIndex);
-                        }
-                        else
-                        { mergedSources.push(discoveredSource); }
-                    }
-                }
-
-                favoritedSources.forEach((fav, index) => {
-                    if (!usedFavoritedIndices.has(index))
-                    { mergedSources.push({ ...fav, favorite: true }); }
-                });
-
-                mergedSources.sort((a, b) => (b.favorite - a.favorite));
-
-                resolve(mergedSources);
-            });
+        favoritedSources.forEach((fav, index) => {
+            if (!usedFavoritedIndices.has(index))
+            { mergedSources.push({ ...fav, favorite: true }); }
         });
+
+        mergedSources.sort((a, b) => (b.favorite - a.favorite));
+
+        return mergedSources;
     }
 
     /**
@@ -1520,6 +1647,12 @@ class NDPiCommandServer_Client extends EventEmitter {
                     this.ws_serv_ndi_streams.emit('connection', ws, request);
                 });
             }
+            else if (pathname === '/ws/sources')
+            {
+                this.ws_serv_sources.handleUpgrade(request, socket, head, (ws) => {
+                    this.ws_serv_sources.emit('connection', ws, request);
+                });
+            }
             else if (pathname === '/ws/client')
             {
                 this.ws_serv_devices.handleUpgrade(request, socket, head, (ws) => {
@@ -1552,6 +1685,9 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         try { this.ws_serv_gui?.close(); } catch {}
         try { this.ws_serv_devices?.close(); } catch {}
+        try { this.ws_serv_sources?.close(); } catch {}
+
+        await this._tryCloseDiscovery();
 
         // Close all NDI streams
         this.ws_conn_ndi_streams.forEach((stream) => {

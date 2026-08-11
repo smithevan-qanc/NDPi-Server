@@ -227,6 +227,50 @@ instead of the never-populated `currentUser`, removed the dead local
 `showToast()`). All verified live: full page sweep (200 on every page),
 full `/api/*` sweep (200), PIN sign-in flow (`admin`/`0000`) all pass.
 
+**Correction**: `/ws/sources` + `startDiscovery()` (spawns the long-running
+`ndpi_discover` binary from `ndi_receiver_v3__NDI6/`, same one
+`Client__v3_1_0/service/client_api_server.js` uses, pushing live NDI-source
+updates to connected browsers) was reinstated at the user's explicit
+request — it was live, user-facing functionality, not dead weight, despite
+having no current frontend consumer wired up yet. Lesson: a websocket/route
+having zero *current frontend* callers doesn't necessarily mean it's safe to
+delete — check with the user before removing infrastructure that mirrors a
+real Client-side capability, even if nothing in `public/` currently opens
+it. `_tryCloseDiscovery()` keeps the null-check fix from earlier. Verified
+on macOS: `spawn('./ndpi_discover', ...)` fails with `ENOEXEC` (ARM64 Linux
+binary, wrong host arch) but the process stays up and shuts down cleanly —
+expected on this dev machine, will run correctly on real Pi hardware. No
+`.on('error', ...)` handler on the child process, intentionally, to match
+the Client's own implementation exactly.
+
+**Discovered NDI sources are now file-backed** (per user request): added
+`discovered-ndi-sources.json` to `hub_fs.js` (`loadDiscoveredSources()` /
+`getDiscoveredSources()` / `setDiscoveredSources()`, same pattern as
+`favoritedSources`/`rokuTvs`). `startDiscovery()`'s `ndpi_discover` stdout
+handler now writes through `this.settings.setDiscoveredSources(sources)`
+instead of keeping a separate in-memory `this.availableSources` field
+(removed). Every reader — `/ws/sources`'s on-connect send, `getNDISources()`
+(and therefore `/api/ndi-sources` and the 10s GUI broadcast) — now reads
+`this.settings.getDiscoveredSources()`, so there's one source of truth that
+also survives a Hub restart instead of resetting to empty until the
+discovery process reports back in. `getNDISources()` no longer shells out to
+the broken `./ndi-discover` binary at all; it only merges the file's
+contents with favorited sources.
+
+**Found + fixed while verifying that change**: `startDiscovery()`'s
+`spawn('./ndpi_discover', ...)` throws *synchronously* when the binary is
+missing/wrong-architecture/non-executable (confirmed live: `ENOEXEC` on this
+macOS dev machine, since the binary is compiled ARM64 Linux). Since
+`getNDISources()` is `async` and Express 4 does not catch rejected promises
+from async route handlers, this took the whole Hub process down
+(`unhandledRejection` → `exit(1)`) on the very first `GET /api/ndi-sources`
+call — a real crash risk on any Hub install where the binary is
+missing/broken, not just on this dev machine. Wrapped the `spawn()` call in
+try/catch (plus kept a `.on('error', ...)` handler for the async-failure
+case) so a broken discovery binary just disables source discovery
+(`/api/ndi-sources` returns `[]`) instead of crashing the Hub. Verified live:
+repeated calls both return `200 []` and the process stays up.
+
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
 page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/

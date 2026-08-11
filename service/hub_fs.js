@@ -60,6 +60,7 @@ class FileSystemMonitor extends EventEmitter {
         this.groupsFile            = null;
         this.rokuTvsFile           = null;
         this.favoritedSourcesFile  = null;
+        this.discoveredSourcesFile = null;
 
         this.accounts           = new Map();   // accountId    -> account record
         this.clients             = new Map();   // deviceId     -> saved/managed NDPi Client device
@@ -67,6 +68,10 @@ class FileSystemMonitor extends EventEmitter {
         this.groups              = new Map();   // groupId      -> device group
         this.rokuTvs             = [];          // array of Roku TV records
         this.favoritedSources    = [];          // array of favorited NDI source records
+        this.discoveredSources   = [];          // array of NDI sources last reported by hub_api_server.js's
+                                                 // long-running `ndpi_discover` process (startDiscovery()).
+                                                 // Persisted so the last-known list survives a Hub restart and
+                                                 // so requests never need to talk to the discovery process directly.
 
         process.nextTick(() => { this.init(); });
     }
@@ -282,18 +287,20 @@ class FileSystemMonitor extends EventEmitter {
             { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving File: Name:${setting.key}, Value: ${setting.value}`, err) }
         };
 
-        // Hub Data Collections (accounts / devices / groups / roku / favorites)
-        this.accountsFile         = path.join(this.dataDir, 'accounts.json');
-        this.clientsFile          = path.join(this.dataDir, 'clients.json');
-        this.groupsFile           = path.join(this.dataDir, 'groups.json');
-        this.rokuTvsFile          = path.join(this.dataDir, 'roku-tvs.json');
-        this.favoritedSourcesFile = path.join(this.dataDir, 'favorited-sources.json');
+        // Hub Data Collections (accounts / devices / groups / roku / favorites / discovered sources)
+        this.accountsFile          = path.join(this.dataDir, 'accounts.json');
+        this.clientsFile           = path.join(this.dataDir, 'clients.json');
+        this.groupsFile            = path.join(this.dataDir, 'groups.json');
+        this.rokuTvsFile           = path.join(this.dataDir, 'roku-tvs.json');
+        this.favoritedSourcesFile  = path.join(this.dataDir, 'favorited-sources.json');
+        this.discoveredSourcesFile = path.join(this.dataDir, 'discovered-ndi-sources.json');
 
         this.loadAccounts();
         this.loadClients();
         this.loadGroups();
         this.loadRokuTvs();
         this.loadFavoritedSources();
+        this.loadDiscoveredSources();
 
         this.start();
     }
@@ -1004,6 +1011,41 @@ class FileSystemMonitor extends EventEmitter {
         catch (error)
         { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving favorited-sources.json`, error); }
         return this.favoritedSources;
+    }
+
+    /* =====================================================================
+     *  DISCOVERED NDI SOURCES
+     *  ------------------------
+     *  Written continuously by hub_api_server.js's long-running
+     *  `ndpi_discover` process (startDiscovery()) every time the source
+     *  list changes. Kept as a file (rather than only in-memory on the API
+     *  server) so the last-known list survives a Hub restart and every
+     *  "what sources are available" request (`getNDISources()`,
+     *  `/api/ndi-sources`, a fresh `/ws/sources` connection) reads the same
+     *  cached value here instead of talking to the discovery process.
+     * ===================================================================== */
+
+    loadDiscoveredSources() {
+        try
+        { this.discoveredSources = fs.existsSync(this.discoveredSourcesFile) ? JSON.parse(fs.readFileSync(this.discoveredSourcesFile, 'utf8')) : []; }
+        catch (error)
+        {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Loading discovered-ndi-sources.json`, error);
+            this.discoveredSources = [];
+        }
+        if (!Array.isArray(this.discoveredSources))
+        { this.discoveredSources = []; }
+    }
+
+    getDiscoveredSources() { return this.discoveredSources; }
+
+    setDiscoveredSources(list = []) {
+        this.discoveredSources = Array.isArray(list) ? list : [];
+        try
+        { fs.writeFileSync(this.discoveredSourcesFile, JSON.stringify(this.discoveredSources, null, 2)); }
+        catch (error)
+        { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving discovered-ndi-sources.json`, error); }
+        return this.discoveredSources;
     }
 }
 
