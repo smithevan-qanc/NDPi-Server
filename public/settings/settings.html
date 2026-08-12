@@ -122,7 +122,7 @@
 			section_ServerManagement.innerHTML = `
 				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
 					<h2>Server Management</h2>
-					<div class="settings-row">
+					<div class="settings-row last-child">
 						<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
 							<button onclick="restartServer()" class="button-primary">Restart Server Services</button>
 						</div>
@@ -238,8 +238,8 @@
 			`;
 
 			mainContainer.appendChild(section_UserPreferences);
-			mainContainer.appendChild(section_ScreenSaver);
 			mainContainer.appendChild(section_ServerManagement);
+			mainContainer.appendChild(section_ScreenSaver);
 			mainContainer.appendChild(section_DisplayResolution);
 
 			if (account.isAdmin) {
