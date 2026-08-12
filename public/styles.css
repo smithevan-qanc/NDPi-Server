@@ -181,7 +181,8 @@ body::-webkit-scrollbar {
 
 .bottombar-nav {
 	display: flex;
-	height: -webkit-fill-available;
+	/* height: -webkit-fill-available; */
+	height: max-content;
 	gap: 0;
 	overflow-x: auto;
 	min-width: 100%;
