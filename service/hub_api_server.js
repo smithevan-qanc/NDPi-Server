@@ -29,6 +29,10 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         this.ws_serv_ndi_streams = null;
         this.ws_conn_ndi_streams = new Map();
+        
+        this.cacheControl = process.env.NODE_ENV || 'production' == 'production' ? 
+                            'public, max-age=86400, immutable' :
+                            'no-store, no-cache, must-revalidate, private';
 
         this.pythonBackendUrl = 'http://127.0.0.1:5000';
 
@@ -137,7 +141,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.App.use(
             express.static(path.join(__dirname, '..', 'public'), {
                 setHeaders: (res, path) => {
-                    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+                    res.set('Cache-Control', this.cacheControl);;
                 }
             })
         );
@@ -145,7 +149,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             '/assets',
             express.static(path.join(__dirname, '..', 'assets'), {
                 setHeaders: (res, path) => {
-                    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+                    res.set('Cache-Control', this.cacheControl);
                 }
             })
         );
@@ -153,7 +157,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             '/scripts',
             express.static(path.join(__dirname, '..', 'public', '01-scripts'), {
                 setHeaders: (res, path) => {
-                    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+                    res.set('Cache-Control', this.cacheControl);
                 }
             })
         );
@@ -161,7 +165,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             '/media',
             express.static(path.join(__dirname, '..', 'assets', 'gui', 'media'), {
                 setHeaders: (res, path) => {
-                    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+                    res.set('Cache-Control', this.cacheControl);
                 }
             })
         );
@@ -1310,7 +1314,7 @@ class NDPiCommandServer_Client extends EventEmitter {
          *  reaches its real handler.
          */
         this.Routes.route('/test-page').get((req, res) => {
-            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            res.set('Cache-Control', this.cacheControl);;
             res.sendFile(path.join(__dirname, '..', 'ndi-webrtc-example.html'))
         });
 
@@ -1318,7 +1322,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         .route('/')
         .get((req, res) => {
               // DEV
-            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            res.set('Cache-Control', this.cacheControl);;
               // PROD
             // res.set('Cache-Control', 'public, max-age=86400, immutable');
             res.sendFile(path.join(__dirname, '..', 'public', 'dashboard', 'dashboard.html'));
@@ -1328,7 +1332,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         .route('/:page/:ext/')
         .get((req, res) => {
               // DEV
-            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            res.set('Cache-Control', this.cacheControl);;
               // PROD
             // res.set('Cache-Control', 'public, max-age=86400, immutable');
             const page = req.params.page.toLowerCase() || 'dashboard';
@@ -1345,7 +1349,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.Routes
         .route('/:page.html')
         .get((req, res) => {
-            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            res.set('Cache-Control', this.cacheControl);;
             const page = req.params.page.toLowerCase() || 'dashboard';
             res.sendFile(path.join(__dirname, '..', 'public', page, `${page}.html`), (err) => {
                 if (err) { res.status(404).sendFile(path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')); }
