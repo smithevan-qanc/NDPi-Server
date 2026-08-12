@@ -1149,12 +1149,22 @@ label {
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ BUTTONS ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
+/**
+ *  Every button variant below shares the same shape (padding, radius,
+ *  border width, font-size, transition) from this base -- only
+ *  background/border-color/text-color differ between variants, so the
+ *  meaning carried by color stays the only thing that changes page to
+ *  page. `.button-transparent` is the one deliberate exception (a
+ *  minimal ghost/link style for inline "+ Add" affordances, not a
+ *  bordered button), matching its existing use.
+ */
 select, button {
 	padding: 0.5rem 1.2rem;
 	background: rgba(255, 255, 255, 0.06);
 	color: #eee;
 	border: 1px solid rgba(255, 255, 255, 0.14);
 	border-radius: 0.9rem;
+	font-size: 14px;
     cursor: pointer;
 	transition: all 0.25s ease-in-out;
 }
@@ -1166,9 +1176,31 @@ button {
 	align-items: center;
 }
 
+/**
+ *  Disabled state is intentionally identical across every color variant
+ *  (and wins over each variant's own background/border/color with
+ *  !important) so a disabled button always reads as disabled regardless
+ *  of which .button-* class it has -- previously button:disabled only
+ *  overrode background, so e.g. .button-primary's green border/white
+ *  text/hover glow all still showed through, making disabled buttons
+ *  look identical to enabled ones. pointer-events:none also stops
+ *  :hover from ever engaging on a disabled button.
+ */
 button:disabled {
-    background: #555;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    color: rgba(255, 255, 255, 0.35) !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
     cursor: not-allowed;
+    pointer-events: none;
+}
+
+select:disabled {
+    background: #ddd;
+    color: #888;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .button-svg {
@@ -1187,7 +1219,6 @@ select option {
 }
 
 .button-primary {
-	opacity: 0.7;
 	background: var(--primary-color-green);
 	text-shadow: 1px 1px 3px #000;
 	color: #fff;
@@ -1206,7 +1237,7 @@ select option {
 	font-size: 14px;
 	cursor: pointer;
 	padding: 8px;
-	transition: color 0.2s ease;
+	transition: all 0.25s ease-in-out;
 }
 
 .button-transparent:hover {
@@ -1230,7 +1261,7 @@ select option {
 	border-color: rgba(255, 193, 7, 0.9);
 }
 
-.button-warning:hover { 
+.button-warning:hover {
 	background: rgba(255, 193, 7, 1);
 	box-shadow: 0px 0px 5px rgba(200, 200, 200, 0.2);
 }
@@ -1248,9 +1279,8 @@ select option {
 
 .discovery-button {
     background: var(--primary-color-green);
-    border: none;
+    border-color: rgb(112, 177, 20);
     color: white;
-    cursor: pointer;
     margin: 10px;
 }
 
@@ -1258,17 +1288,10 @@ select option {
     background: rgba(129, 193, 39, 0.8);
 }
 
-.discovery-button:disabled {
-    background: #555;
-    cursor: not-allowed;
-}
 .roku-button-power {
     background: #f7606020;
-    border: 1px solid #f87171;
+    border-color: #f87171;
     color: #f76060;
-    padding: 10px 20px;
-    border-radius: 8px;
-    cursor: pointer;
 }
 
 .roku-button-power:hover {
@@ -1278,12 +1301,8 @@ select option {
 
 .add-device-btn {
     background: rgba(129, 193, 39, 0.9);
-    border: none;
-    border-radius: 6px;
+    border-color: rgb(112, 177, 20);
     color: white;
-    padding: 8px 16px;
-    font-size: 14px;
-    cursor: pointer;
 }
 
 .add-device-btn:hover {
