@@ -83,7 +83,8 @@
 		})();
 
 		// Global variables
-		let devices = [];
+		let devices = []; // adopted devices only -- kept live via ws.onDevicesUpdate + the stats/system relays below, no REST polling needed
+		let discoveredDevices = []; // not-yet-added devices -- no snapshot-on-connect WS equivalent, so this still needs a REST fetch
 		let groups = [];
 
 		document.getElementById('add-button').addEventListener('click', () => {
@@ -91,30 +92,21 @@
 			window.location.href='/device-discovery.html'
 		});
 
-		// Fetch Devices and Discovered Devices
-		async function fetchDevices() {
+		// Fetch not-yet-added devices. Adopted devices don't need REST polling
+		// here at all -- ws.onDevicesUpdate delivers an immediate snapshot on
+		// /ws connect (same as dashboard.html) and stays live from there via
+		// that socket plus devicesStatsRelay/devicesSystemRelay below.
+		// Discovered devices have no such snapshot-on-connect equivalent, so
+		// this still needs a real fetch.
+		async function fetchDiscoveredDevices() {
 			try {
-				// Fetch both saved devices and discovered devices
-				const [devicesRes, discoveredRes] = await Promise.all([
-					fetch('/api/devices'),
-					fetch('/api/discovered-devices')
-				]);
-				const devicesData = await devicesRes.json();
-				const discoveredData = await discoveredRes.json();
-
-				// Combine saved devices and discovered devices
-				const savedDevices = devicesData.devices || [];
-				const discoveredDevices = (discoveredData.devices || []).map(dev => ({...dev, status: 'discovered'}));
-
-				// Filter out discovered devices that are already saved
-				const savedDeviceIds = new Set(savedDevices.map(d => d.deviceId));
-				const newDiscovered = discoveredDevices.filter(d => !savedDeviceIds.has(d.deviceId));
-
-				devices = [...savedDevices, ...newDiscovered];
+				const res = await fetch('/api/discovered-devices');
+				const data = await res.json();
+				discoveredDevices = data.devices || [];
 				renderDevices();
 			} catch (e) {
-				console.error('Error fetching devices:', e);
-				devices = [];
+				console.error('Error fetching discovered devices:', e);
+				discoveredDevices = [];
 				renderDevices();
 			}
 		}
@@ -122,18 +114,23 @@
 		// Render Devices by Status
 		function renderDevices() {
 			const onlineDevices = devices.filter(d => d.status === 'online');
-			const discoveredDevices = devices.filter(d => d.status === 'discovered');
 			const offlineDevices = devices.filter(d => d.status === 'offline');
+
+			// Filter out discovered devices that are already adopted
+			const adoptedDeviceIds = new Set(devices.map(d => d.id || d.deviceId));
+			const notYetAdded = discoveredDevices
+				.filter(d => !adoptedDeviceIds.has(d.deviceId))
+				.map(d => ({ ...d, status: 'discovered' }));
 
 			// Show/hide sections based on content
 			document.getElementById('onlineSection').style.display = onlineDevices.length > 0 ? 'block' : 'none';
-			document.getElementById('discoveredSection').style.display = discoveredDevices.length > 0 ? 'block' : 'none';
+			document.getElementById('discoveredSection').style.display = notYetAdded.length > 0 ? 'block' : 'none';
 			document.getElementById('offlineSection').style.display = offlineDevices.length > 0 ? 'block' : 'none';
-			document.getElementById('noDevicesMessage').style.display = devices.length === 0 ? 'block' : 'none';
+			document.getElementById('noDevicesMessage').style.display = (devices.length === 0 && notYetAdded.length === 0) ? 'block' : 'none';
 
 			// Reconcile each section (patch existing tiles in place instead of rebuilding)
 			reconcileDeviceSection('onlineDevices', onlineDevices, false);
-			reconcileDeviceSection('discoveredDevices', discoveredDevices, true);
+			reconcileDeviceSection('discoveredDevices', notYetAdded, true);
 			reconcileDeviceSection('offlineDevices', offlineDevices, false);
 		}
 
@@ -241,7 +238,11 @@
 
 						if (response.ok) {
 							toast.success('Device added');
-							fetchDevices(); // Refresh the list
+							// No explicit refresh needed -- adopting a device
+							// updates clients.json and removes it from the
+							// discovered set server-side, both of which push
+							// through ws.onDevicesUpdate / ws.onDiscoveredDevicesUpdate
+							// automatically.
 						} else {
 							toast.error('Failed to add device');
 						}
@@ -354,7 +355,8 @@
 
 					if (response.ok) {
 						toast.success('Device added');
-						await fetchDevices();
+						// No explicit refresh needed -- see the discovered-tile
+						// click handler above for why.
 					} else {
 						toast.error('Failed to add device');
 					}
@@ -378,9 +380,11 @@
 			renderDevices();
 		};
 
-		// Handle discovered devices updates from WebSocket
-		ws.onDiscoveredDevicesUpdate = (discoveredDevices) => {
-			fetchDevices(); // Refresh the devices list (discovered devices aren't in the /ws devices-update snapshot)
+		// Handle discovered devices updates from WebSocket -- the broadcast
+		// already carries the full list, so no REST round-trip is needed here.
+		ws.onDiscoveredDevicesUpdate = (updatedDiscovered) => {
+			discoveredDevices = updatedDiscovered || [];
+			renderDevices();
 		};
 
 		/**
@@ -423,8 +427,10 @@
 			devicesSystemRelay.close();
 		});
 
-		// Initial load
-		fetchDevices();
+		// Initial load. Adopted devices don't need a REST fetch here -- the
+		// devices-update snapshot ws.onDevicesUpdate receives immediately on
+		// /ws connect covers that.
+		fetchDiscoveredDevices();
 
 		const pageLogo = document.getElementById('topbarLogo');
 		const topbarHeight = document.querySelector('.topbar').clientHeight;
