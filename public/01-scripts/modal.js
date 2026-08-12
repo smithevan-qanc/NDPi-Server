@@ -513,7 +513,7 @@ class Toast {
 		style.textContent = `
 			.toast-container {
 				position: fixed;
-				top: 100px;
+				top: 10px;
 				left: 50%;
 				transform: translateX(-50%);
 				z-index: 9998;
