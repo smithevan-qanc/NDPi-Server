@@ -232,13 +232,6 @@
 			renderGroups();
 		};
 
-		// Handle viewer updates from WebSocket
-		ws.onViewersUpdate = (viewers) => {
-			// Handle viewer updates if needed
-			// No viewer display elements on this page, so just store the data
-			activeViewers = viewers;
-		};
-
 		// Initial load
 		fetchGroups();
 

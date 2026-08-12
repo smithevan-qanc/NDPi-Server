@@ -222,13 +222,6 @@
 		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
 		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
 
-		// Handle viewer updates from WebSocket
-		ws.onViewersUpdate = (viewers) => {
-			// Handle viewer updates if needed
-			// No viewer display elements on this page, so just store the data
-			activeViewers = viewers;
-		};
-
 		// Initial load
 		fetchUsers();
 

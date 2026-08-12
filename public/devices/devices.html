@@ -85,7 +85,6 @@
 		// Global variables
 		let devices = [];
 		let groups = [];
-		let activeViewers = [];
 
 		document.getElementById('add-button').addEventListener('click', () => {
 			this.onclick = null;
@@ -382,15 +381,6 @@
 		// Handle discovered devices updates from WebSocket
 		ws.onDiscoveredDevicesUpdate = (discoveredDevices) => {
 			fetchDevices(); // Refresh the devices list (discovered devices aren't in the /ws devices-update snapshot)
-		};
-
-		// Handle viewer updates from WebSocket
-		ws.onViewersUpdate = (viewers) => {
-			activeViewers = viewers;
-			// Only update display if updateViewersDisplay function exists
-			if (typeof updateViewersDisplay === 'function') {
-				updateViewersDisplay();
-			}
 		};
 
 		/**

@@ -6,9 +6,7 @@ class NDPiWebSocket {
         this.heartbeatMaxAge = 30000; // 30 seconds without heartbeat = connection lost
         this.onDevicesUpdate = null;
         this.onServerEvent = null;
-        this.onViewersUpdate = null;
         this.currentPage = window.location.pathname + window.location.search;
-        this.viewerJoined = false;
         this.connect();
     }
 
@@ -23,7 +21,6 @@ class NDPiWebSocket {
                 this.resetHeartbeatTimeout();
 
                 console.log('Requesting Connection to NDPi Monitor Server');
-                this.sendViewerJoin();
             };
 
             this.ws.onmessage = (event) => {
@@ -41,7 +38,6 @@ class NDPiWebSocket {
 
             this.ws.onclose = () => {
                 this.clearHeartbeatTimeout();
-                this.viewerJoined = false;
                 this.showOfflineOverlay('Server connection has been lost...');
             };
 
@@ -50,50 +46,13 @@ class NDPiWebSocket {
             this.showOfflineOverlay('Server connection has been lost...');
         }
     }
-    
-    sendViewerJoin() {
-        const accountData = localStorage.getItem('ndpi_account');
 
-        if (
-            accountData &&
-            this.ws &&
-            this.ws.readyState === WebSocket.OPEN &&
-            !this.viewerJoined
-        ) {
-            this.viewerJoined = true;
-
-            const account = JSON.parse(accountData);
-            this.ws.send(JSON.stringify({
-                type: 'viewer-join',
-                accountId: account.id,
-                accountName: `${account.firstName} ${account.lastName}`,
-                username: account.username
-            }));
-        }
-    }
-    
-    sendViewerLeave() {
-        const accountData = localStorage.getItem('ndpi_account');
-
-        if (accountData && this.ws && this.ws.readyState === WebSocket.OPEN && this.viewerJoined) {
-            const account = JSON.parse(accountData);
-            this.ws.send(JSON.stringify({
-                type: 'viewer-leave',
-                accountId: account.id,
-                accountName: `${account.firstName} ${account.lastName}`,
-                username: account.username
-            }));
-            this.viewerJoined = false;
-        }
-    }
-    
     handleMessage(message) {
         switch (message.type) {
             case 'connected':
                 console.log(message.message);
-                this.sendViewerJoin();
                 break;
-                
+
             case 'heartbeat':
                 this.resetHeartbeatTimeout();
                 break;
@@ -122,12 +81,6 @@ class NDPiWebSocket {
                 }
                 break;
                 
-            case 'active-viewers':
-                if (this.onViewersUpdate) {
-                    this.onViewersUpdate(message.viewers);
-                }
-                break;
-			
 			case 'system-stats':
 				if (this.onSystemStatsUpdate) {
 					this.onSystemStatsUpdate(message.stats);
@@ -202,7 +155,6 @@ class NDPiWebSocket {
     }
 
     disconnect() {
-        this.sendViewerLeave();
         this.stopPing();
         this.clearHeartbeatTimeout();
         if (this.ws) {
@@ -260,12 +212,6 @@ function sendMessage(message) {
         ndpiWS.ws.send(JSON.stringify(message));
     }
 }
-
-window.addEventListener('beforeunload', () => {
-    if (ndpiWS) {
-        ndpiWS.sendViewerLeave();
-    }
-});
 
 document.addEventListener("online", function() {
     console.log('online now');

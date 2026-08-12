@@ -63,11 +63,10 @@ class NDPiCommandServer_Client extends EventEmitter {
          *  ---------------------
          *  Used by the Hub's own web dashboard (public/) for real-time
          *  updates: devices-update, groups-update, discovered-devices-update,
-         *  ndi-sources, active-viewers, system-stats, heartbeat.
+         *  ndi-sources, system-stats, heartbeat.
          */
         this.ws_serv_gui = null;
-        this.ws_conn_gui = new Map(); // ws -> { accountId, accountName, connectedAt }
-        this.activeViewers = new Map(); // accountId -> { name, username, connectedAt }
+        this.ws_conn_gui = new Set();
 
         /**
          *  NDPi Client Device WebSocket ( /ws/client )
@@ -358,8 +357,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_gui.on('connection', (ws) => {
             console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GUI WebSocket connection ADDED.');
 
-            const clientInfo = { accountId: null, accountName: 'Anonymous', connectedAt: Date.now() };
-            this.ws_conn_gui.set(ws, clientInfo);
+            this.ws_conn_gui.add(ws);
 
             try
             {
@@ -372,44 +370,11 @@ class NDPiCommandServer_Client extends EventEmitter {
             }
             catch {}
 
-            ws.onmessage = (event) => {
-                let message;
-                try { message = JSON.parse(event.data); }
-                catch (error) { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'GUI WebSocket message', error); return; }
-
-                if (message.type === 'viewer-join')
-                {
-                    clientInfo.accountId = message.accountId;
-                    clientInfo.accountName = message.accountName;
-
-                    this.activeViewers.set(message.accountId, {
-                        name: message.accountName,
-                        username: message.username,
-                        connectedAt: Date.now(),
-                    });
-
-                    this.broadcastViewers(`GUI ws message = 'viewer-join'`);
-                }
-                else if (message.type === 'viewer-leave')
-                {
-                    if (clientInfo.accountId)
-                    {
-                        this.activeViewers.delete(clientInfo.accountId);
-                        this.broadcastViewers(`GUI ws message = 'viewer-leave'`);
-                    }
-                }
-            };
-
             ws.onerror = (error) => {
                 console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'GUI WebSocket Server', error);
             };
 
             ws.onclose = () => {
-                if (clientInfo.accountId)
-                {
-                    this.activeViewers.delete(clientInfo.accountId);
-                    this.broadcastViewers('GUI ws close');
-                }
                 this.ws_conn_gui.delete(ws);
                 console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GUI WebSocket connection REMOVED.');
             };
@@ -418,20 +383,12 @@ class NDPiCommandServer_Client extends EventEmitter {
 
     broadcastToGUI(message = {}) {
         const data = JSON.stringify(message);
-        this.ws_conn_gui.forEach((info, ws) => {
+        this.ws_conn_gui.forEach((ws) => {
             if (ws.readyState === WebSocket.OPEN)
             {
                 try { ws.send(data); }
                 catch {}
             }
-        });
-    }
-
-    broadcastViewers(origin = '') {
-        this.broadcastToGUI({
-            type: 'active-viewers',
-            origin,
-            viewers: Array.from(this.activeViewers.values()),
         });
     }
 
@@ -1989,10 +1946,6 @@ class NDPiCommandServer_Client extends EventEmitter {
             const updated = this.settings.setFavoritedSources(req.body);
             res.json({ success: true, message: 'Favorited sources updated', count: updated.length });
         });
-
-        this.Routes
-        .route('/api/active-viewers')
-        .get((req, res) => { res.json({ viewers: Array.from(this.activeViewers.values()) }); });
     }
 
     /**
@@ -2294,7 +2247,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         // negotiating one, and terminate() doesn't wait on a close
         // handshake the other end may never complete.
         const terminate = (ws) => { try { ws.terminate(); } catch {} };
-        this.ws_conn_gui.forEach((_info, ws) => terminate(ws));
+        this.ws_conn_gui.forEach(terminate);
         this.ws_conn_hub_system.forEach(terminate);
         this.ws_conn_hub_stats.forEach(terminate);
         this.ws_conn_devices_system.forEach(terminate);

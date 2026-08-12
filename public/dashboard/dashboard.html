@@ -165,7 +165,6 @@
 		})();
 
 		let devices = [];
-		let activeViewers = [];
 		let groups = [];
 
 		// Fetch Groups
@@ -250,24 +249,6 @@
 		}
 
 
-		// Update viewers display
-		/*
-		function updateViewersDisplay() {
-			const viewerCount = document.getElementById('viewerCount');
-			const viewersInfo = document.getElementById('viewersInfo');
-			
-			// Only update if elements exist (they may not exist on all pages)
-			if (viewerCount) {
-				const count = activeViewers.length;
-				viewerCount.textContent = count === 1 ? '1 viewing' : `${count} viewing`;
-			}
-			
-			if (viewersInfo) {
-				viewersInfo.style.display = activeViewers.length > 0 ? 'flex' : 'none';
-			}
-		}
-		*/
-		
 		// `deviceId -> tile refs`, patched in place instead of rebuilding on every update
 		const deviceTiles = new Map();
 
@@ -453,14 +434,6 @@
 			const statsById = new Map(devices.map(d => [d.id, d.systemStats]));
 			devices = updatedDevices.map(d => ({ ...d, systemStats: statsById.get(d.id) || d.systemStats }));
 			renderDevices();
-		};
-
-		// Handle viewer updates from WebSocket
-		ws.onViewersUpdate = (viewers) => {
-			activeViewers = viewers;
-			if (typeof updateViewersDisplay === 'function') {
-				updateViewersDisplay();
-			}
 		};
 
 		/**
