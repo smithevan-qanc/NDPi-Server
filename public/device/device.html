@@ -255,6 +255,10 @@
 			renderSources();
 			updateDevice();
 			document.getElementById('overlayUpload').addEventListener('change', handleOverlayFile);
+
+			// Open direct-to-device sockets for true real-time updates
+			// (see connectDeviceSockets() below) once we know its IP.
+			connectDeviceSockets();
 		}
 
 		function renderSources() {
@@ -897,11 +901,16 @@
 		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
 		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
 
-		// Handle device updates pushed from the Hub's own /ws (GUI) socket —
-		// this is the Hub-side equivalent of Client's local `ws/system` live
-		// feed: every Client pushes its full settings snapshot to the Hub
-		// over the persistent `/ws/client` connection, and the Hub relays
-		// the current device list to every connected browser here.
+		// Handle device updates pushed from the Hub's own /ws (GUI) socket.
+		// Every Client pushes its full settings snapshot to the Hub over the
+		// persistent /ws/client connection roughly every 5s (+ on change),
+		// and the Hub relays the current device list to every connected
+		// browser here. connectDeviceSockets() below supplements this with
+		// a direct browser-to-device connection for true real-time pushes
+		// (the device's own /ws/system broadcasts the instant anything
+		// changes, and /ws/stats streams every ~1s) — this handler stays as
+		// the fallback/baseline and is what keeps Hub-only fields (group,
+		// online/offline status) current either way.
 		ws.onDevicesUpdate = (devices) => {
 			if (!device) return;
 			const updatedDevice = devices.find(d => d.id === device.id);
@@ -934,6 +943,153 @@
 				renderSources();
 			}
 		};
+
+		/**
+		 *  Direct-to-device live sockets — connects this browser straight to
+		 *  the device itself (Client__v3_1_0/service/client_api_server.js),
+		 *  the same two sockets its own local system.js UI uses:
+		 *    - /ws/system: sends the full settings snapshot
+		 *      (Array.from(fileMap), same [key,{value,group,...}] tuple shape
+		 *      as `device.settings`) on connect, then re-sends it in full
+		 *      the instant ANY setting changes (client_fs.js's
+		 *      `fsData.on('update', ...)`) — pushed immediately, not on the
+		 *      Hub's ~5s status-report cadence.
+		 *    - /ws/stats: sends raw os.*-derived stats on connect, then
+		 *      every ~1s. NOT the same shape as `device.systemStats` — the
+		 *      summarized {cpu,memory,temperature,uptime} shape shown in the
+		 *      stats header is derived from these raw fields below.
+		 *  Requires this browser to be able to reach the device's IP
+		 *  directly (same network), unlike the Hub-relayed `ws.onDevicesUpdate`
+		 *  above, which stays wired as a fallback and for Hub-only fields.
+		 */
+		let deviceSystemSocket = null;
+		let deviceStatsSocket = null;
+		const deviceSocketReconnectTimers = {};
+
+		function getDeviceApiPort() {
+			const portSetting = getSetting('local_port_number_api');
+			return (portSetting && portSetting.value) || 3080;
+		}
+
+		function connectDeviceSockets() {
+			if (!device || !device.ip) return;
+			const port = getDeviceApiPort();
+			connectDeviceSystemSocket(device.ip, port);
+			connectDeviceStatsSocket(device.ip, port);
+		}
+
+		function deviceSocketProtocol() {
+			return window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+		}
+
+		function connectDeviceSystemSocket(ip, port) {
+			try { deviceSystemSocket && deviceSystemSocket.close(); } catch (e) {}
+
+			deviceSystemSocket = new WebSocket(`${deviceSocketProtocol()}//${ip}:${port}/ws/system`);
+
+			deviceSystemSocket.onmessage = (event) => {
+				try {
+					const tuples = JSON.parse(event.data);
+					if (Array.isArray(tuples)) { applyDeviceSettingsTuples(tuples); }
+				} catch (e) {
+					console.error('Invalid /ws/system message from device:', e);
+				}
+			};
+			deviceSystemSocket.onclose = () => {
+				clearTimeout(deviceSocketReconnectTimers.system);
+				deviceSocketReconnectTimers.system = setTimeout(() => connectDeviceSystemSocket(ip, port), 5000);
+			};
+			deviceSystemSocket.onerror = () => {};
+		}
+
+		function connectDeviceStatsSocket(ip, port) {
+			try { deviceStatsSocket && deviceStatsSocket.close(); } catch (e) {}
+
+			deviceStatsSocket = new WebSocket(`${deviceSocketProtocol()}//${ip}:${port}/ws/stats`);
+
+			deviceStatsSocket.onmessage = (event) => {
+				try {
+					applyDeviceRawStats(JSON.parse(event.data));
+				} catch (e) {
+					console.error('Invalid /ws/stats message from device:', e);
+				}
+			};
+			deviceStatsSocket.onclose = () => {
+				clearTimeout(deviceSocketReconnectTimers.stats);
+				deviceSocketReconnectTimers.stats = setTimeout(() => connectDeviceStatsSocket(ip, port), 5000);
+			};
+			deviceStatsSocket.onerror = () => {};
+		}
+
+		/**
+		 * Apply a fresh Array.from(fileMap) snapshot pushed directly from the
+		 * device's own /ws/system, deriving the same
+		 * currentSource/displayMode/streamStatus/ndiInfo fields the Hub
+		 * relay normally only refreshes every ~5s.
+		 */
+		function applyDeviceSettingsTuples(tuples) {
+			if (!device) return;
+			device.settings = tuples;
+
+			const getValue = (key) => {
+				const entry = tuples.find(([k]) => k === key);
+				return entry ? entry[1].value : undefined;
+			};
+
+			if (getValue('device_name') !== undefined) { device.name = getValue('device_name') || device.name; }
+			if (getValue('ndpi_status_ndi_source_target') !== undefined) { device.currentSource = getValue('ndpi_status_ndi_source_target') || 'None'; }
+			if (getValue('ndpi_status_no_source_display_mode') !== undefined) { device.displayMode = getValue('ndpi_status_no_source_display_mode') || 'overlay'; }
+			if (getValue('ndpi_status_ndi_status') !== undefined) { device.streamStatus = getValue('ndpi_status_ndi_status') || 'idle'; }
+
+			const connectedTime = getValue('ndpi_status_ndi_source_connected_time') || '';
+			device.ndiInfo = {
+				resolution: getValue('ndpi_status_ndi_source_resolution') || '',
+				framerate: parseFloat(getValue('ndpi_status_ndi_source_framerate')) || 0,
+				displayName: getValue('output_display_model') || getValue('output_display_manufacturer') || '',
+				displayResolution: getValue('output_display_resolution_current') || '',
+				uptime: connectedTime ? Math.max(0, Math.floor((Date.now() - new Date(connectedTime).getTime()) / 1000)) : 0,
+			};
+
+			renderSources();
+			updateDevice();
+		}
+
+		/**
+		 * Apply a raw /ws/stats payload (client_api_server.js's
+		 * getSystemStats() — plain os.* fields: loadavg, cpus, freemem,
+		 * totalmem, thermal.thermal_zone0 — not the summarized shape
+		 * device.systemStats normally holds), converting it into that
+		 * {cpu,memory,temperature} shape for display.
+		 * NOTE: that raw payload's own `osUptime` field is always NaN on
+		 * the device (client_api_server.js does `Number(os.uptime)` — the
+		 * function reference, missing `()`) — so `uptime` is deliberately
+		 * left alone here and only ever updated from the Hub's periodic
+		 * relay (client-status), which computes it correctly.
+		 */
+		function applyDeviceRawStats(raw) {
+			if (!device || !Array.isArray(raw.loadavg) || !Array.isArray(raw.cpus) || !raw.totalmem) return;
+
+			const totalMem = raw.totalmem;
+			const usedMem = totalMem - raw.freemem;
+
+			device.systemStats = {
+				...(device.systemStats || {}),
+				cpu: Math.round(Math.min(raw.loadavg[0] / raw.cpus.length, 1) * 1000) / 10,
+				memory: {
+					percent: Math.round((usedMem / totalMem) * 100),
+					used: Math.round((usedMem / 1024 / 1024 / 1024) * 10) / 10,
+					total: Math.round((totalMem / 1024 / 1024 / 1024) * 10) / 10,
+				},
+				temperature: (raw.thermal && raw.thermal.thermal_zone0) || 0,
+			};
+
+			updateStatsHeader();
+		}
+
+		window.addEventListener('beforeunload', () => {
+			try { deviceSystemSocket && deviceSystemSocket.close(); } catch (e) {}
+			try { deviceStatsSocket && deviceStatsSocket.close(); } catch (e) {}
+		});
 
 	</script>
 </body>

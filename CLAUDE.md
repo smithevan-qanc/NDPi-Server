@@ -417,20 +417,49 @@ resolve, not at top-level scope — not the same bug.
    handler (and fixes `create-account.html`'s `account.isAdmin` check,
    which needs `loadUserAccount()` to have actually run too).
 
-**Still investigating**: "can't see the ability to update client device
-variables" on `device/device.html`. Re-verified `renderSettings()` is
-still wired correctly (built earlier this session) and the backend path
-(`client-status` → `hub_fs.upsertClient` → `deviceOut()` →
-`client.settings`) is intact — the grid shows "No settings reported by
-this device yet" specifically when `device.settings` is null/empty, which
-is the correct/expected state for a device that hasn't sent a
-`client-status` message yet (e.g. testing against a fresh Hub instance
-with no device connected, vs. the separate real production Hub the
-`ndpi-client.local` device you fetched earlier is actually configured to
-report to). Need to confirm with the user whether a real device is
-connected to whatever Hub they're testing against, and exactly what the
-device page shows (nothing under "Device Settings", an error, or something
-else) before changing anything further here.
+**Root-caused "can't see the ability to update client device variables"**:
+confirmed via the user that a real device *was* connected, so I fetched its
+actual live settings directly (`ws://ndpi-client.local:3080/ws/system`) and
+found `ndpi_hub_port` was blank. Per `Client__v3_1_0/service/
+clientServer_websocket.js`, the persistent `/ws/client` connection — the
+*only* channel that ever delivers a device's `settings` snapshot to a Hub —
+only opens once **both** `ndpi_hub_hostname` and `ndpi_hub_port` are set.
+A device can be fully visible in the Hub's UI via mDNS (name/ip/port only)
+while never having actually connected or reported anything. Not a Hub bug;
+`renderSettings()` was already correct (verified against the device's real
+47-entry settings payload).
+
+**Built an actual fix for the underlying gap, not just a diagnosis**
+(user's follow-up ask): when the Hub adopts a device discovered via mDNS
+(`POST /api/device/:id?`), it now automatically tells that device where to
+find this Hub, closing the loop instead of requiring the admin to
+manually configure `ndpi_hub_hostname`/`ndpi_hub_port` on each device by
+hand:
+- **New endpoint on the Client** (`Client__v3_1_0/service/
+  client_api_server.js`, explicitly authorized by the user to edit):
+  `POST /api/v1/adopt` with `{ hubHostname, hubPort }` — writes both
+  settings directly via `this.settings.put(...)`, same pattern as the
+  existing `__internal` `'ndi'` case. No new Client-side auth; matches the
+  rest of that API's existing (unauthenticated) surface.
+- **Hub side**: added `hub_fs.js#getDiscoveredClient(deviceId)` (a
+  singular, *unfiltered* lookup — `getDiscoveredClients()` deliberately
+  excludes already-adopted devices, but adopt time is exactly when the raw
+  mDNS-reported `ip`/`commandPort` is needed) and
+  `hub_api_server.js#configureDeviceHubConnection(ip, commandPort)`, which
+  POSTs to the device's new `/api/v1/adopt` with this Hub's own IP
+  (`getServerIP()` — existed already, was unused until now) and port.
+  Wired into the adopt route as best-effort (a device being briefly
+  unreachable at adopt time doesn't fail the adopt itself; response
+  includes `hubConfigured: true/false` either way).
+- Verified end-to-end against a test double implementing the exact new
+  Client endpoint: successful adopt correctly updates the fake device's
+  settings, missing-field validation correctly 400s, and an unreachable
+  device fails gracefully (`ECONNREFUSED`, no hang/crash) — plus confirmed
+  live that the real adopt route still safely no-ops (`hubConfigured:
+  false`) when no discovered-client record exists yet. **Not tested
+  against the real "HV Camp Entryway" device** — doing so would actually
+  repoint its live Hub connection, and the new Client endpoint isn't
+  deployed there yet anyway (only exists in this local repo checkout).
 
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
