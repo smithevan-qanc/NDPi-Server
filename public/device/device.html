@@ -978,15 +978,19 @@
 			const updatedDevice = devices.find(d => d.id === device.id);
 			if (!updatedDevice) return;
 
-			// Compare everything except systemStats/clockSync (both
-			// legitimately change on almost every broadcast/direct-socket
-			// tick) without mutating either object, so a stats-only tick
-			// updates just the stats header instead of triggering a full
-			// re-render, and a real change still carries its systemStats
-			// through intact. clockSync only ever comes from the direct
-			// /ws/stats socket (see applyDeviceRawStats()), never from this
-			// Hub relay, so carry the existing value forward instead of
-			// losing it every time this fires.
+			// Compare everything except systemStats/clockSync/rawStats (all
+			// three legitimately change on almost every broadcast/direct-socket
+			// tick, and none of them exist on `updatedDevice` -- the Hub relay
+			// only ever reports summarized systemStats, never clockSync or the
+			// raw /ws/stats payload) without mutating either object, so a
+			// stats-only tick updates just the stats header instead of
+			// triggering a full re-render, and a real change still carries its
+			// systemStats through intact. clockSync/rawStats only ever come
+			// from the direct /ws/stats socket (see applyDeviceRawStats()), so
+			// carry the existing values forward instead of losing them (and,
+			// left in `oldRest`, rawStats would never match `newRest` -- which
+			// never has that key -- making `otherChanged` true on every single
+			// tick once it was first set).
 			//
 			// Also strip lastSeen/lastStatusUpdate (the Hub stamps both with
 			// `new Date()` on literally every client-status report) and
@@ -995,7 +999,7 @@
 			// tick, forcing a full settings-grid rebuild (via updateDevice()
 			// -> renderSettings()) constantly and making it impossible to
 			// edit a setting before the next tick wiped the input.
-			const { systemStats: oldStats, clockSync: oldClockSync, lastSeen: _oLS, lastStatusUpdate: _oLSU, ndiInfo: oldNdiInfo, ...oldRest } = device;
+			const { systemStats: oldStats, clockSync: oldClockSync, rawStats: oldRawStats, lastSeen: _oLS, lastStatusUpdate: _oLSU, ndiInfo: oldNdiInfo, ...oldRest } = device;
 			const { systemStats: newStats, lastSeen: _nLS, lastStatusUpdate: _nLSU, ndiInfo: newNdiInfo, ...newRest } = updatedDevice;
 			const stripUptime = (info) => info ? { ...info, uptime: undefined } : info;
 
@@ -1007,8 +1011,9 @@
 			// direct /ws/stats socket, ~1s cadence) over this ~5s relay
 			// snapshot, which is staler and would otherwise make the header
 			// visibly flash back to an older value every tick. Fall back to
-			// the relay's value only if we don't have one yet.
-			device = { ...updatedDevice, systemStats: oldStats || newStats, clockSync: oldClockSync };
+			// the relay's value only if we don't have one yet. rawStats has
+			// no relay equivalent at all, so it's always just carried forward.
+			device = { ...updatedDevice, systemStats: oldStats || newStats, clockSync: oldClockSync, rawStats: oldRawStats };
 
 			if (otherChanged) {
 				updateDevice();
