@@ -715,6 +715,47 @@ class NDPiCommandServer_Client extends EventEmitter {
         return 'localhost';
     }
 
+    /**
+     *  Point a just-adopted device at this Hub, so it starts reporting
+     *  over /ws/client on its own. Client__v3_1_0's clientServer_websocket.js
+     *  only opens that connection once BOTH 'ndpi_hub_hostname' and
+     *  'ndpi_hub_port' are set — until then a device can be fully visible
+     *  via mDNS (name/ip/port) but never actually deliver its settings/
+     *  status. Calls the device's own 'POST /api/v1/adopt' endpoint
+     *  (Client__v3_1_0/service/client_api_server.js), via the
+     *  ip/commandPort this Hub already learned from its mDNS TXT record.
+     */
+    async configureDeviceHubConnection(ip, commandPort) {
+        if (!ip || !commandPort)
+        { return { success: false, message: 'Missing device ip/commandPort' }; }
+
+        const hubHostname = this.getServerIP();
+        const hubPort = String(this.port);
+
+        return new Promise((resolve) => {
+            const postData = JSON.stringify({ hubHostname, hubPort });
+
+            const req = http.request({
+                hostname: ip,
+                port: commandPort,
+                path: '/api/v1/adopt',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+                timeout: 5000,
+            }, (res) => {
+                let body = '';
+                res.on('data', (chunk) => { body += chunk; });
+                res.on('end', () => resolve({ success: res.statusCode === 200, hubHostname, hubPort, body }));
+            });
+
+            req.on('error', (error) => resolve({ success: false, hubHostname, hubPort, error: error.message }));
+            req.on('timeout', () => { req.destroy(); resolve({ success: false, hubHostname, hubPort, error: 'timeout' }); });
+
+            req.write(postData);
+            req.end();
+        });
+    }
+
     __Routers() {
         this.Routes = express.Router();
         this.App.use(this.Routes);
@@ -1157,7 +1198,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         this.Routes
         .route('/api/device/:id?')
-        .post((req, res) => {
+        .post(async (req, res) => {
             const deviceId = req.params.id || req.body.deviceId || req.body.id;
             const { deviceName, ip, name } = req.body;
 
@@ -1165,14 +1206,30 @@ class NDPiCommandServer_Client extends EventEmitter {
             { return res.status(400).json({ error: 'Device ID required' }); }
 
             const existing = this.settings.getClient(deviceId) || {};
+            const discovered = this.settings.getDiscoveredClient(deviceId);
+            const resolvedIp = ip || existing.ip || discovered?.ip;
+
             const client = this.settings.upsertClient(deviceId, {
                 deviceName: deviceName || name || existing.deviceName || deviceId,
-                ip: ip || existing.ip,
+                ip: resolvedIp,
                 status: existing.status || 'offline',
                 lastSeen: new Date().toISOString(),
             });
 
-            res.json({ success: true, device: client });
+            // Adopting a device it only knows about via mDNS: point it at
+            // this Hub so it starts reporting over /ws/client on its own.
+            // Best-effort — the device may be briefly unreachable, and the
+            // admin can already fix this by hand on the device's own page.
+            let hubConfigured = false;
+            if (resolvedIp && discovered?.commandPort)
+            {
+                const result = await this.configureDeviceHubConnection(resolvedIp, discovered.commandPort);
+                hubConfigured = result.success;
+                if (!result.success)
+                { console.warn(`⚠️   [ ${path.basename(__filename).split('.')[0]} ] Could not configure Hub connection on device ${deviceId} (${resolvedIp}:${discovered.commandPort}) — it may need 'ndpi_hub_hostname'/'ndpi_hub_port' set manually on the device.`, result); }
+            }
+
+            res.json({ success: true, device: client, hubConfigured });
         });
 
         this.Routes

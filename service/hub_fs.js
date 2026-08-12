@@ -826,6 +826,14 @@ class FileSystemMonitor extends EventEmitter {
         return Array.from(this.discoveredClients.values()).filter((d) => !this.clients.has(d.deviceId));
     }
 
+    // Unfiltered single lookup (unlike getDiscoveredClients(), still
+    // returns a result after the device has been adopted into `clients`)
+    // — used to recover the ip/commandPort mDNS reported for a device at
+    // adopt time, to configure its Hub connection.
+    getDiscoveredClient(deviceId) {
+        return this.discoveredClients.get(deviceId) || null;
+    }
+
     /* =====================================================================
      *  GROUPS
      * ===================================================================== */

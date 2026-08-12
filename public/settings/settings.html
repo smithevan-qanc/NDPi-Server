@@ -41,9 +41,18 @@
 		// Called by 01-scripts/functions.js's bootstrap once `account` has
 		// actually loaded (renderSections() reads account.isAdmin) — do not
 		// call renderSections() directly at top level, it runs before the
-		// async loadUserAccount() call has resolved.
+		// async loadUserAccount() call has resolved. initializeScale()/
+		// initializeScreenSaverSettings() must run after renderSections()
+		// too, since they set values on inputs renderSections() creates —
+		// calling them before it (as top-level statements further down this
+		// same script) throws on the null elements, which aborts the rest
+		// of this script's top-level execution before it ever reaches
+		// `let rokuTvs = [];`, leaving that binding in the temporal dead
+		// zone for loadRokuTvs() to blow up on later.
 		function initPage() {
 			renderSections();
+			initializeScale();
+			initializeScreenSaverSettings();
 		}
 
 		function renderSections() {
@@ -219,9 +228,6 @@
 		const topbarHeight = document.querySelector('.topbar').clientHeight;
 		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
 		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
-
-		initializeScale();
-		initializeScreenSaverSettings();
 
 		// Screen Saver Settings Functions
 		function getScreenSaverSettings() {

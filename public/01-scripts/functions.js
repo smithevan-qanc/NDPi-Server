@@ -1,11 +1,24 @@
 (async () => {
 	setScale();
+
+	// Auth-flow pages (set-pin, create-account) don't have the persistent
+	// app shell (topbar/bottombar nav) — skip shell-specific setup on them
+	// instead of throwing, since that would abort this whole IIFE before
+	// loadUserAccount()/initPage() ever run.
 	const pageLogo = document.getElementById('topbarLogo');
-	const topbarHeight = document.querySelector('.topbar').clientHeight;
-	pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
-	pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+	const topbarEl = document.querySelector('.topbar');
+	if (pageLogo && topbarEl) {
+		const topbarHeight = topbarEl.clientHeight;
+		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
+		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
+	}
+
 	await loadUserAccount();
-	setNavigationButtons();
+
+	if (document.getElementById('navDashboard')) {
+		setNavigationButtons();
+	}
+
 	if (typeof initPage === 'function') { initPage(account); }
 })();
 

@@ -392,6 +392,46 @@ block; `group.html`'s and `device.html`'s only run from inside
 data-dependent render functions invoked after their own async fetches
 resolve, not at top-level scope — not the same bug.
 
+**Fixed a regression I introduced, plus its actual root cause**:
+1. Wrapping `settings.html`'s `renderSections()` in `initPage()` (previous
+   fix) broke `initializeScale()`/`initializeScreenSaverSettings()`, which
+   were still called at top-level script scope — before `renderSections()`
+   (now deferred) had built the DOM elements they set `.value` on.
+   `initializeScreenSaverSettings()` has no defensive null-check, so it
+   threw immediately on `#screenSaverWait` being null — and since that's a
+   top-level statement, the throw aborted the rest of the script before it
+   ever reached `let rokuTvs = [];`, leaving that binding in the temporal
+   dead zone (hence the *second*, seemingly unrelated `ReferenceError:
+   Cannot access 'rokuTvs' before initialization` — same root cause, one
+   fix). Moved both calls into `initPage()`, after `renderSections()`.
+2. **The actual reason `set-pin.html` "still doesn't work" despite the
+   earlier `initPage()` fix**: `01-scripts/functions.js`'s bootstrap
+   unconditionally did `document.querySelector('.topbar').clientHeight` —
+   but `set-pin.html` and `create-account.html` are standalone auth-flow
+   pages with no topbar/bottombar app shell at all. That threw immediately,
+   before `loadUserAccount()` or `initPage()` ever ran — so `initPage()`
+   was correctly written but never actually got called. Made the bootstrap
+   skip topbar-sizing and nav-button-wiring when those elements don't
+   exist, instead of assuming every page that loads `functions.js` has the
+   full app shell. This is what actually unblocks `set-pin.html`'s submit
+   handler (and fixes `create-account.html`'s `account.isAdmin` check,
+   which needs `loadUserAccount()` to have actually run too).
+
+**Still investigating**: "can't see the ability to update client device
+variables" on `device/device.html`. Re-verified `renderSettings()` is
+still wired correctly (built earlier this session) and the backend path
+(`client-status` → `hub_fs.upsertClient` → `deviceOut()` →
+`client.settings`) is intact — the grid shows "No settings reported by
+this device yet" specifically when `device.settings` is null/empty, which
+is the correct/expected state for a device that hasn't sent a
+`client-status` message yet (e.g. testing against a fresh Hub instance
+with no device connected, vs. the separate real production Hub the
+`ndpi-client.local` device you fetched earlier is actually configured to
+report to). Need to confirm with the user whether a real device is
+connected to whatever Hub they're testing against, and exactly what the
+device page shows (nothing under "Device Settings", an error, or something
+else) before changing anything further here.
+
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
 page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/
