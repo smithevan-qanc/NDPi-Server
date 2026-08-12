@@ -233,122 +233,144 @@
 			updateDevicesList();
 		}
 
-		function updateDevicesList() {
-			const container = document.getElementById('devicesContainer');
-			if (!container) return;
-			
-			if (group.devices.length === 0) {
-				container.innerHTML = '<p style="color:#888;">No devices in this group</p>';
-				return;
-			}
-			
-			// Check if we need to rebuild or just update stats
-			const existingTiles = container.querySelectorAll('.device-tile');
-			const deviceIds = group.devices.map(d => d.id || d.deviceId);
-			const existingIds = Array.from(existingTiles).map(t => t.dataset.deviceId);
-			
-			// If device list changed, rebuild
-			const needsRebuild = existingTiles.length !== group.devices.length || 
-				!deviceIds.every((id, i) => id === existingIds[i]);
-			
-			if (needsRebuild) {
-				container.innerHTML = group.devices.map(dev => buildDeviceTileHtml(dev)).join('');
-			} else {
-				// Just update stats in place
-				group.devices.forEach(dev => {
-					const tile = container.querySelector(`[data-device-id="${dev.id || dev.deviceId}"]`);
-					if (tile) {
-						const statsContainer = tile.querySelector('.device-stats');
-						
-						if (dev.status === 'online') {
-							tile.classList.add('active');
-						} else {
-							tile.classList.remove('active');
-						}
+		// `deviceId -> tile refs`, patched in place instead of rebuilding on every update
+		const groupDeviceTiles = new Map();
 
-						if (dev.systemStats && dev.status === 'online') {
-							const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
-							const tempColor = dev.systemStats.temperature > 78 ? '#f87171' : dev.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
-							const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
-							const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
-							const statsHtml = `
-								<span style="color:${cpuColor};">CPU ${dev.systemStats.cpu}%</span>
-								<span style="color:${tempColor};">TEMP ${tempF}°F</span>
-								<span style="color:${memColor};">MEM ${dev.systemStats.memory.percent}%</span>
-							`;
-							if (statsContainer) {
-								statsContainer.innerHTML = statsHtml;
-							} else {
-								// Add stats container if it doesn't exist
-								const main = tile.querySelector('.devices-grid');
-								if (main) {
-									const newStats = document.createElement('div');
-									newStats.className = 'device-stats';
-									newStats.innerHTML = statsHtml;
-									main.appendChild(newStats);
-								}
-							}
-						} else if (statsContainer) {
-							statsContainer.remove();
-						}
+		function createGroupDeviceTile(dev) {
+			const tile = document.createElement('div');
+			tile.className = 'device-tile';
+			tile.dataset.deviceId = dev.id || dev.deviceId;
+			tile.innerHTML = `
+				<div class="device-tile-main">
+					<div class="device-tile-name">
+						<span></span>
+						⌇ <span class="device-tile-devname"></span>
+					</div>
+					<div class="device-tile-info mono">
+						<div style='flex:2;'><code></code></div>
+						<div style='flex:4; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'></div>
+					</div>
+					<div class="device-stats" style="display:none;">
+						<span></span>
+						<span></span>
+						<span></span>
+					</div>
+				</div>
+				<button class="device-tile-remove" style="display:none;"></button>
+				<button class="device-tile-remove">
+					TV Power |
+					<span style="font-weight: 800;">ON</span>
+				</button>
+				<button class="device-tile-remove">
+					TV Power |
+					<span style="font-weight: 800;">OFF</span>
+				</button>
+			`;
 
-						const statusSpan = tile.querySelector('.device-tile-name span:nth-child(1)');
-						if (statusSpan) {
-							statusSpan.style.color = dev.status == 'online' ? 'rgb(129, 193, 39)' : '#888';
-							statusSpan.textContent = dev.status;
-						}
-					}
-				});
-			}
+			const infoDivs = tile.querySelectorAll('.device-tile-info > div');
+			const statSpans = tile.querySelectorAll('.device-stats span');
+			const removeButtons = tile.querySelectorAll('.device-tile-remove');
+
+			const refs = {
+				root: tile,
+				statusSpan: tile.querySelector('.device-tile-name span'),
+				nameSpan: tile.querySelector('.device-tile-devname'),
+				ipCode: tile.querySelector('.device-tile-info code'),
+				sourceDiv: infoDivs[1],
+				stats: tile.querySelector('.device-stats'),
+				cpu: statSpans[0],
+				temp: statSpans[1],
+				mem: statSpans[2],
+				removeButton: removeButtons[0],
+				cecOnButton: removeButtons[1],
+				cecOffButton: removeButtons[2],
+			};
+
+			const deviceId = dev.id || dev.deviceId;
+			refs.root.onclick = () => window.location.href = `/device.html?id=${encodeURIComponent(deviceId)}`;
+			refs.cecOnButton.onclick = (e) => { e.stopPropagation(); cecPowerOn(deviceId); };
+			refs.cecOffButton.onclick = (e) => { e.stopPropagation(); cecPowerOff(deviceId); };
+
+			return refs;
 		}
 
-		function buildDeviceTileHtml(dev) {
+		function updateGroupDeviceTile(refs, dev) {
+			const deviceId = dev.id || dev.deviceId;
 			const statusColor = dev.status === 'online' ? 'rgb(129, 193, 39)' : '#888';
-			let statsHtml = '';
-			let removeButton = '';
-			if (dev.systemStats && dev.status === 'online') {
+
+			refs.root.classList.toggle('active', dev.status === 'online');
+			refs.statusSpan.textContent = dev.status;
+			refs.statusSpan.style.color = statusColor;
+			refs.nameSpan.textContent = dev.name;
+			refs.ipCode.textContent = dev.ip;
+
+			const sourceText = isNoSource(dev.currentSource) ? 'No Active Source' : dev.currentSource;
+			refs.sourceDiv.textContent = sourceText;
+			refs.sourceDiv.title = sourceText;
+
+			const showStats = !!(dev.systemStats && dev.status === 'online');
+			refs.stats.style.display = showStats ? '' : 'none';
+			if (showStats) {
 				const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
 				const tempColor = dev.systemStats.temperature > 70 ? '#f87171' : dev.systemStats.temperature > 55 ? '#fbbf24' : '#4ade80';
 				const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
 				const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
-				statsHtml = `
-					<div class="device-stats">
-						<span style="color:${cpuColor};">CPU ${dev.systemStats.cpu}%</span>
-						<span style="color:${tempColor};">TEMP ${tempF}°F</span>
-						<span style="color:${memColor};">MEM ${dev.systemStats.memory.percent}%</span>
-					</div>
-				`;
+				refs.cpu.textContent = `CPU ${dev.systemStats.cpu}%`;
+				refs.cpu.style.color = cpuColor;
+				refs.temp.textContent = `TEMP ${tempF}°F`;
+				refs.temp.style.color = tempColor;
+				refs.mem.textContent = `MEM ${dev.systemStats.memory.percent}%`;
+				refs.mem.style.color = memColor;
 			}
+
 			if (account.isAdmin) {
-				removeButton = `<button class="device-tile-remove" onclick="event.stopPropagation(); removeDeviceFromGroup('${dev.id || dev.deviceId}', '${dev.name.replace(/'/g, "\\'")}')">Remove</button>`;
+				refs.removeButton.style.display = '';
+				refs.removeButton.textContent = 'Remove';
+				refs.removeButton.onclick = (e) => { e.stopPropagation(); removeDeviceFromGroup(deviceId, dev.name); };
+			} else {
+				refs.removeButton.style.display = 'none';
 			}
-			
-			return `
-				<div class="device-tile${dev.status === 'online' ? ' active' : ''}" data-device-id="${dev.id || dev.deviceId}" onclick="window.location.href='/device.html?id=${encodeURIComponent(dev.id || dev.deviceId)}'">
-					<div class="device-tile-main">
-						<div class="device-tile-name">
-							<span style="text-transform:capitalize; color:${statusColor};">${dev.status}</span> 
-							⌇ ${dev.name}
-						</div>
-						<div class="device-tile-info mono">
-							<div style='flex:2;'><code>${dev.ip}</code></div>
-							<div style='flex:4; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; ' title='${isNoSource(dev.currentSource) ? 'No Active Source' : dev.currentSource}'>
-								${isNoSource(dev.currentSource) ? 'No Active Source' : dev.currentSource}
-							</div>
-						</div>
-						${statsHtml}
-					</div>
-					${removeButton}
-					<button class="device-tile-remove" onclick="cecPowerOn('${dev.id || dev.deviceId}')">
-						TV Power |
-						<span style="font-weight: 800;">ON</span>
-					</button>
-					<button class="device-tile-remove" onclick="cecPowerOff('${dev.id || dev.deviceId}')">
-						TV Power |
-						<span style="font-weight: 800;">OFF</span>
-					</button>
-				</div>
-			`;
+		}
+
+		function updateDevicesList() {
+			const container = document.getElementById('devicesContainer');
+			if (!container) return;
+
+			const emptyMsg = container.querySelector('.no-devices-msg');
+			if (group.devices.length === 0) {
+				groupDeviceTiles.forEach((refs) => refs.root.remove());
+				groupDeviceTiles.clear();
+				if (!emptyMsg) { container.innerHTML = '<p class="no-devices-msg" style="color:#888;">No devices in this group</p>'; }
+				return;
+			}
+			if (emptyMsg) { emptyMsg.remove(); }
+
+			const seenIds = new Set();
+			let prevRoot = null;
+
+			group.devices.forEach(dev => {
+				const deviceId = dev.id || dev.deviceId;
+				seenIds.add(deviceId);
+
+				let refs = groupDeviceTiles.get(deviceId);
+				if (!refs) {
+					refs = createGroupDeviceTile(dev);
+					groupDeviceTiles.set(deviceId, refs);
+					container.appendChild(refs.root);
+				}
+				updateGroupDeviceTile(refs, dev);
+
+				const desiredNext = prevRoot ? prevRoot.nextSibling : container.firstChild;
+				if (desiredNext !== refs.root) { container.insertBefore(refs.root, desiredNext); }
+				prevRoot = refs.root;
+			});
+
+			for (const [id, refs] of groupDeviceTiles) {
+				if (!seenIds.has(id)) {
+					refs.root.remove();
+					groupDeviceTiles.delete(id);
+				}
+			}
 		}
 
 		function renderGroup() {

@@ -358,6 +358,11 @@ class NDPiCommandServer_Client extends EventEmitter {
             try
             {
                 ws.send(JSON.stringify({ type: 'connected', message: 'Connected to NDPi Monitor Hub' }));
+                ws.send(JSON.stringify({
+                    type: 'devices-update',
+                    origin: `hub_api_server.js( '__ws_Gui' connection snapshot )`,
+                    devices: this.settings.getClients().map((client) => this.deviceOut(client)),
+                }));
             }
             catch {}
 
@@ -424,11 +429,32 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
     }
 
+    deviceOut(client) {
+        return {
+            id: client.deviceId,
+            deviceId: client.deviceId,
+            name: client.deviceName,
+            ip: client.ip,
+            status: client.status,
+            currentSource: client.currentSource || 'None',
+            displayMode: client.displayMode || 'overlay',
+            streamStatus: client.streamStatus || 'unknown',
+            ndiInfo: client.ndiInfo || null,
+            systemStats: client.systemStats || null,
+            lastSeen: client.lastSeen,
+            lastStatusUpdate: client.lastStatusUpdate,
+            group: client.groupName || client.group || 'Ungrouped',
+            groupId: client.groupId || null,
+            groupName: client.groupName || null,
+            settings: client.settings || null,
+        };
+    }
+
     broadcastDevices(origin = '') {
         this.broadcastToGUI({
             type: 'devices-update',
             origin,
-            devices: this.settings.getClients(),
+            devices: this.settings.getClients().map((client) => this.deviceOut(client)),
         });
     }
 
@@ -1542,24 +1568,7 @@ class NDPiCommandServer_Client extends EventEmitter {
      *  Device (NDPi Client) Management API
      */
     __RoutesDevices() {
-        const deviceOut = (client) => ({
-            id: client.deviceId,
-            deviceId: client.deviceId,
-            name: client.deviceName,
-            ip: client.ip,
-            status: client.status,
-            currentSource: client.currentSource || 'None',
-            displayMode: client.displayMode || 'overlay',
-            streamStatus: client.streamStatus || 'unknown',
-            ndiInfo: client.ndiInfo || null,
-            systemStats: client.systemStats || null,
-            lastSeen: client.lastSeen,
-            lastStatusUpdate: client.lastStatusUpdate,
-            group: client.groupName || client.group || 'Ungrouped',
-            groupId: client.groupId || null,
-            groupName: client.groupName || null,
-            settings: client.settings || null,
-        });
+        const deviceOut = (client) => this.deviceOut(client);
 
         this.Routes
         .route('/api/devices')

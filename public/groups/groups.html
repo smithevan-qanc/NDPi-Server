@@ -136,45 +136,75 @@
 			}
 		}
 
-		// Render Groups
+		// Render Groups (patch existing tiles in place instead of rebuilding)
+		const groupTiles = new Map(); // groupId -> tile refs
+
+		function createGroupTile() {
+			const tile = document.createElement('div');
+			tile.className = 'group-tile';
+			tile.innerHTML = `
+				<h2 style='flex: 1;'></h2>
+				<div class="group-devices" style="flex: 1; text-align: center;"></div>
+				<div style="font-size:100%; overflow:hidden; flex: 3; text-align: right; max-width: 100%; display: flex; flex-direction: column; gap: 5px;">
+					<font style="color:#888; text-align: right;">
+						Current Source
+					</font>
+					<font class="mono"></font>
+				</div>
+			`;
+			return {
+				root: tile,
+				name: tile.querySelector('h2'),
+				deviceCount: tile.querySelector('.group-devices'),
+				source: tile.querySelector('font.mono'),
+			};
+		}
+
+		function updateGroupTile(refs, group) {
+			refs.name.textContent = group.name;
+			const deviceCount = group.devices ? group.devices.length : 0;
+			refs.deviceCount.textContent = deviceCount === 1 ? '1 device' : `${deviceCount} devices`;
+			refs.source.textContent = (!group.currentSource || String(group.currentSource).toLowerCase() === 'none') ? 'None' : group.currentSource;
+			refs.root.onclick = () => window.location.href = `/group.html?id=${encodeURIComponent(group.id)}`;
+		}
+
 		function renderGroups() {
 			const list = document.getElementById('groupsList');
 			const noGroupsMsg = document.getElementById('noGroupsMessage');
-			
-			list.innerHTML = '';
-			
+
 			if (groups.length === 0) {
+				groupTiles.forEach((refs) => refs.root.remove());
+				groupTiles.clear();
 				noGroupsMsg.style.display = 'block';
 				return;
 			}
-			
+
 			noGroupsMsg.style.display = 'none';
-			
+
+			const seenIds = new Set();
+			let prevRoot = null;
+
 			groups.forEach(group => {
-				const tile = document.createElement('div');
-				tile.className = 'group-tile';
-				const deviceCount = group.devices ? group.devices.length : 0;
-				const deviceText = deviceCount === 1 ? '1 device' : `${deviceCount} devices`;
-				tile.innerHTML = `
-					<h2 style='flex: 1;'>
-						${group.name}
-					</h2>
-					<div class="group-devices" style="flex: 1; text-align: center;">
-						${deviceText}
-					</div>
-					<div style="font-size:100%; overflow:hidden; flex: 3; text-align: right; max-width: 100%; display: flex; flex-direction: column; gap: 5px;">
-						<font style="color:#888; text-align: right;">
-							Current Source
-						</font>
-						<font class="mono">
-							${(!group.currentSource || String(group.currentSource).toLowerCase() === 'none') ? 'None' : group.currentSource}
-						</font>
-					</div>
-				`;
-				
-				tile.onclick = () => window.location.href = `/group.html?id=${encodeURIComponent(group.id)}`;
-				list.appendChild(tile);
+				seenIds.add(group.id);
+				let refs = groupTiles.get(group.id);
+				if (!refs) {
+					refs = createGroupTile();
+					groupTiles.set(group.id, refs);
+					list.appendChild(refs.root);
+				}
+				updateGroupTile(refs, group);
+
+				const desiredNext = prevRoot ? prevRoot.nextSibling : list.firstChild;
+				if (desiredNext !== refs.root) { list.insertBefore(refs.root, desiredNext); }
+				prevRoot = refs.root;
 			});
+
+			for (const [id, refs] of groupTiles) {
+				if (!seenIds.has(id)) {
+					refs.root.remove();
+					groupTiles.delete(id);
+				}
+			}
 		}
 
 		// Create Group Modal

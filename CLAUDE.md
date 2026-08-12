@@ -700,6 +700,84 @@ works, no page renders it); duplicate `addRokuTv()` definition in
 stubbed (server-side validation on submit still works). See "Frontend
 audit findings" above for full detail on each.
 
+### Dashboard REST removal + `/ws` devices snapshot + targeted tile patching
+
+Two follow-up requests: (1) `dashboard.html` shouldn't poll `GET
+/api/devices` at all — only `devices.html` needs it; (2) device/group tiles
+across the app shouldn't fully re-render (rebuild `innerHTML`) on every
+data update, only the specific changed DOM elements should be touched.
+
+**Shape-consistency fix first (`service/hub_api_server.js`)**: the `/ws`
+GUI socket's `broadcastDevices()` sent `this.settings.getClients()`
+raw — a *different* shape than `GET /api/devices` (which maps through a
+`deviceOut()` transform: renames `deviceId`→adds `id`, defaults
+`currentSource`/`displayMode`/`streamStatus`/`group`). Dropping the REST
+fetch in favor of pure WS data would have broken anything relying on
+`dev.id` or the defaults. Fixed by hoisting `deviceOut()` out of
+`__RoutesDevices()`'s local scope into a class method (`this.deviceOut()`),
+used by both the REST route and `broadcastDevices()` now. Also added a
+`devices-update` snapshot sent immediately on `/ws` connect (inside
+`__ws_Gui()`, right after the existing `connected` message) so a
+WS-only page isn't blank until the next broadcast — mirrors the snapshot
+pattern the `/ws/devices/system`/`/ws/devices/stats` relay already used.
+Verified live: booted the Hub and opened a raw WS client against `/ws` —
+confirmed `connected` then `devices-update` (with `devices: []` against an
+empty test datastore) arrive back-to-back on connect.
+
+**`dashboard.html`**: removed `fetchDevices()` entirely (it had **two**
+separate call sites — one in "Initial load" near the top of the script,
+and a second leftover duplicate call at the very end of the same script
+block; both gone) and the pointless `ws.onDiscoveredDevicesUpdate →
+fetchDevices()` re-fetch (dashboard never displays discovered/unadopted
+devices, only `devices.html` does). Also fixed a real bug found in
+passing: `ws.onDevicesUpdate = (devices) => { window.devices = devices;
+... }` was assigning to `window.devices`, not the outer `let devices`
+`renderDevices()` actually reads (top-level `let` doesn't become a
+`window` property) — so WS-driven device updates were silently never
+rendered on this page prior to this fix; only the initial REST fetch ever
+worked. Renamed the param and assigned to the real outer variable.
+`devices.html` keeps its REST-based `fetchDevices()` per the user's
+explicit instruction (it also needs `/api/discovered-devices`, which has
+no WS equivalent).
+
+**Targeted DOM patching** (replacing "wipe `container.innerHTML` and
+rebuild every tile from a template string on every update" with "create
+each tile's DOM once, then patch only the specific text/color/visibility
+of the fields that can change"), applied consistently to every
+device/group tile renderer in the app:
+- `devices.html`: `renderDeviceSection()` → `reconcileDeviceSection()` +
+  `createDeviceTile()`/`updateDeviceTile()`, keyed by
+  `` `${containerId}:${id}` `` (a device moving between the
+  online/discovered/offline sections gets a fresh tile — different key
+  prefix — everything else patches in place).
+- `dashboard.html` / `groups.html`: `renderDevices()`/`renderGroups()` →
+  same create-once/patch-in-place split, keyed by device/group id.
+- `group.html`: `updateDevicesList()`/`buildDeviceTileHtml()` → same
+  pattern (`createGroupDeviceTile()`/`updateGroupDeviceTile()`). This page
+  already had a partial optimization (skip full rebuild if the device
+  id/order set was unchanged), but that fast path never patched the
+  **source** field — so a device's live `currentSource` change relayed via
+  `devicesSystemRelay` updated internal state but was never reflected in
+  that device's tile in the group's device list (only the group-level
+  header pill, via `updateGroupHeaderStats()`, updated). Fixed as part of
+  this rewrite — `updateGroupDeviceTile()` now patches the source text/
+  title unconditionally.
+- All reconcilers maintain a `Map<id, refs>` across renders, diff the
+  incoming list against `seenIds` to remove stale tiles, and use
+  `insertBefore`/`nextSibling` comparisons to keep DOM order matching data
+  order without reordering nodes that are already correctly placed.
+- **Verified**: syntax-checked every edited file's extracted `<script>`
+  block with `node --check`; booted the Hub and curl'd all four pages to
+  confirm they still serve their container elements correctly; grepped for
+  leftover references to the deleted `buildDeviceTileHtml()` (none) and
+  confirmed exactly one `Map` declaration per page (no duplicate
+  `deviceTiles`/`groupTiles` from a bad merge). Did **not** get a real
+  browser/DOM smoke test (no `puppeteer`/`jsdom` in this repo's
+  `node_modules`, and installing either wasn't authorized) — the
+  create/patch DOM logic itself should be reviewed by eye or tested in a
+  real browser before being fully trusted, since it's the one part of this
+  change that couldn't be exercised outside a real DOM.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

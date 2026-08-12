@@ -181,43 +181,72 @@
 			}
 		}
 
-		// Render Groups
+		// Render Groups (patch existing tiles in place instead of rebuilding)
+		const groupTiles = new Map(); // groupId -> tile refs
+
+		function createGroupTile() {
+			const tile = document.createElement('div');
+			tile.className = 'group-tile';
+			tile.innerHTML = `
+				<h2 style='flex: 1;'></h2>
+				<div class="group-devices" style="flex: 1; text-align: center;"></div>
+				<div style="font-size:100%; overflow:hidden; flex: 3; text-align: right; max-width: 100%; display: flex; flex-direction: column; gap: 5px;">
+					<font style="color:#888; text-align: right;">
+						Current Source
+					</font>
+					<font class="mono"></font>
+				</div>
+			`;
+			return {
+				root: tile,
+				name: tile.querySelector('h2'),
+				deviceCount: tile.querySelector('.group-devices'),
+				source: tile.querySelector('font.mono'),
+			};
+		}
+
+		function updateGroupTile(refs, group) {
+			refs.name.textContent = group.name;
+			const deviceCount = group.devices ? group.devices.length : 0;
+			refs.deviceCount.textContent = deviceCount === 1 ? '1 device' : `${deviceCount} devices`;
+			refs.source.textContent = group.currentSource || 'None';
+			refs.root.onclick = () => window.location.href = `/group.html?id=${encodeURIComponent(group.id)}`;
+		}
+
 		function renderGroups() {
 			const list = document.getElementById('groupsList');
-			list.innerHTML = '';
-			
+
 			if (groups.length === 0) {
 				list.style.display = 'none';
 				return;
 			}
-			
+
 			list.style.display = 'flex';
-			
+
+			const seenIds = new Set();
+			let prevRoot = null;
+
 			groups.forEach(group => {
-				const tile = document.createElement('div');
-				tile.className = 'group-tile';
-				const deviceCount = group.devices ? group.devices.length : 0;
-				const deviceText = deviceCount === 1 ? '1 device' : `${deviceCount} devices`;
-				tile.innerHTML = `
-					<h2 style='flex: 1;'>
-						${group.name}
-					</h2>
-					<div class="group-devices" style="flex: 1; text-align: center;">
-						${deviceText}
-					</div>
-					<div style="font-size:100%; overflow:hidden; flex: 3; text-align: right; max-width: 100%; display: flex; flex-direction: column; gap: 5px;">
-						<font style="color:#888; text-align: right;">
-							Current Source
-						</font>
-						<font class="mono">
-							${group.currentSource || 'None'}
-						</font>
-					</div>
-				`;
-				
-				tile.onclick = () => window.location.href = `/group.html?id=${encodeURIComponent(group.id)}`;
-				list.appendChild(tile);
+				seenIds.add(group.id);
+				let refs = groupTiles.get(group.id);
+				if (!refs) {
+					refs = createGroupTile();
+					groupTiles.set(group.id, refs);
+					list.appendChild(refs.root);
+				}
+				updateGroupTile(refs, group);
+
+				const desiredNext = prevRoot ? prevRoot.nextSibling : list.firstChild;
+				if (desiredNext !== refs.root) { list.insertBefore(refs.root, desiredNext); }
+				prevRoot = refs.root;
 			});
+
+			for (const [id, refs] of groupTiles) {
+				if (!seenIds.has(id)) {
+					refs.root.remove();
+					groupTiles.delete(id);
+				}
+			}
 		}
 
 
@@ -239,68 +268,113 @@
 		}
 		*/
 		
-		// Fetch Devices (saved devices only)
-		async function fetchDevices() {
-			try {
-				const res = await fetch('/api/devices');
-				const data = await res.json();
-				devices = data.devices || [];
-				renderDevices();
-			} catch (e) {
-				console.error('Error fetching devices:', e);
-				devices = [];
-				renderDevices();
-			}
+		// `deviceId -> tile refs`, patched in place instead of rebuilding on every update
+		const deviceTiles = new Map();
+
+		function createDeviceTile() {
+			const tile = document.createElement('div');
+			tile.innerHTML = `
+				<div class="device-tile-main">
+					<strong style="font-size:15px;"></strong>
+					<span class='mono' style="font-size:12px;"></span>
+				</div>
+				<div class="device-tile-info mono">
+					<span></span>
+					<span></span>
+					<span></span>
+					<span></span>
+				</div>
+				<div class="device-stats">
+					<span></span>
+					<span></span>
+					<span></span>
+				</div>
+			`;
+			const infoSpans = tile.querySelectorAll('.device-tile-info span');
+			const statSpans = tile.querySelectorAll('.device-stats span');
+			return {
+				root: tile,
+				name: tile.querySelector('.device-tile-main strong'),
+				id: tile.querySelector('.device-tile-main span'),
+				group: infoSpans[0],
+				ip: infoSpans[1],
+				source: infoSpans[2],
+				status: infoSpans[3],
+				stats: tile.querySelector('.device-stats'),
+				cpu: statSpans[0],
+				temp: statSpans[1],
+				mem: statSpans[2],
+			};
 		}
 
-		// Render Devices
+		function updateDeviceTile(refs, dev) {
+			refs.root.className = 'device-tile' + (dev.status === 'online' ? ' active' : '');
+			refs.name.textContent = dev.name;
+			refs.id.textContent = dev.id;
+			refs.group.textContent = `Group: ${dev.group}`;
+			refs.ip.textContent = `IP: ${dev.ip}`;
+			refs.source.textContent = `Source: ${dev.currentSource || 'None'}`;
+			refs.status.textContent = dev.status;
+			refs.status.style.color = dev.status === 'online' ? 'rgb(129, 193, 39)' : '#888';
+
+			const showStats = !!(dev.systemStats && dev.status === 'online');
+			refs.stats.style.display = showStats ? '' : 'none';
+			if (showStats) {
+				const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
+				const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
+				const tempColor = dev.systemStats.temperature > 78 ? '#f87171' : dev.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
+				const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
+				refs.cpu.textContent = `CPU ${dev.systemStats.cpu}%`;
+				refs.cpu.style.color = cpuColor;
+				refs.temp.textContent = `TEMP ${tempF}°F`;
+				refs.temp.style.color = tempColor;
+				refs.mem.textContent = `MEM ${dev.systemStats.memory.percent}%`;
+				refs.mem.style.color = memColor;
+			}
+
+			refs.root.onclick = () => window.location.href = `/device.html?id=${encodeURIComponent(dev.id)}`;
+		}
+
 		function renderDevices() {
 			const list = document.getElementById('devicesList');
 			if (!list) {
 				console.error('devicesList element not found!');
 				return;
 			}
-			list.innerHTML = '';
-			
+
+			const emptyMsg = list.querySelector('.no-devices-msg');
 			if (devices.length === 0) {
-				list.innerHTML = '<p style="color: #888; padding: 20px;">No devices added yet...</p>';
+				deviceTiles.forEach((refs) => refs.root.remove());
+				deviceTiles.clear();
+				if (!emptyMsg) { list.innerHTML = '<p class="no-devices-msg" style="color: #888; padding: 20px;">No devices added yet...</p>'; }
 				return;
 			}
-			
+			if (emptyMsg) { emptyMsg.remove(); }
+
+			const seenIds = new Set();
+			let prevRoot = null;
+
 			devices.forEach(dev => {
-				const tile = document.createElement('div');
-				tile.className = 'device-tile' + (dev.status === 'online' ? ' active' : '');
-				
-				// Build system stats display
-				let statsHtml = '';
-				if (dev.systemStats && dev.status === 'online') {
-					const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
-					const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
-					const tempColor = dev.systemStats.temperature > 78 ? '#f87171' : dev.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
-					const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
-					statsHtml = `<div class="device-stats">
-						<span style="color:${cpuColor};">CPU ${dev.systemStats.cpu}%</span>
-						<span style="color:${tempColor};">TEMP ${tempF}°F</span>
-						<span style="color:${memColor};">MEM ${dev.systemStats.memory.percent}%</span>
-					</div>`;
+				seenIds.add(dev.id);
+				let refs = deviceTiles.get(dev.id);
+				if (!refs) {
+					refs = createDeviceTile();
+					deviceTiles.set(dev.id, refs);
+					list.appendChild(refs.root);
 				}
-				
-				tile.innerHTML = `
-					<div class="device-tile-main">
-						<strong style="font-size:15px;">${dev.name}</strong>
-						<span class='mono' style="font-size:12px;">${dev.id}</span>
-					</div>
-					<div class="device-tile-info mono">
-						<span>Group: ${dev.group}</span>
-						<span>IP: ${dev.ip}</span>
-						<span>Source: ${dev.currentSource || 'None'}</span>
-						<span style='color:${dev.status==='online'?'rgb(129, 193, 39)':'#888'};'>${dev.status}</span>
-					</div>
-					${statsHtml}
-				`;
-				tile.onclick = () => window.location.href = `/device.html?id=${encodeURIComponent(dev.id)}`;
-				list.appendChild(tile);
+				updateDeviceTile(refs, dev);
+
+				const desiredNext = prevRoot ? prevRoot.nextSibling : list.firstChild;
+				if (desiredNext !== refs.root) { list.insertBefore(refs.root, desiredNext); }
+				prevRoot = refs.root;
 			});
+
+			for (const [id, refs] of deviceTiles) {
+				if (!seenIds.has(id)) {
+					refs.root.remove();
+					deviceTiles.delete(id);
+				}
+			}
 		}
 
 		function addTouchScrollEventListener() {
@@ -330,7 +404,6 @@
 		}
 
 		// Initial load
-		fetchDevices();
 		fetchGroups();
 		addTouchScrollEventListener();
 
@@ -342,15 +415,11 @@
 		// Initialize WebSocket connection
 		const ws = initWebSocket();
 
-		// Handle device updates from WebSocket
-		ws.onDevicesUpdate = (devices) => {
-			window.devices = devices;
+		// Handle device updates from WebSocket (also delivers a snapshot on connect,
+		// so no /api/devices REST fetch is needed on this page)
+		ws.onDevicesUpdate = (updatedDevices) => {
+			devices = updatedDevices;
 			renderDevices();
-		};
-
-		// Handle discovered devices updates from WebSocket
-		ws.onDiscoveredDevicesUpdate = (discoveredDevices) => {
-			fetchDevices(); // Refresh the devices list
 		};
 
 		// Handle viewer updates from WebSocket
@@ -547,9 +616,6 @@
 			`;
 			*/
 		}
-
-		// Initial load
-		fetchDevices();
 
 	</script>
 </body>
