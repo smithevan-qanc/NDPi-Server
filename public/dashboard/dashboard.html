@@ -352,6 +352,17 @@
 			refs.root.onclick = () => window.location.href = `/device.html?id=${encodeURIComponent(dev.id)}`;
 		}
 
+		// Patch a single already-rendered tile in place -- used by the relay
+		// callbacks below so a message about one device doesn't touch every
+		// other card's DOM (createDeviceTile()/removal/reordering are only
+		// relevant when the *set* of devices changes, not when one device's
+		// stats/source update).
+		function patchDeviceTile(deviceId) {
+			const dev = devices.find(d => (d.id || d.deviceId) === deviceId);
+			const refs = deviceTiles.get(deviceId);
+			if (dev && refs) { updateDeviceTile(refs, dev); }
+		}
+
 		function renderDevices() {
 			const list = document.getElementById('devicesList');
 			if (!list) {
@@ -504,22 +515,34 @@
 		 *  Multi-device relay — one Hub connection covers every device
 		 *  tile's live stats/settings (see 01-scripts/ws-devices.js).
 		 */
-		const devicesStatsRelay = new NDPiDevicesRelay('stats', (cache) => {
+		const devicesStatsRelay = new NDPiDevicesRelay('stats', (cache, changedIds) => {
+			// changedIds === null only on the initial snapshot/reconnect,
+			// where every device is "new" and needs a full render; otherwise
+			// it's exactly the devices that changed this tick, so only their
+			// tiles get touched.
+			const idsToApply = changedIds === null ? Object.keys(cache) : changedIds;
 			let changed = false;
-			devices.forEach((dev) => {
-				const stats = cache[dev.id || dev.deviceId];
-				if (stats) { dev.systemStats = stats; changed = true; }
+			idsToApply.forEach((id) => {
+				const dev = devices.find(d => (d.id || d.deviceId) === id);
+				const stats = cache[id];
+				if (dev && stats) { dev.systemStats = stats; changed = true; }
 			});
-			if (changed) { renderDevices(); }
+			if (!changed) return;
+			if (changedIds === null) { renderDevices(); }
+			else { changedIds.forEach(patchDeviceTile); }
 		});
 
-		const devicesSystemRelay = new NDPiDevicesRelay('system', (cache) => {
+		const devicesSystemRelay = new NDPiDevicesRelay('system', (cache, changedIds) => {
+			const idsToApply = changedIds === null ? Object.keys(cache) : changedIds;
 			let changed = false;
-			devices.forEach((dev) => {
-				const currentSource = getRelayedSetting(cache[dev.id || dev.deviceId], 'ndpi_status_ndi_source_target');
-				if (currentSource) { dev.currentSource = currentSource.value || 'None'; changed = true; }
+			idsToApply.forEach((id) => {
+				const dev = devices.find(d => (d.id || d.deviceId) === id);
+				const currentSource = getRelayedSetting(cache[id], 'ndpi_status_ndi_source_target');
+				if (dev && currentSource) { dev.currentSource = currentSource.value || 'None'; changed = true; }
 			});
-			if (changed) { renderDevices(); }
+			if (!changed) return;
+			if (changedIds === null) { renderDevices(); }
+			else { changedIds.forEach(patchDeviceTile); }
 		});
 
 		window.addEventListener('beforeunload', () => {

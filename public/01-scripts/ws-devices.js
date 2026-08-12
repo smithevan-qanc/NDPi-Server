@@ -57,11 +57,14 @@ class NDPiDevicesRelay {
 	/**
 	 * @param {string} kind - 'system' or 'stats' (connects to
 	 *   /ws/devices/<kind>).
-	 * @param {(cache: object, changedDeviceId: string|null) => void} onUpdate
+	 * @param {(cache: object, changedDeviceIds: string[]|null) => void} onUpdate
 	 *   - called after the initial snapshot and after every update, debounced
 	 *   so a burst of per-device messages (e.g. many devices reporting
 	 *   stats within the same second) coalesces into one call instead of
-	 *   triggering a re-render per device.
+	 *   triggering a re-render per device. `changedDeviceIds` is the list of
+	 *   every device that actually changed since the last call (so a caller
+	 *   can patch just those devices' UI instead of all of them), or `null`
+	 *   for the initial/reconnect snapshot, where everything is new.
 	 * @param {object} [options]
 	 * @param {number} [options.debounceMs=200]
 	 */
@@ -74,7 +77,8 @@ class NDPiDevicesRelay {
 		this.cache = {}; // deviceId -> latest data (raw tuples for 'system', derived stats for 'stats')
 		this.reconnectTimer = null;
 		this._debounceTimer = null;
-		this._pendingChangedId = null;
+		this._pendingChangedIds = new Set(); // accumulates across a debounce window -- a single "last changed id" would silently drop other devices that changed in the same window
+		this._pendingIsSnapshot = false;
 		this._closed = false;
 
 		this.connect();
@@ -109,11 +113,16 @@ class NDPiDevicesRelay {
 	}
 
 	_scheduleUpdate(changedDeviceId) {
-		this._pendingChangedId = changedDeviceId;
+		if (changedDeviceId === null) { this._pendingIsSnapshot = true; }
+		else { this._pendingChangedIds.add(changedDeviceId); }
+
 		if (this._debounceTimer) return;
 		this._debounceTimer = setTimeout(() => {
 			this._debounceTimer = null;
-			this.onUpdate(this.cache, this._pendingChangedId);
+			const changedIds = this._pendingIsSnapshot ? null : Array.from(this._pendingChangedIds);
+			this._pendingChangedIds = new Set();
+			this._pendingIsSnapshot = false;
+			this.onUpdate(this.cache, changedIds);
 		}, this.debounceMs);
 	}
 

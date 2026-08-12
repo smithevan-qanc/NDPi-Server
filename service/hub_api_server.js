@@ -1174,6 +1174,38 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
     }
 
+    /**
+     *  Serves an HTML page with every local (root-relative) <script src>/
+     *  <link href> reference cache-busted with a `?v=<app version>` query
+     *  string. `this.cacheControl` only governs how the *next* response for
+     *  a given URL gets cached -- it can't invalidate what a browser has
+     *  already cached under that exact URL, which (thanks to
+     *  `max-age=86400, immutable` whenever NODE_ENV=production) can mean a
+     *  browser keeps serving a stale copy of e.g. 01-scripts/ws-devices.js
+     *  for up to 24h after the file on disk changed, with no way for the
+     *  server to tell it otherwise. Bumping the app version (already done
+     *  on every release, see version/current) changes every busted URL at
+     *  once, so the very next page load fetches everything fresh instead
+     *  of requiring users to know to hard-refresh.
+     */
+    sendHtmlWithCacheBust(res, filePath, fallbackPath = null) {
+        fs.readFile(filePath, 'utf8', (err, html) => {
+            if (err)
+            {
+                if (fallbackPath) { this.sendHtmlWithCacheBust(res.status(404), fallbackPath); return; }
+                res.status(404).end('Not found');
+                return;
+            }
+
+            const version = (this.settings && this.settings.get('ndpi_version')) || Date.now();
+            const busted = html.replace(
+                /((?:src|href)=")(\/(?!\/)[^"?]+)(")/g,
+                (match, prefix, url, suffix) => `${prefix}${url}?v=${encodeURIComponent(version)}${suffix}`
+            );
+            res.type('html').send(busted);
+        });
+    }
+
     __Routers() {
         this.Routes = express.Router();
         this.App.use(this.Routes);
@@ -1348,30 +1380,26 @@ class NDPiCommandServer_Client extends EventEmitter {
          *  reaches its real handler.
          */
         this.Routes.route('/test-page').get((req, res) => {
-            res.set('Cache-Control', this.cacheControl);;
-            res.sendFile(path.join(__dirname, '..', 'ndi-webrtc-example.html'))
+            res.set('Cache-Control', this.cacheControl);
+            this.sendHtmlWithCacheBust(res, path.join(__dirname, '..', 'ndi-webrtc-example.html'));
         });
 
         this.Routes
         .route('/')
         .get((req, res) => {
-              // DEV
-            res.set('Cache-Control', this.cacheControl);;
-              // PROD
-            // res.set('Cache-Control', 'public, max-age=86400, immutable');
-            res.sendFile(path.join(__dirname, '..', 'public', 'dashboard', 'dashboard.html'));
+            res.set('Cache-Control', this.cacheControl);
+            this.sendHtmlWithCacheBust(res, path.join(__dirname, '..', 'public', 'dashboard', 'dashboard.html'));
         });
 
         this.Routes
         .route('/:page/:ext/')
         .get((req, res) => {
-              // DEV
-            res.set('Cache-Control', this.cacheControl);;
-              // PROD
-            // res.set('Cache-Control', 'public, max-age=86400, immutable');
+            res.set('Cache-Control', this.cacheControl);
             const page = req.params.page.toLowerCase() || 'dashboard';
             const ext = req.params.ext.toLowerCase() || 'html';
-            res.sendFile(path.join(__dirname, '..', 'public', page, `${page}.${ext}`));
+            const filePath = path.join(__dirname, '..', 'public', page, `${page}.${ext}`);
+            if (ext === 'html') { this.sendHtmlWithCacheBust(res, filePath); }
+            else { res.sendFile(filePath); }
         });
 
         /**
@@ -1383,18 +1411,20 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.Routes
         .route('/:page.html')
         .get((req, res) => {
-            res.set('Cache-Control', this.cacheControl);;
+            res.set('Cache-Control', this.cacheControl);
             const page = req.params.page.toLowerCase() || 'dashboard';
-            res.sendFile(path.join(__dirname, '..', 'public', page, `${page}.html`), (err) => {
-                if (err) { res.status(404).sendFile(path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')); }
-            });
+            this.sendHtmlWithCacheBust(
+                res,
+                path.join(__dirname, '..', 'public', page, `${page}.html`),
+                path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')
+            );
         });
 
         // Catch-all: anything else unmatched falls here.
         this.Routes.use((req, res) => {
             if (req.path.startsWith('/api/'))
             { return res.status(404).json({ error: 'Not found' }); }
-            res.status(404).sendFile(path.join(__dirname, '..', 'public', 'not-found', 'not-found.html'));
+            this.sendHtmlWithCacheBust(res.status(404), path.join(__dirname, '..', 'public', 'not-found', 'not-found.html'));
         });
     }
 
