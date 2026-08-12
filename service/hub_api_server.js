@@ -36,7 +36,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_ndi_streams = null;
         this.ws_conn_ndi_streams = new Map();
         
-        this.cacheControl = process.env.NODE_ENV || 'production' == 'production' ? 
+        this.cacheControl = process.env.NODE_ENV === 'production' ?
                             'public, max-age=86400, immutable' :
                             'no-store, no-cache, must-revalidate, private';
 
@@ -1970,6 +1970,18 @@ class NDPiCommandServer_Client extends EventEmitter {
      */
     __RoutesSystem() {
         const CRLFArray = (string = '') => string.split(/\r?\n/);
+
+        // Liveness check for the frontend's offline-recovery loop (see
+        // 01-scripts/ws-client.js) -- polled once/sec after the GUI
+        // WebSocket drops, to detect the moment the Hub is reachable again
+        // (vs. the WebSocket itself, which may take longer to notice).
+        // Deliberately no dependency on any other subsystem: just confirms
+        // the HTTP server itself is up and responding.
+        this.Routes
+        .route('/api/ping')
+        .get((req, res) => {
+            res.json({ success: true });
+        });
 
         this.Routes
         .route('/api/resolution')

@@ -1,7 +1,7 @@
 class NDPiWebSocket {
     constructor() {
         this.ws = null;
-        this.reconnectInterval = null;
+        this.pingInterval = null;
         this.heartbeatTimeout = null;
         this.heartbeatMaxAge = 30000; // 30 seconds without heartbeat = connection lost
         this.onDevicesUpdate = null;
@@ -11,22 +11,21 @@ class NDPiWebSocket {
         this.viewerJoined = false;
         this.connect();
     }
-    
+
     connect() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
         try {
             this.ws = new WebSocket(wsUrl);
-            
+
             this.ws.onopen = () => {
-                this.stopReconnecting();
                 this.hideOfflineOverlay();
                 this.resetHeartbeatTimeout();
 
                 console.log('Requesting Connection to NDPi Monitor Server');
                 this.sendViewerJoin();
             };
-            
+
             this.ws.onmessage = (event) => {
                 try {
                     const message = JSON.parse(event.data);
@@ -35,20 +34,20 @@ class NDPiWebSocket {
                     console.error('Failed to parse WebSocket message:', error);
                 }
             };
-            
+
             this.ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
             };
-            
+
             this.ws.onclose = () => {
                 this.clearHeartbeatTimeout();
                 this.viewerJoined = false;
-                this.startReconnecting();
+                this.showOfflineOverlay('Server connection has been lost...');
             };
-            
+
         } catch (error) {
             console.error('Failed to create WebSocket:', error);
-            this.startReconnecting();
+            this.showOfflineOverlay('Server connection has been lost...');
         }
     }
     
@@ -163,40 +162,58 @@ class NDPiWebSocket {
             this.heartbeatTimeout = null;
         }
     }
-    
-    startReconnecting() {
-        if (this.reconnectInterval) return;
 
-        // this.showOfflineOverlay('Server Offline - Reconnecting...');
-        document.getElementById('offlineMessage').textContent = 'Reconnecting...'
+    /**
+     *  Offline recovery: once the WebSocket is lost (or a heartbeat times
+     *  out, or the server announces its own shutdown/reboot), poll the
+     *  Hub's own /api/ping once/sec rather than silently retrying the
+     *  WebSocket in place -- the Hub going down/coming back is exactly the
+     *  kind of event where a lot of client-side state (settings, device
+     *  lists, sockets) could otherwise drift out of sync, so once the Hub
+     *  is confirmed reachable again the simplest correct recovery is a
+     *  full page reload instead of trying to resume in place.
+     */
+    startPing() {
+        if (this.pingInterval) return;
 
-        this.reconnectInterval = setInterval(() => {
-            if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
-                this.connect();
+        const tryPing = async () => {
+            try {
+                const res = await fetch('/api/ping', { cache: 'no-store' });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data && data.success) {
+                    this.stopPing();
+                    window.location.reload();
+                }
+            } catch (error) {
+                // Still offline -- keep polling.
             }
-        }, 3000);
+        };
+
+        tryPing();
+        this.pingInterval = setInterval(tryPing, 1000);
     }
-    
-    stopReconnecting() {
-        if (this.reconnectInterval) {
-            clearInterval(this.reconnectInterval);
-            this.reconnectInterval = null;
+
+    stopPing() {
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = null;
         }
     }
-    
+
     disconnect() {
         this.sendViewerLeave();
-        this.stopReconnecting();
+        this.stopPing();
         this.clearHeartbeatTimeout();
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
     }
-    
+
     showOfflineOverlay(message = 'Server Offline - Waiting for signal...') {
         let overlay = document.getElementById('offlineOverlay');
-        
+
         // Create overlay if it doesn't exist
         if (!overlay) {
             overlay = document.createElement('div');
@@ -215,15 +232,17 @@ class NDPiWebSocket {
             const msgEl = overlay.querySelector('.offline-message');
             if (msgEl) msgEl.textContent = message;
         }
-        
+
         overlay.classList.add('active');
+        this.startPing();
     }
-    
+
     hideOfflineOverlay() {
         const overlay = document.getElementById('offlineOverlay');
         if (overlay) {
             overlay.classList.remove('active');
         }
+        this.stopPing();
     }
 }
 
