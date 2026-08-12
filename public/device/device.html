@@ -292,7 +292,7 @@
 			const sourceCards = sources.length > 0 ? sources.map(src => {
 				const parsed = parseSourceName(src.name);
 				const urlInfo = parseNdiUrl(src.url);
-				const isSelected = device.currentSource === src.name;
+				const isSelected = device.currentSource == src.name;
 				return `
 					<div>
 						<div class="source-card ${isSelected ? 'selected' : ''}" onclick="selectSource('${src.name.replace(/'/g, "\\'")}')">

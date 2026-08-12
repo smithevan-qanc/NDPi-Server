@@ -461,6 +461,40 @@ hand:
   repoint its live Hub connection, and the new Client endpoint isn't
   deployed there yet anyway (only exists in this local repo checkout).
 
+**Added direct-to-device live sockets on `device/device.html`** (user
+request): the browser now also opens `ws://<device-ip>:<device-port>/ws/system`
+and `.../ws/stats` straight to the device itself
+(`Client__v3_1_0/service/client_api_server.js`), the same two sockets its
+own local `system.js` UI uses — in addition to (not replacing) the
+existing Hub-relayed `ws.onDevicesUpdate` path, which stays as the
+fallback/baseline and is still what keeps Hub-only fields (group,
+online/offline status) current.
+- `/ws/system` pushes the full settings snapshot (`Array.from(fileMap)`,
+  same tuple shape as `device.settings`) on connect and again the instant
+  *any* setting changes on the device — not just on the Hub's ~5s
+  status-report cadence. `applyDeviceSettingsTuples()` applies it and
+  derives `currentSource`/`displayMode`/`streamStatus`/`ndiInfo` from the
+  tuples the same way the Client's own Hub-status report does, then calls
+  `renderSources()`/`updateDevice()`.
+- `/ws/stats` pushes raw `os.*`-derived fields (loadavg, cpus, freemem,
+  totalmem, thermal.thermal_zone0) every ~1s — a *different* shape than
+  `device.systemStats`. `applyDeviceRawStats()` converts it to the
+  `{cpu,memory,temperature}` shape the stats header expects.
+  **Known Client-side quirk, not touched**: that raw payload's own
+  `osUptime` field is always `NaN` (`client_api_server.js` does
+  `Number(os.uptime)` — the function reference, missing `()`) — so
+  `uptime` is deliberately left untouched by this path and only updated
+  from the Hub's periodic relay, which computes it correctly.
+- Both sockets get their own simple 5s reconnect loop (mirrors the
+  reconnect pattern used elsewhere in this app), matched to `ws:`/`wss:`
+  based on the Hub page's own protocol, and are closed on
+  `beforeunload`. Requires the admin's browser to be able to reach the
+  device's IP directly (not just the Hub) — an explicit tradeoff the user
+  chose for lower-latency updates over strict Hub-only centralization.
+- Verified via `node --check` on the extracted inline script only — **the
+  user asked to skip further verification and will test this against real
+  devices themselves.**
+
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
 page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/
