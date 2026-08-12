@@ -6,7 +6,7 @@
 	--primary-color-green: rgba(129, 193, 39, 1);
 	--topbar-height: 7vh;
 	--bottombar-height: 7vh;
-	--main-body-padding: 2vw;
+	--main-body-padding: minmax(2vw, 10px);
 }
 
 html, body { 
