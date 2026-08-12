@@ -167,7 +167,7 @@
 							Current Source
 						</font>
 						<font class="mono">
-							${group.currentSource || 'None'}
+							${(!group.currentSource || String(group.currentSource).toLowerCase() === 'none') ? 'None' : group.currentSource}
 						</font>
 					</div>
 				`;

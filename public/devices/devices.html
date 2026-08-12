@@ -221,7 +221,7 @@
 						<div class="device-tile-info mono">
 							<span>Group: ${dev.group}</span>
 							<span>IP: ${dev.ip}</span>
-							<span>Source: ${dev.currentSource || 'None'}</span>
+							<span>Source: ${(!dev.currentSource || String(dev.currentSource).toLowerCase() === 'none') ? 'None' : dev.currentSource}</span>
 							<span style='color:${dev.status==='online'?'rgb(129, 193, 39)':'#888'};'>${dev.status}</span>
 						</div>
 						${statsHtml}

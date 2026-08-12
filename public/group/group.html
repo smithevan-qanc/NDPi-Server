@@ -42,22 +42,10 @@
 		<div class="card" style="max-width:1200px;margin:0 auto;width:100%;">
 			<div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
 				<div style="display:flex;align-items:center;gap:12px;">
-					<div style="width: 28px;"></div>
-					<h2 id="groupName" style="font-size:26px;margin:0;">Loading Display Group...</h2>
-					<div id="changeName" style="width:28px;"></div>
+					<h2 id="groupName" style="font-size:32px;margin:0;">Loading...</h2>
+					<div id="changeName"></div>
 				</div>
-				<div id="groupStats" class="stats-page-header">
-					<div style="display:flex; flex-direction:column; align-items:center; gap:2px; justify-content:space-between; flex: 1;">
-						<span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Devices</span>
-						<div style="display:flex; align-items:center;">
-							<div id="deviceCount" style="color:#4ade80; font-weight:600; font-size:16px;">0</div>
-						</div>
-					</div>
-					<div style="display:flex; flex-direction:column; align-items:center; gap:2px; flex:9;">
-						<span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Source</span>
-						<div id="currentSourceDisplay" style="color:#888; font-weight:400; font-size:16px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; letter-spacing: -1px;"> ⸻⸻⸻ </div>
-					</div>
-				</div>
+				<div id="groupStats" class="stats-page-header"></div>
 			</div>
 			<div id="groupContent">
 				<p style="color: #888; padding: 20px;">Loading group...</p>
@@ -147,6 +135,18 @@
 			return { hostname: name, sourceName: 'Default' };
 		}
 
+		// The Client stores 'no source selected' as a literal lowercase
+		// 'none' string once a source has ever actively been cleared
+		// (Client__v3_1_0/service/functions.js's 'set-source'/'ndi' handler
+		// does `String(data || 'none')`), not just as an empty/falsy value —
+		// so a per-device currentSource (dev.currentSource, sourced from
+		// the device's own report) can be 'none' even though the checks
+		// below only compared against the capitalized 'None' placeholder.
+		function isNoSource(value) {
+			const normalized = String(value ?? '').trim().toLowerCase();
+			return normalized === '' || normalized === 'none';
+		}
+
 		/*
 		const customMenu = document.getElementById("customMenu");
 
@@ -167,23 +167,40 @@
 			}
 		});
 		*/
+		// Same stat-pill visual style as device/device.html's
+		// updateStatsHeader(), so the two pages' headers look consistent
+		// even though a group's own meaningful stats (device count, how
+		// many online, assigned source) are different from a single
+		// device's (CPU/temp/mem/uptime).
 		function updateGroupHeaderStats() {
 			document.getElementById('groupName').textContent = group.name;
-			document.getElementById('deviceCount').textContent = group.devices.length;
-			
+
+			const statsHeader = document.getElementById('groupStats');
+			if (!statsHeader) return;
+
+			const total = group.devices.length;
+			const online = group.devices.filter(d => d.status === 'online' || d.status === 'connected').length;
+			const onlineColor = total === 0 ? '#888' : online === total ? '#4ade80' : online > 0 ? '#fbbf24' : '#f87171';
+
 			const curSource = group.currentSource || 'None';
-			const curSourceEl = document.getElementById('currentSourceDisplay');
-			if (curSource !== 'None') {
-				curSourceEl.style.color = 'rgb(129, 193, 39)';
-				curSourceEl.style.fontWeight = 600;
-				curSourceEl.style.letterSpacing = 'inherit';
-				curSourceEl.textContent = curSource || '';
-			} else {
-				curSourceEl.style.color = '#888';
-				curSourceEl.style.fontWeight = 400;
-				curSourceEl.style.letterSpacing = '-1px';
-				curSourceEl.textContent = '⸻⸻⸻';
-			}
+			const hasSource = !isNoSource(curSource);
+			const sourceColor = hasSource ? 'rgb(129, 193, 39)' : '#888';
+			const sourceLabel = hasSource ? curSource : '⸻⸻⸻';
+
+			statsHeader.innerHTML = `
+				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+					<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Devices</span>
+					<span style="color:#4ade80;font-weight:600;font-size:16px;">${total}</span>
+				</div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+					<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Online</span>
+					<span style="color:${onlineColor};font-weight:600;font-size:16px;">${online}/${total}</span>
+				</div>
+				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;flex:2;">
+					<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Source</span>
+					<span style="color:${sourceColor};font-weight:600;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;" title="${sourceLabel}">${sourceLabel}</span>
+				</div>
+			`;
 		}
 		function updateGroupDisplay() {
 			updateGroupHeaderStats();
@@ -195,7 +212,7 @@
 
 				const sourceName = card.dataset.source;
 
-				const isSelected = (sourceName === '' && curSource == 'None') || sourceName === group.currentSource;
+				const isSelected = (sourceName === '' && isNoSource(curSource)) || sourceName === group.currentSource;
 
 				card.classList.toggle('selected', isSelected);
 				
@@ -314,8 +331,8 @@
 						</div>
 						<div class="device-tile-info mono">
 							<div style='flex:2;'><code>${dev.ip}</code></div>
-							<div style='flex:4; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; ' title='${dev.currentSource || 'No Active Source'}'>
-								${dev.currentSource || 'No Active Source'}
+							<div style='flex:4; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; ' title='${isNoSource(dev.currentSource) ? 'No Active Source' : dev.currentSource}'>
+								${isNoSource(dev.currentSource) ? 'No Active Source' : dev.currentSource}
 							</div>
 						</div>
 						${statsHtml}
@@ -409,14 +426,14 @@
 			}
 
 			const curSource = group.currentSource || 'None';
-			
+
 			document.getElementById('groupContent').innerHTML = `
 				<div class="group-page-container">
 					<div>
 						<h3 style="margin-bottom:8px;">Select NDI Source</h3>
 						<div id="groupSourceGrid" class="source-grid">
 							<div>
-								<div class="source-card ${curSource == 'None' ? 'selected' : ''}" data-source="" onclick="selectSource('')">
+								<div class="source-card ${isNoSource(curSource) ? 'selected' : ''}" data-source="" onclick="selectSource('')">
 									<div class="source-name">None</div>
 									<div class="source-host">No source assigned</div>
 									<div class="source-info">
@@ -445,7 +462,7 @@
 											<div class="n-src-b">░░░</div>
 										</div>
 									</div>
-									${curSource == 'None' ? '<div class="source-selected-badge" style="background:#666;">Current</div>' : ''}
+									${isNoSource(curSource) ? '<div class="source-selected-badge" style="background:#666;">Current</div>' : ''}
 								</div>
 							</div>
 							<!-- $ {sourceGrid} -->
@@ -693,7 +710,7 @@
 				if (res.ok) {
 					// Update local state and refresh display
 					group.devices = group.devices.filter(d => (d.id || d.deviceId) !== deviceId);
-					document.getElementById('deviceCount').textContent = group.devices.length;
+					updateGroupHeaderStats();
 					updateDevicesList();
 					toast.success('Device removed from group');
 				} else {
@@ -851,6 +868,7 @@
 					const fullDevice = devices.find(d => (d.id || d.deviceId) === (gDev.id || gDev.deviceId));
 					return fullDevice ? { ...gDev, ...fullDevice } : gDev;
 				});
+				updateGroupHeaderStats(); // keeps the "Online" pill current as device status changes
 				updateDevicesList();
 			}
 		};

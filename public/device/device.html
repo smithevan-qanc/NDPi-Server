@@ -261,22 +261,34 @@
 			connectDeviceSockets();
 		}
 
+		// The Client stores 'no source selected' as a literal lowercase
+		// 'none' string once a source has ever actively been cleared
+		// (Client__v3_1_0/service/functions.js's 'set-source'/'ndi' handler
+		// does `String(data || 'none')`), not just as an empty/falsy value —
+		// so checking against the capitalized 'None' placeholder alone
+		// missed that case entirely (the "None" card would show unselected
+		// even though the device really had no source assigned).
+		function isNoSource(value) {
+			const normalized = String(value ?? '').trim().toLowerCase();
+			return normalized === '' || normalized === 'none';
+		}
+
 		function renderSources() {
 			const sourceGrid = document.getElementById('deviceSourceGrid');
 			if (!sourceGrid || !device) return;
 
-			const curSource = device.currentSource || 'None';
+			const noSourceSelected = isNoSource(device.currentSource);
 
 			const noneCard = `
 				<div>
-					<div class="source-card ${curSource == 'None' ? 'selected' : ''}" data-source="" onclick="selectSource('')">
+					<div class="source-card ${noSourceSelected ? 'selected' : ''}" data-source="" onclick="selectSource('')">
 						<div class="source-name">None</div>
 						<div class="source-host">No source assigned</div>
 						<div class="source-info">
 							<div>░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</div>
 							<div>░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</div>
 						</div>
-						${curSource == 'None' ? '<div class="source-selected-badge" style="background:#666;">Current</div>' : ''}
+						${noSourceSelected ? '<div class="source-selected-badge" style="background:#666;">Current</div>' : ''}
 					</div>
 				</div>
 			`;
@@ -312,6 +324,38 @@
 			sourceGrid.innerHTML = noneCard + sourceCards;
 		}
 
+		/**
+		 *  Clock-sync pill — shown next to Uptime. Every /ws/stats message
+		 *  includes the device's own `systemTime` (client_api_server.js's
+		 *  getSystemStats(): `systemTime: String(new Date())`); compare it
+		 *  to this browser's clock and flag anything more than 3s apart.
+		 *  Only meaningful once the direct /ws/stats socket has delivered at
+		 *  least one message (the Hub-relayed client-status path doesn't
+		 *  carry systemTime at all) — shows a neutral placeholder until then.
+		 */
+		function syncPillHtml() {
+			const sync = device && device.clockSync;
+			if (!sync) {
+				return `
+					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Sync</span>
+						<span style="color:#888;font-weight:600;font-size:16px;">—</span>
+					</div>
+				`;
+			}
+
+			const absDiff = Math.abs(sync.diffSeconds);
+			const syncColor = sync.inSync ? '#4ade80' : absDiff <= 10 ? '#fbbf24' : '#f87171';
+			const syncLabel = sync.inSync ? 'In Sync' : `${absDiff.toFixed(1)}s ${sync.diffSeconds > 0 ? 'Ahead' : 'Behind'}`;
+
+			return `
+				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;" title="Browser vs. device clock (device's own reported systemTime)">
+					<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Sync</span>
+					<span style="color:${syncColor};font-weight:600;font-size:16px;">${syncLabel}</span>
+				</div>
+			`;
+		}
+
 		function updateStatsHeader() {
 			const statsHeader = document.getElementById('systemStatsHeader');
 			if (!device || !device.systemStats || !statsHeader) return;
@@ -339,6 +383,7 @@
 						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Uptime</span>
 						<span style="color:#4ade80;font-weight:600;font-size:16px;">${formatUptime(device.systemStats.uptime)}</span>
 					</div>
+					${syncPillHtml()}
 				<!--/div-->
 			`;
 		}
@@ -379,7 +424,7 @@
 					</div>
 					<div class="info-item">
 						<span class="info-label">Current Source</span>
-						<span class="info-value">${device.currentSource || 'None'}</span>
+						<span class="info-value">${isNoSource(device.currentSource) ? 'None' : device.currentSource}</span>
 					</div>
 					<div class="info-item">
 						<span class="info-label">Status</span>
@@ -916,18 +961,22 @@
 			const updatedDevice = devices.find(d => d.id === device.id);
 			if (!updatedDevice) return;
 
-			// Compare everything except systemStats (which legitimately
-			// changes on almost every broadcast) without mutating either
-			// object, so a stats-only tick updates just the stats header
-			// instead of triggering a full re-render, and a real change
-			// still carries its systemStats through intact.
-			const { systemStats: oldStats, ...oldRest } = device;
+			// Compare everything except systemStats/clockSync (both
+			// legitimately change on almost every broadcast/direct-socket
+			// tick) without mutating either object, so a stats-only tick
+			// updates just the stats header instead of triggering a full
+			// re-render, and a real change still carries its systemStats
+			// through intact. clockSync only ever comes from the direct
+			// /ws/stats socket (see applyDeviceRawStats()), never from this
+			// Hub relay, so carry the existing value forward instead of
+			// losing it every time this fires.
+			const { systemStats: oldStats, clockSync: oldClockSync, ...oldRest } = device;
 			const { systemStats: newStats, ...newRest } = updatedDevice;
 
 			const statsChanged = JSON.stringify(oldStats) !== JSON.stringify(newStats);
 			const otherChanged = JSON.stringify(oldRest) !== JSON.stringify(newRest);
 
-			device = updatedDevice;
+			device = { ...updatedDevice, clockSync: oldClockSync };
 
 			if (otherChanged) {
 				updateDevice();
@@ -1082,6 +1131,16 @@
 				},
 				temperature: (raw.thermal && raw.thermal.thermal_zone0) || 0,
 			};
+
+			// Clock sync: raw.systemTime is the device's own `String(new Date())`.
+			// diffSeconds > 0 means this browser's clock is ahead of the device.
+			if (raw.systemTime) {
+				const deviceTime = new Date(raw.systemTime).getTime();
+				if (!isNaN(deviceTime)) {
+					const diffSeconds = (Date.now() - deviceTime) / 1000;
+					device.clockSync = { diffSeconds, inSync: Math.abs(diffSeconds) <= 3 };
+				}
+			}
 
 			updateStatsHeader();
 		}

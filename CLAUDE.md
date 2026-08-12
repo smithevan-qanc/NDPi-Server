@@ -495,6 +495,67 @@ online/offline status) current.
   user asked to skip further verification and will test this against real
   devices themselves.**
 
+**Fixed "None" source card not showing selected**: the Client stores "no
+source" as the literal lowercase string `'none'` once a source has ever
+actively been cleared (`Client__v3_1_0/service/functions.js`'s
+`set-source`/`'ndi'` handler does `String(data || 'none')`), not just as
+an empty/falsy value — but every "is this the current source" check in
+the Hub frontend compared against the capitalized `'None'` placeholder
+only, which is just the fallback substituted when the value is
+empty/undefined. It never matched the real lowercase value, and picking
+"None" made it *worse*: it sends `currentSource: ''`, which the Client
+turns into literal `'none'` on its own settings, so the very next status
+report flips the display back to "not selected." Added a shared
+`isNoSource(value)` helper (case-insensitive, treats `''`/`'none'` both
+as "no source") and used it everywhere the source-selection state is
+checked or displayed:
+- `device/device.html` (the reported page) — "None" card
+  selected/current-badge state, and the "Current Source" info display.
+- `group/group.html` (same pattern found on request) — its own "None"
+  source card, header "current source" display/color, and per-device
+  source text in the group's device list.
+- `devices/devices.html` and `groups/groups.html` — simpler,
+  single-use display-only fallbacks (no selection-state logic tied to
+  them), fixed inline rather than with the shared helper since each is
+  used exactly once.
+
+**Added a device/browser clock-sync indicator** (user request) — a new
+"Sync" pill next to Uptime in `device.html`'s stats header. Every
+`/ws/stats` message from the device includes its own `systemTime`
+(`client_api_server.js`'s `getSystemStats()`: `systemTime: String(new
+Date())`); `applyDeviceRawStats()` now diffs that against this browser's
+clock and stores `device.clockSync = {diffSeconds, inSync}` (`inSync` =
+within 3s), and the pill shows "In Sync" (green), "Xs Ahead/Behind"
+(yellow ≤10s, red beyond that), or a neutral "—" before the first direct
+`/ws/stats` message arrives (the Hub-relayed path doesn't carry
+`systemTime` at all, so there's nothing to compare until the direct
+socket connects). Had to also fix a side effect: `ws.onDevicesUpdate`
+fully replaces the `device` object with the Hub-relayed one on every
+change, which has no `clockSync` field — without carrying it forward
+explicitly, the pill would've flickered back to "—" on every Hub-relay
+tick even while the direct socket stayed healthy and its own comparison
+would have spuriously forced a full re-render every tick too (a field
+present-vs-absent mismatch always fails the JSON.stringify diff check).
+
+**Aligned `device.html`/`group.html` header + stats-pill styling** (user
+request, scoped to visual/layout consistency rather than forcing
+single-device-only sections — overlay image, per-device settings editor,
+software update — onto a multi-device group page, since those don't have
+a group-level equivalent): matched the title to the same 32px size and
+removed group's manual 28px-spacer centering hack in favor of the same
+simple layout device.html already used; replaced group's static,
+asymmetric-flex 2-item stats header (hand-written HTML, `flex:1`/`flex:9`)
+with a dynamically-rebuilt 3-pill row using the exact same per-pill markup
+device.html's `updateStatsHeader()` uses (equal-width flex-column pills,
+uppercase 11px label, bold colored 16px value) — Devices / Online (X/Y,
+color-coded) / Source. The `#deviceCount`/`#currentSourceDisplay` element
+IDs that used to be patched in place no longer exist (replaced by a full
+`innerHTML` rebuild each call, matching device's pattern) — updated the
+two other call sites that touched them directly
+(`removeDeviceFromGroup()`, and added a call from `ws.onDevicesUpdate`
+which previously never refreshed the header at all, so the new "Online"
+count would've gone stale between group-level broadcasts).
+
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
 page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/
