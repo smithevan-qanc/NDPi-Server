@@ -477,14 +477,17 @@ online/offline status) current.
   tuples the same way the Client's own Hub-status report does, then calls
   `renderSources()`/`updateDevice()`.
 - `/ws/stats` pushes raw `os.*`-derived fields (loadavg, cpus, freemem,
-  totalmem, thermal.thermal_zone0) every ~1s — a *different* shape than
-  `device.systemStats`. `applyDeviceRawStats()` converts it to the
-  `{cpu,memory,temperature}` shape the stats header expects.
-  **Known Client-side quirk, not touched**: that raw payload's own
-  `osUptime` field is always `NaN` (`client_api_server.js` does
-  `Number(os.uptime)` — the function reference, missing `()`) — so
-  `uptime` is deliberately left untouched by this path and only updated
-  from the Hub's periodic relay, which computes it correctly.
+  totalmem, osUptime, thermal.thermal_zone0) every ~1s — a *different*
+  shape than `device.systemStats`. `applyDeviceRawStats()` converts it to
+  the `{cpu,memory,temperature,uptime}` shape the stats header expects.
+  **Correction (this file previously said the wrong thing here)**:
+  `client_api_server.js`'s `getSystemStats()` does `Number(os.uptime)` /
+  `String(os.arch)` etc — no `()` — which looks like a bug (stringifying
+  the function reference instead of calling it) but isn't one: Node's
+  `os` module functions carry a `Symbol.toPrimitive` that makes `String()`/
+  `Number()` coercion invoke them correctly (verified empirically:
+  `String(os.arch)` → `'arm64'`, not the function source). So `osUptime` is
+  a real, correct value — `uptime` is now read from it directly.
 - Both sockets get their own simple 5s reconnect loop (mirrors the
   reconnect pattern used elsewhere in this app), matched to `ws:`/`wss:`
   based on the Hub page's own protocol, and are closed on
@@ -555,6 +558,82 @@ two other call sites that touched them directly
 (`removeDeviceFromGroup()`, and added a call from `ws.onDevicesUpdate`
 which previously never refreshed the header at all, so the new "Online"
 count would've gone stale between group-level broadcasts).
+
+**Built four new WebSocket endpoints** (user request):
+1. **`/ws/system`** — the Hub's own settings feed, mirroring
+   `Client__v3_1_0/service/client_api_server.js`'s local `__ws_System()`
+   exactly: sends `Array.from(this.settings.fileMap)` on connect, then the
+   same raw string again in full any time a Hub setting changes
+   (`fsData.on('update', ...)`, restored in the constructor — this hookup
+   existed before the earlier "vestigial code" cleanup pass and needed to
+   come back for the Hub's own settings specifically, not the removed
+   Client-only single-device concerns).
+2. **`/ws/stats`** — the Hub's own machine stats, in the same *raw*
+   `os.*`-derived shape `client_api_server.js`'s `getSystemStats()`
+   produces (systemTime, osArchitecture, osUptime, freemem, totalmem,
+   hostname, loadavg, thermal.{thermal_zone0,fan1_input}, osMachine,
+   osPlatform, osRelease, osVersion, networkInterfaces, cpus) — deliberately
+   a *different* method (`getHubRawSystemStats()`) from the pre-existing
+   `hubSystemStats()` (which stays as-is, still feeding the `/ws` GUI
+   broadcast's summarized `system-stats` messages) so as not to disturb
+   that existing consumer. Pushes on connect, then every ~1s while anyone's
+   connected (self-stops the interval when the last listener disconnects).
+3. **`/ws/devices/system`** and **4. `/ws/devices/stats`** — the
+   multi-device relay/aggregator. The Hub now opens its own outbound
+   connection to every adopted device's own `/ws/system`/`/ws/stats`
+   (`connectDeviceSystemRelay()`/`connectDeviceStatsRelay()`, 5s reconnect
+   loop, `deviceSystemSockets`/`deviceStatsSockets: Map<deviceId, {ws, ip,
+   port, reconnectTimer}>`), caches the latest raw message per device
+   (`deviceSystemCache`/`deviceStatsCache: Map<deviceId, rawMessage>`,
+   exactly per the user's "save in a map by device id" spec), and relays
+   every update to browsers connected to these two Hub-hosted endpoints as
+   `{type:'device-system'|'device-stats', deviceId, data}`. A browser
+   connecting to either gets the *entire current cache* immediately as one
+   `{type:'snapshot', devices:{deviceId: data, ...}}` message, so a page
+   loaded between device updates isn't blank. One Hub→browser connection
+   now serves every device on a multi-device page instead of the browser
+   opening one connection per device (which is what `device.html`'s
+   earlier direct-to-device sockets still do for single-device pages —
+   that stays as-is; this relay is the new mechanism intended for
+   multi-device pages like `devices.html`/`dashboard.html`/`groups.html`,
+   **whose frontends have not yet been updated to consume it** — this pass
+   built and verified the backend relay only, per the literal ask
+   ("Create a ... endpoint"); wiring the multi-device pages to use it
+   instead of REST polling is a natural follow-up).
+   - **Connection triggers**: (a) every `client-status` message over
+     `/ws/client` (`ensureDeviceRelayConnections()`, using the device's own
+     reported `local_port_number_api` setting — persisted onto the client
+     record as `apiPort`, not currently exposed over the public REST API,
+     just used internally for this) — self-healing, since this fires on
+     every status report; (b) the adopt route
+     (`POST /api/device/:id?`), using the mDNS-reported `commandPort` for
+     an immediate first connection rather than waiting for the device's
+     next status report; (c) Hub startup (`reconnectAllDeviceRelays()`),
+     for devices already known from a previous run.
+   - **Cleanup**: forgetting a device (`DELETE /api/device/:deviceId`,
+     `POST /api/devices/forget-all`) calls `closeDeviceRelayConnections()`
+     — closes both sockets, clears their reconnect timers, and drops the
+     device from both caches, so it stops being reconnected to and
+     disappears from the relay snapshot.
+   - Verified with two live end-to-end tests (fake Client device standing
+     in on a real port, driven through the real Hub, not mocked at the
+     unit level): (1) snapshot delivery, live relay tagging with the
+     correct `deviceId`, and cache updates all confirmed correct via
+     scripted assertions; (2) forgetting a device closes its relay socket
+     and does *not* reconnect even after waiting past the 5s retry window.
+     Full page/API regression sweep still 200s, clean shutdown in both
+     tests and standalone.
+
+**Correction to something stated earlier this session**: I'd claimed
+`client_api_server.js`'s raw stats fields (`String(os.arch)`,
+`Number(os.uptime)` etc, no `()`) were bugs producing `NaN`/function-source
+strings. They're not — Node's `os` module functions carry a
+`Symbol.toPrimitive` that makes `String()`/`Number()` coercion invoke them
+correctly (verified empirically: `String(os.arch)` → `'arm64'`). Fixed
+`device.html`'s `applyDeviceRawStats()` to actually use `raw.osUptime` now
+instead of deliberately ignoring it. My own new Hub-side code still calls
+these explicitly (`os.arch()`, `os.uptime()`, etc.) rather than relying on
+the coercion quirk — equally correct, just less surprising to read.
 
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no

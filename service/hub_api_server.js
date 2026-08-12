@@ -70,6 +70,48 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_devices = null;
         this.deviceConnections = new Map(); // deviceId -> ws
 
+        /**
+         *  Hub's own live feeds ( /ws/system, /ws/stats )
+         *  ------------------------------------------------
+         *  Mirrors Client__v3_1_0/service/client_api_server.js's local
+         *  __ws_System()/__ws_Stats() — this Hub's OWN settings (fileMap)
+         *  and OWN machine stats, for the Hub's own dashboard/settings UI.
+         */
+        this.ws_serv_hub_system = null;
+        this.ws_conn_hub_system = new Set();
+        this.ws_serv_hub_stats = null;
+        this.ws_conn_hub_stats = new Set();
+        this.hubStatsSendInterval = null;
+
+        // Broadcast this Hub's own settings changes to /ws/system clients
+        // (raw JSON.stringify(Array.from(fileMap)) string, same shape
+        // Client__v3_1_0's own /ws/system pushes).
+        fsData.on('update', (data) => {
+            this.ws_conn_hub_system.forEach((ws) => { try { ws.send(data); } catch {} });
+        });
+
+        /**
+         *  Device system/stats relay ( /ws/devices/system, /ws/devices/stats )
+         *  ---------------------------------------------------------------------
+         *  The Hub opens its OWN outbound connections to every adopted
+         *  device's local /ws/system and /ws/stats
+         *  (Client__v3_1_0/service/client_api_server.js), caches the latest
+         *  message per device (so a browser connecting mid-stream isn't
+         *  blank), and rebroadcasts every update to browsers connected to
+         *  these two Hub-hosted endpoints — one Hub-side connection per
+         *  device, instead of every open browser tab connecting to every
+         *  device directly.
+         */
+        this.deviceSystemSockets = new Map(); // deviceId -> { ws, ip, port, reconnectTimer }
+        this.deviceSystemCache = new Map();   // deviceId -> latest raw /ws/system message
+        this.deviceStatsSockets = new Map();  // deviceId -> { ws, ip, port, reconnectTimer }
+        this.deviceStatsCache = new Map();    // deviceId -> latest raw /ws/stats message
+
+        this.ws_serv_devices_system = null;
+        this.ws_conn_devices_system = new Set();
+        this.ws_serv_devices_stats = null;
+        this.ws_conn_devices_stats = new Set();
+
         this.bonjourBrowser = null;
 
         this.heartbeatInterval = null;
@@ -128,10 +170,15 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.__ws_Sources();
         this.__ws_Gui();
         this.__ws_Devices();
+        this.__ws_HubSystem();
+        this.__ws_HubStats();
+        this.__ws_DevicesSystemRelay();
+        this.__ws_DevicesStatsRelay();
         this.__Routers();
         this.startMdnsDiscovery();
         this.startBroadcastIntervals();
         this.startDeviceTimeoutMonitor();
+        this.reconnectAllDeviceRelays();
     }
 
     /**
@@ -407,9 +454,18 @@ class NDPiCommandServer_Client extends EventEmitter {
 
                     this.deviceConnections.set(deviceId, ws);
 
+                    const existingClient = this.settings.getClient(deviceId);
+                    const settingsArray = Array.isArray(message.settings) ? message.settings : (existingClient?.settings || null);
+                    const apiPortSetting = Array.isArray(settingsArray) ? settingsArray.find(([key]) => key === 'local_port_number_api') : null;
+                    const apiPort = (apiPortSetting && apiPortSetting[1] && apiPortSetting[1].value) || existingClient?.apiPort || 3080;
+                    const ip = message.ip || existingClient?.ip;
+
                     this.settings.upsertClient(deviceId, {
-                        deviceName: message.deviceName || this.settings.getClient(deviceId)?.deviceName || deviceId,
-                        ip: message.ip || this.settings.getClient(deviceId)?.ip,
+                        deviceName: message.deviceName || existingClient?.deviceName || deviceId,
+                        ip,
+                        // The device's own API port — not exposed over REST, only
+                        // used internally to (re)connect the system/stats relay.
+                        apiPort,
                         status: 'online',
                         currentSource: message.currentSource || 'None',
                         displayMode: message.displayMode || 'overlay',
@@ -420,13 +476,16 @@ class NDPiCommandServer_Client extends EventEmitter {
                         // own local `/ws/system` UI receives) so the Hub dashboard can
                         // offer the same per-device controls (settings editor, overlay
                         // upload, update checks, etc).
-                        settings: Array.isArray(message.settings) ? message.settings : (this.settings.getClient(deviceId)?.settings || null),
+                        settings: settingsArray,
                         lastSeen: new Date().toISOString(),
                         lastStatusUpdate: new Date().toISOString(),
                     });
 
                     // The device is no longer merely "discovered" once it starts reporting status.
                     this.settings.removeDiscoveredClient(deviceId);
+
+                    if (ip)
+                    { this.ensureDeviceRelayConnections(deviceId, ip, apiPort); }
                 }
                 else if (message.type === 'ping')
                 {
@@ -452,6 +511,327 @@ class NDPiCommandServer_Client extends EventEmitter {
                     }
                 }
             };
+        });
+    }
+
+    /**
+     *      Hub's own System Settings - WebSocket Connection Handler ( /ws/system )
+     *      Mirrors Client__v3_1_0/service/client_api_server.js's local
+     *      __ws_System(): sends this Hub's own fileMap on connect, then
+     *      again in full any time a setting changes (see the
+     *      fsData.on('update', ...) hookup in the constructor).
+     */
+    __ws_HubSystem() {
+        this.ws_serv_hub_system = new WebSocket.Server({ noServer: true });
+
+        this.ws_serv_hub_system.on('connection', (ws) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub System WebSocket connection ADDED.');
+
+            this.ws_conn_hub_system.add(ws);
+            ws.send(JSON.stringify(Array.from(this.settings.fileMap)));
+
+            ws.onerror = (error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Hub System WebSocket', error);
+            };
+
+            ws.onclose = () => {
+                this.ws_conn_hub_system.delete(ws);
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub System WebSocket connection REMOVED.');
+            };
+        });
+    }
+
+    /**
+     *      This Hub machine's own stats, in the same raw os.*-derived shape
+     *      Client__v3_1_0/service/client_api_server.js's getSystemStats()
+     *      produces — distinct from hubSystemStats() (below), which is the
+     *      pre-summarized shape used by the /ws GUI broadcast. Keeping this
+     *      one in the raw shape means the Hub's own /ws/stats and every
+     *      relayed device's /ws/stats deliver a consistent shape to the
+     *      frontend.
+     */
+    getHubRawSystemStats() {
+        let thermal_zone0 = 0;
+        try
+        {
+            const tempFile = '/sys/class/thermal/thermal_zone0/temp';
+            if (fs.existsSync(tempFile))
+            { thermal_zone0 = Number(fs.readFileSync(tempFile, 'utf8').trim() || '0') / 1000; }
+        }
+        catch {}
+
+        let fan1_input = 0;
+        for (let i = 0; i <= 5; i++)
+        {
+            const fanFile = path.join('/sys', 'class', 'hwmon', `hwmon${i}`, 'fan1_input');
+            if (fs.existsSync(fanFile))
+            {
+                try { fan1_input = Number(fs.readFileSync(fanFile, 'utf8').trim() || '0'); }
+                catch {}
+                break;
+            }
+        }
+
+        return {
+            systemTime: String(new Date()),
+            osArchitecture: os.arch(),
+            osUptime: os.uptime(),
+            freemem: os.freemem(),
+            totalmem: os.totalmem(),
+            hostname: os.hostname(),
+            loadavg: os.loadavg(),
+            thermal: { thermal_zone0, fan1_input },
+            osMachine: os.machine(),
+            osPlatform: os.platform(),
+            osRelease: os.release(),
+            osVersion: os.version(),
+            networkInterfaces: os.networkInterfaces(),
+            cpus: os.cpus(),
+        };
+    }
+
+    /**
+     *      Hub's own System Stats - WebSocket Connection Handler ( /ws/stats )
+     *      Mirrors Client__v3_1_0/service/client_api_server.js's local
+     *      __ws_Stats(): sends current stats on connect, then every ~1s.
+     */
+    __ws_HubStats() {
+        this.ws_serv_hub_stats = new WebSocket.Server({ noServer: true });
+
+        this.ws_serv_hub_stats.on('connection', (ws) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub Stats WebSocket connection ADDED.');
+
+            this.ws_conn_hub_stats.add(ws);
+            ws.send(JSON.stringify(this.getHubRawSystemStats()));
+            this.startHubStats();
+
+            ws.onerror = (error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Hub Stats WebSocket', error);
+            };
+
+            ws.onclose = () => {
+                this.ws_conn_hub_stats.delete(ws);
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub Stats WebSocket connection REMOVED.');
+            };
+        });
+    }
+
+    startHubStats() {
+        if (this.hubStatsSendInterval) return;
+        this.hubStatsSendInterval = setInterval(() => {
+            if (this.ws_conn_hub_stats.size === 0)
+            {
+                clearInterval(this.hubStatsSendInterval);
+                this.hubStatsSendInterval = null;
+                return;
+            }
+            const stats = JSON.stringify(this.getHubRawSystemStats());
+            this.ws_conn_hub_stats.forEach((ws) => {
+                if (ws.readyState === WebSocket.OPEN)
+                { try { ws.send(stats); } catch {} }
+            });
+        }, 1000);
+    }
+
+    /**
+     *      Aggregated Device System Relay - WebSocket Connection Handler
+     *      ( /ws/devices/system )
+     *      One Hub-side outbound connection per adopted device to that
+     *      device's own /ws/system (see connectDeviceSystemRelay()); every
+     *      message received is cached (deviceSystemCache) and relayed here
+     *      to every connected browser, tagged with the device it came
+     *      from. A browser connecting here gets the full current cache
+     *      immediately (a 'snapshot' message), so pages showing many
+     *      devices' settings aren't blank waiting for the next per-device
+     *      update — and only ever need ONE websocket connection to the Hub
+     *      regardless of how many devices they display.
+     */
+    __ws_DevicesSystemRelay() {
+        this.ws_serv_devices_system = new WebSocket.Server({ noServer: true });
+
+        this.ws_serv_devices_system.on('connection', (ws) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices System Relay WebSocket connection ADDED.');
+
+            this.ws_conn_devices_system.add(ws);
+
+            const snapshot = {};
+            this.deviceSystemCache.forEach((data, deviceId) => { snapshot[deviceId] = data; });
+            try { ws.send(JSON.stringify({ type: 'snapshot', devices: snapshot })); }
+            catch {}
+
+            ws.onerror = (error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Devices System Relay WebSocket', error);
+            };
+
+            ws.onclose = () => {
+                this.ws_conn_devices_system.delete(ws);
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices System Relay WebSocket connection REMOVED.');
+            };
+        });
+    }
+
+    /**
+     *      Same idea as __ws_DevicesSystemRelay(), for /ws/devices/stats.
+     */
+    __ws_DevicesStatsRelay() {
+        this.ws_serv_devices_stats = new WebSocket.Server({ noServer: true });
+
+        this.ws_serv_devices_stats.on('connection', (ws) => {
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices Stats Relay WebSocket connection ADDED.');
+
+            this.ws_conn_devices_stats.add(ws);
+
+            const snapshot = {};
+            this.deviceStatsCache.forEach((data, deviceId) => { snapshot[deviceId] = data; });
+            try { ws.send(JSON.stringify({ type: 'snapshot', devices: snapshot })); }
+            catch {}
+
+            ws.onerror = (error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Devices Stats Relay WebSocket', error);
+            };
+
+            ws.onclose = () => {
+                this.ws_conn_devices_stats.delete(ws);
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices Stats Relay WebSocket connection REMOVED.');
+            };
+        });
+    }
+
+    broadcastDeviceSystemRelay(deviceId, data) {
+        const message = JSON.stringify({ type: 'device-system', deviceId, data });
+        this.ws_conn_devices_system.forEach((ws) => {
+            if (ws.readyState === WebSocket.OPEN)
+            { try { ws.send(message); } catch {} }
+        });
+    }
+
+    broadcastDeviceStatsRelay(deviceId, data) {
+        const message = JSON.stringify({ type: 'device-stats', deviceId, data });
+        this.ws_conn_devices_stats.forEach((ws) => {
+            if (ws.readyState === WebSocket.OPEN)
+            { try { ws.send(message); } catch {} }
+        });
+    }
+
+    /**
+     *      Ensure the Hub has (or is retrying) outbound connections to a
+     *      device's own /ws/system and /ws/stats, using the ip/port most
+     *      recently known for it. Safe/cheap to call repeatedly — only
+     *      (re)connects when there's no live connection yet or the ip/port
+     *      changed since the last one was opened.
+     */
+    ensureDeviceRelayConnections(deviceId, ip, port) {
+        if (!ip || !port) return;
+
+        const currentSystem = this.deviceSystemSockets.get(deviceId);
+        if (!currentSystem || currentSystem.ip !== ip || currentSystem.port !== port || currentSystem.ws.readyState > WebSocket.OPEN)
+        { this.connectDeviceSystemRelay(deviceId, ip, port); }
+
+        const currentStats = this.deviceStatsSockets.get(deviceId);
+        if (!currentStats || currentStats.ip !== ip || currentStats.port !== port || currentStats.ws.readyState > WebSocket.OPEN)
+        { this.connectDeviceStatsRelay(deviceId, ip, port); }
+    }
+
+    connectDeviceSystemRelay(deviceId, ip, port) {
+        const previous = this.deviceSystemSockets.get(deviceId);
+        if (previous)
+        {
+            clearTimeout(previous.reconnectTimer);
+            try { previous.ws.removeAllListeners(); previous.ws.close(); } catch {}
+        }
+
+        const ws = new WebSocket(`ws://${ip}:${port}/ws/system`);
+        const entry = { ws, ip, port, reconnectTimer: null };
+        this.deviceSystemSockets.set(deviceId, entry);
+
+        ws.on('message', (data) => {
+            let parsed;
+            try { parsed = JSON.parse(data); }
+            catch { return; }
+            this.deviceSystemCache.set(deviceId, parsed);
+            this.broadcastDeviceSystemRelay(deviceId, parsed);
+        });
+
+        ws.on('error', (error) => {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `Device system relay (${deviceId} @ ${ip}:${port})`, error.message);
+        });
+
+        ws.on('close', () => {
+            if (this.closing) return;
+            // Only reconnect if this is still the current entry for this
+            // device — a newer call to connectDeviceSystemRelay() (e.g. a
+            // fresh client-status with a changed ip/port) may have already
+            // superseded it.
+            if (this.deviceSystemSockets.get(deviceId) === entry)
+            { entry.reconnectTimer = setTimeout(() => { this.connectDeviceSystemRelay(deviceId, ip, port); }, 5000); }
+        });
+    }
+
+    connectDeviceStatsRelay(deviceId, ip, port) {
+        const previous = this.deviceStatsSockets.get(deviceId);
+        if (previous)
+        {
+            clearTimeout(previous.reconnectTimer);
+            try { previous.ws.removeAllListeners(); previous.ws.close(); } catch {}
+        }
+
+        const ws = new WebSocket(`ws://${ip}:${port}/ws/stats`);
+        const entry = { ws, ip, port, reconnectTimer: null };
+        this.deviceStatsSockets.set(deviceId, entry);
+
+        ws.on('message', (data) => {
+            let parsed;
+            try { parsed = JSON.parse(data); }
+            catch { return; }
+            this.deviceStatsCache.set(deviceId, parsed);
+            this.broadcastDeviceStatsRelay(deviceId, parsed);
+        });
+
+        ws.on('error', (error) => {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `Device stats relay (${deviceId} @ ${ip}:${port})`, error.message);
+        });
+
+        ws.on('close', () => {
+            if (this.closing) return;
+            if (this.deviceStatsSockets.get(deviceId) === entry)
+            { entry.reconnectTimer = setTimeout(() => { this.connectDeviceStatsRelay(deviceId, ip, port); }, 5000); }
+        });
+    }
+
+    /**
+     *      Tear down relay connections + cached data for a device that's
+     *      been forgotten/removed, so it stops being reconnected to and
+     *      drops out of the relay snapshot.
+     */
+    closeDeviceRelayConnections(deviceId) {
+        const system = this.deviceSystemSockets.get(deviceId);
+        if (system)
+        {
+            clearTimeout(system.reconnectTimer);
+            try { system.ws.removeAllListeners(); system.ws.close(); } catch {}
+            this.deviceSystemSockets.delete(deviceId);
+        }
+        this.deviceSystemCache.delete(deviceId);
+
+        const stats = this.deviceStatsSockets.get(deviceId);
+        if (stats)
+        {
+            clearTimeout(stats.reconnectTimer);
+            try { stats.ws.removeAllListeners(); stats.ws.close(); } catch {}
+            this.deviceStatsSockets.delete(deviceId);
+        }
+        this.deviceStatsCache.delete(deviceId);
+    }
+
+    /**
+     *      On Hub startup, (re)establish relay connections for every
+     *      already-known device that has a stored ip/apiPort, instead of
+     *      waiting for each one's next client-status report.
+     */
+    reconnectAllDeviceRelays() {
+        this.settings.getClients().forEach((client) => {
+            if (client.ip && client.apiPort)
+            { this.ensureDeviceRelayConnections(client.deviceId, client.ip, client.apiPort); }
         });
     }
 
@@ -1192,7 +1572,9 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.Routes
         .route('/api/devices/forget-all')
         .post((req, res) => {
+            const deviceIds = this.settings.getClients().map((c) => c.deviceId);
             const count = this.settings.deleteAllClients();
+            deviceIds.forEach((id) => this.closeDeviceRelayConnections(id));
             res.json({ success: true, message: `Forgot ${count} device(s)` });
         });
 
@@ -1227,6 +1609,12 @@ class NDPiCommandServer_Client extends EventEmitter {
                 hubConfigured = result.success;
                 if (!result.success)
                 { console.warn(`⚠️   [ ${path.basename(__filename).split('.')[0]} ] Could not configure Hub connection on device ${deviceId} (${resolvedIp}:${discovered.commandPort}) — it may need 'ndpi_hub_hostname'/'ndpi_hub_port' set manually on the device.`, result); }
+
+                // Start relaying this device's /ws/system + /ws/stats right
+                // away using the ip/port mDNS already gave us — its own
+                // next client-status report will correct the port if the
+                // device's real API port differs from the mDNS commandPort.
+                this.ensureDeviceRelayConnections(deviceId, resolvedIp, discovered.commandPort);
             }
 
             res.json({ success: true, device: client, hubConfigured });
@@ -1278,6 +1666,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             const name = this.settings.getClient(deviceId).deviceName;
             this.settings.deleteClient(deviceId);
+            this.closeDeviceRelayConnections(deviceId);
             res.json({ success: true, message: `Forgot device ${name}` });
         });
 
@@ -1744,6 +2133,30 @@ class NDPiCommandServer_Client extends EventEmitter {
                     this.ws_serv_devices.emit('connection', ws, request);
                 });
             }
+            else if (pathname === '/ws/system')
+            {
+                this.ws_serv_hub_system.handleUpgrade(request, socket, head, (ws) => {
+                    this.ws_serv_hub_system.emit('connection', ws, request);
+                });
+            }
+            else if (pathname === '/ws/stats')
+            {
+                this.ws_serv_hub_stats.handleUpgrade(request, socket, head, (ws) => {
+                    this.ws_serv_hub_stats.emit('connection', ws, request);
+                });
+            }
+            else if (pathname === '/ws/devices/system')
+            {
+                this.ws_serv_devices_system.handleUpgrade(request, socket, head, (ws) => {
+                    this.ws_serv_devices_system.emit('connection', ws, request);
+                });
+            }
+            else if (pathname === '/ws/devices/stats')
+            {
+                this.ws_serv_devices_stats.handleUpgrade(request, socket, head, (ws) => {
+                    this.ws_serv_devices_stats.emit('connection', ws, request);
+                });
+            }
             else if (pathname === '/ws')
             {
                 this.ws_serv_gui.handleUpgrade(request, socket, head, (ws) => {
@@ -1771,6 +2184,31 @@ class NDPiCommandServer_Client extends EventEmitter {
         try { this.ws_serv_gui?.close(); } catch {}
         try { this.ws_serv_devices?.close(); } catch {}
         try { this.ws_serv_sources?.close(); } catch {}
+        try { this.ws_serv_hub_system?.close(); } catch {}
+        try { this.ws_serv_hub_stats?.close(); } catch {}
+        try { this.ws_serv_devices_system?.close(); } catch {}
+        try { this.ws_serv_devices_stats?.close(); } catch {}
+
+        if (this.hubStatsSendInterval)
+        {
+            clearInterval(this.hubStatsSendInterval);
+            this.hubStatsSendInterval = null;
+        }
+
+        // this.closing is already true at this point, so the 'close'
+        // handlers in connectDeviceSystemRelay()/connectDeviceStatsRelay()
+        // won't try to reconnect — clear/close explicitly too as a backstop.
+        this.deviceSystemSockets.forEach((entry) => {
+            clearTimeout(entry.reconnectTimer);
+            try { entry.ws.removeAllListeners(); entry.ws.close(); } catch {}
+        });
+        this.deviceSystemSockets.clear();
+
+        this.deviceStatsSockets.forEach((entry) => {
+            clearTimeout(entry.reconnectTimer);
+            try { entry.ws.removeAllListeners(); entry.ws.close(); } catch {}
+        });
+        this.deviceStatsSockets.clear();
 
         await this._tryCloseDiscovery();
 

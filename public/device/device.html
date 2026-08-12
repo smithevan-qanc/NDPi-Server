@@ -1106,14 +1106,9 @@
 		/**
 		 * Apply a raw /ws/stats payload (client_api_server.js's
 		 * getSystemStats() — plain os.* fields: loadavg, cpus, freemem,
-		 * totalmem, thermal.thermal_zone0 — not the summarized shape
-		 * device.systemStats normally holds), converting it into that
-		 * {cpu,memory,temperature} shape for display.
-		 * NOTE: that raw payload's own `osUptime` field is always NaN on
-		 * the device (client_api_server.js does `Number(os.uptime)` — the
-		 * function reference, missing `()`) — so `uptime` is deliberately
-		 * left alone here and only ever updated from the Hub's periodic
-		 * relay (client-status), which computes it correctly.
+		 * totalmem, osUptime, thermal.thermal_zone0 — not the summarized
+		 * shape device.systemStats normally holds), converting it into that
+		 * {cpu,memory,temperature,uptime} shape for display.
 		 */
 		function applyDeviceRawStats(raw) {
 			if (!device || !Array.isArray(raw.loadavg) || !Array.isArray(raw.cpus) || !raw.totalmem) return;
@@ -1130,6 +1125,7 @@
 					total: Math.round((totalMem / 1024 / 1024 / 1024) * 10) / 10,
 				},
 				temperature: (raw.thermal && raw.thermal.thermal_zone0) || 0,
+				uptime: typeof raw.osUptime === 'number' ? raw.osUptime : (device.systemStats && device.systemStats.uptime) || 0,
 			};
 
 			// Clock sync: raw.systemTime is the device's own `String(new Date())`.
