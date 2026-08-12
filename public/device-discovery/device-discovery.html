@@ -56,7 +56,7 @@
 						</button>
 					</div>
 					
-					<div id="discoveredDevices" style="margin-top: 20px;"></div>
+					<div id="discoveredDevices" class="devices-grid" style="margin-top: 20px;"></div>
 					
 				</div>
 			</div>
@@ -151,14 +151,26 @@
 			
 			discoveredDevices.forEach(device => {
 				const deviceElement = document.createElement('div');
-				deviceElement.className = 'device-tile discovered-device';
+				deviceElement.className = 'device-card';
+				deviceElement.dataset.status = 'discovered';
 				deviceElement.innerHTML = `
-					<div class="device-tile-info mono">
-						<div class="device-details">
-							<strong>${device.deviceName}</strong><br>
-							<span style="font-family: monospace; font-size: 12px; color: #888;">${device.deviceId}</span><br>
-							<span style="font-size: 12px; color: #aaa;">IP: ${device.ip}</span>
+					<div class="device-card-header">
+						<div class="device-card-identity">
+							<span class="device-card-status-dot"></span>
+							<div style="display:flex;flex-direction:column;min-width:0;">
+								<span class="device-card-name">${device.deviceName}</span>
+								<span class="device-card-status-text">Discovered</span>
+							</div>
 						</div>
+						<span class="device-card-id mono">${device.deviceId}</span>
+					</div>
+					<div class="device-card-meta">
+						<div class="device-card-meta-item wide">
+							<span class="device-card-meta-label">IP Address</span>
+							<span class="device-card-meta-value mono">${device.ip}</span>
+						</div>
+					</div>
+					<div class="device-card-actions">
 						<button class="add-device-btn" onclick="addDevice('${device.deviceId}', '${device.deviceName}', '${device.ip}')">
 							Add Device
 						</button>

@@ -17,6 +17,11 @@ const NDI_SERVER_HOST = process.env.NDI_SERVER_HOST || '127.0.0.1';
 const NDI_SERVER_PORT = process.env.NDI_SERVER_PORT || 3081;
 const NDI_SERVER_URL = `http://${NDI_SERVER_HOST}:${NDI_SERVER_PORT}`;
 
+// Network error codes that just mean "the device isn't reachable right now"
+// (powered off, unplugged, sleeping, etc) -- expected/routine on a 5s relay
+// reconnect loop, not worth logging as an error every retry.
+const DEVICE_OFFLINE_ERROR_CODES = new Set(['ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT', 'ECONNRESET']);
+
 
 class NDPiCommandServer_Client extends EventEmitter {
     constructor(fsData) {
@@ -783,6 +788,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         ws.on('error', (error) => {
+            if (DEVICE_OFFLINE_ERROR_CODES.has(error.code)) return;
             console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `Device system relay (${deviceId} @ ${ip}:${port})`, error.message);
         });
 
@@ -818,6 +824,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         ws.on('error', (error) => {
+            if (DEVICE_OFFLINE_ERROR_CODES.has(error.code)) return;
             console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `Device stats relay (${deviceId} @ ${ip}:${port})`, error.message);
         });
 

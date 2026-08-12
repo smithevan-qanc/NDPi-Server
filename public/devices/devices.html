@@ -153,53 +153,80 @@
 
 		function createDeviceTile(isDiscovered) {
 			const tile = document.createElement('div');
+			tile.className = 'device-card';
 			const refs = { root: tile, isDiscovered };
 
 			if (isDiscovered) {
-				tile.className = 'device-tile discovered-device';
+				tile.dataset.status = 'discovered';
 				tile.innerHTML = `
-					<div class="device-tile-main">
-						<strong style="font-size:15px;"></strong>
-						<span class='mono' style="font-size:12px;"></span>
+					<div class="device-card-header">
+						<div class="device-card-identity">
+							<span class="device-card-status-dot"></span>
+							<div style="display:flex;flex-direction:column;min-width:0;">
+								<span class="device-card-name"></span>
+								<span class="device-card-status-text">Discovered</span>
+							</div>
+						</div>
+						<span class="device-card-id mono"></span>
 					</div>
-					<div class="device-tile-info mono">
-						<span></span>
-						<span style='color: #ffa500;'>Discovered - Click to Add</span>
+					<div class="device-card-meta">
+						<div class="device-card-meta-item wide">
+							<span class="device-card-meta-label">IP Address</span>
+							<span class="device-card-meta-value mono"></span>
+						</div>
+					</div>
+					<div class="device-card-hint">
+						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+						Click to add
 					</div>
 				`;
-				refs.name = tile.querySelector('.device-tile-main strong');
-				refs.id = tile.querySelector('.device-tile-main span');
-				refs.ip = tile.querySelector('.device-tile-info span');
+				refs.name = tile.querySelector('.device-card-name');
+				refs.id = tile.querySelector('.device-card-id');
+				refs.ip = tile.querySelector('.device-card-meta-value');
 			} else {
 				tile.innerHTML = `
-					<div class="device-tile-main">
-						<strong style="font-size:15px;"></strong>
-						<span class='mono' style="font-size:12px;"></span>
+					<div class="device-card-header">
+						<div class="device-card-identity">
+							<span class="device-card-status-dot"></span>
+							<div style="display:flex;flex-direction:column;min-width:0;">
+								<span class="device-card-name"></span>
+								<span class="device-card-status-text"></span>
+							</div>
+						</div>
+						<span class="device-card-id mono"></span>
 					</div>
-					<div class="device-tile-info mono">
-						<span></span>
-						<span></span>
-						<span></span>
-						<span></span>
+					<div class="device-card-meta">
+						<div class="device-card-meta-item">
+							<span class="device-card-meta-label">Group</span>
+							<span class="device-card-meta-value"></span>
+						</div>
+						<div class="device-card-meta-item">
+							<span class="device-card-meta-label">IP Address</span>
+							<span class="device-card-meta-value mono"></span>
+						</div>
+						<div class="device-card-meta-item wide">
+							<span class="device-card-meta-label">Source</span>
+							<span class="device-card-meta-value"></span>
+						</div>
 					</div>
-					<div class="device-stats">
-						<span></span>
-						<span></span>
-						<span></span>
+					<div class="device-card-stats">
+						<div class="device-card-stat"><span class="device-card-stat-label">CPU</span><span class="device-card-stat-value"></span></div>
+						<div class="device-card-stat"><span class="device-card-stat-label">Temp</span><span class="device-card-stat-value"></span></div>
+						<div class="device-card-stat"><span class="device-card-stat-label">Mem</span><span class="device-card-stat-value"></span></div>
 					</div>
 				`;
-				refs.name = tile.querySelector('.device-tile-main strong');
-				refs.id = tile.querySelector('.device-tile-main span');
-				const infoSpans = tile.querySelectorAll('.device-tile-info span');
-				refs.group = infoSpans[0];
-				refs.ip = infoSpans[1];
-				refs.source = infoSpans[2];
-				refs.status = infoSpans[3];
-				refs.stats = tile.querySelector('.device-stats');
-				const statSpans = refs.stats.querySelectorAll('span');
-				refs.cpu = statSpans[0];
-				refs.temp = statSpans[1];
-				refs.mem = statSpans[2];
+				const metaValues = tile.querySelectorAll('.device-card-meta-value');
+				const statValues = tile.querySelectorAll('.device-card-stat-value');
+				refs.name = tile.querySelector('.device-card-name');
+				refs.statusText = tile.querySelector('.device-card-status-text');
+				refs.id = tile.querySelector('.device-card-id');
+				refs.group = metaValues[0];
+				refs.ip = metaValues[1];
+				refs.source = metaValues[2];
+				refs.stats = tile.querySelector('.device-card-stats');
+				refs.cpu = statValues[0];
+				refs.temp = statValues[1];
+				refs.mem = statValues[2];
 			}
 
 			return refs;
@@ -208,8 +235,9 @@
 		function updateDeviceTile(refs, dev) {
 			if (refs.isDiscovered) {
 				refs.name.textContent = dev.deviceName;
+				refs.name.title = dev.deviceName;
 				refs.id.textContent = dev.deviceId;
-				refs.ip.textContent = `IP: ${dev.ip}`;
+				refs.ip.textContent = dev.ip;
 				refs.root.onclick = async () => {
 					try {
 						const response = await fetch(`/api/device/${dev.deviceId}`, {
@@ -235,14 +263,16 @@
 				return;
 			}
 
-			refs.root.className = 'device-tile' + (dev.status === 'online' ? ' active' : '');
+			refs.root.dataset.status = dev.status === 'online' ? 'online' : 'offline';
 			refs.name.textContent = dev.name;
+			refs.name.title = dev.name;
+			refs.statusText.textContent = dev.status;
 			refs.id.textContent = dev.id;
-			refs.group.textContent = `Group: ${dev.group}`;
-			refs.ip.textContent = `IP: ${dev.ip}`;
-			refs.source.textContent = `Source: ${(!dev.currentSource || String(dev.currentSource).toLowerCase() === 'none') ? 'None' : dev.currentSource}`;
-			refs.status.textContent = dev.status;
-			refs.status.style.color = dev.status === 'online' ? 'rgb(129, 193, 39)' : '#888';
+			refs.group.textContent = dev.group || 'Ungrouped';
+			refs.ip.textContent = dev.ip;
+			const sourceText = (!dev.currentSource || String(dev.currentSource).toLowerCase() === 'none') ? 'None' : dev.currentSource;
+			refs.source.textContent = sourceText;
+			refs.source.title = sourceText;
 
 			const showStats = !!(dev.systemStats && dev.status === 'online');
 			refs.stats.style.display = showStats ? '' : 'none';
@@ -251,11 +281,11 @@
 				const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
 				const tempColor = dev.systemStats.temperature > 78 ? '#f87171' : dev.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
 				const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
-				refs.cpu.textContent = `CPU ${dev.systemStats.cpu}%`;
+				refs.cpu.textContent = `${dev.systemStats.cpu}%`;
 				refs.cpu.style.color = cpuColor;
-				refs.temp.textContent = `TEMP ${tempF}°F`;
+				refs.temp.textContent = `${tempF}°F`;
 				refs.temp.style.color = tempColor;
-				refs.mem.textContent = `MEM ${dev.systemStats.memory.percent}%`;
+				refs.mem.textContent = `${dev.systemStats.memory.percent}%`;
 				refs.mem.style.color = memColor;
 			}
 

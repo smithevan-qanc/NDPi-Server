@@ -349,52 +349,239 @@ body::-webkit-scrollbar {
     color: #888;
 }
 
-.device-tile {
-	flex: 2;
-	min-width: 240px;
+/**
+ *  Device card — the one component used to represent a Client device
+ *  everywhere it appears as a tile: dashboard.html, devices.html,
+ *  group.html, and device-discovery.html. Status (online/offline/
+ *  discovered) is read off a `data-status` attribute on the root element
+ *  rather than a grab-bag of modifier classes, so every consumer stays
+ *  visually consistent by construction.
+ */
+.device-card {
+	position: relative;
+	flex: 1 1 320px;
+	max-width: 420px;
+	min-width: 260px;
+	box-sizing: border-box;
 	backdrop-filter: blur(8px);
-	padding: 12px 14px;
-	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.04);
 	border: 1px solid rgba(255, 255, 255, 0.1);
-	background: rgba(129, 193, 39, 0.08);
+	border-left: 3px solid #666;
+	border-radius: 10px;
+	padding: 14px 16px;
 	cursor: pointer;
 	user-select: none;
-	transition: all 0.4s ease-in-out;
-	font-size: 13px;
-	width: 100%;
-	box-sizing: border-box;
+	transition: all 0.3s ease-in-out;
 	display: flex;
-	/* justify-content: space-between; */
-	justify-content: flex-end;
-	flex-wrap: wrap;
-	align-items: end;
-	gap: 16px 32px;
+	flex-direction: column;
+	gap: 12px;
 }
 
-.device-tile.active:hover,
-.device-tile:hover {
+.device-card:hover {
 	backdrop-filter: blur(12px);
-	background: rgba(255, 255, 255, 0.06);
+	background: rgba(255, 255, 255, 0.07);
+	box-shadow: 0px 0px 8px rgba(200, 200, 200, 0.15);
+	transform: translateY(-1px);
+}
+
+.device-card[data-status="online"] {
+	border-left-color: var(--primary-color-green);
+}
+
+.device-card[data-status="online"]:hover {
 	border-color: rgba(129, 193, 39, 0.5);
-	box-shadow: 0px 0px 5px rgba(200, 200, 200, 0.2);
+	border-left-color: var(--primary-color-green);
 }
 
-.device-tile.active {
-    border-color: var(--primary-color-green);
-    background: rgba(129, 193, 39, 0.08);
+.device-card[data-status="offline"] {
+	opacity: 0.75;
 }
 
-.discovered-device { 
-	border-color: #ffa500; 
-	background: rgba(255,165,0,0.12); 
+.device-card[data-status="discovered"] {
 	border-style: dashed;
+	border-left-style: solid;
+	border-left-color: #ffa500;
+	background: rgba(255, 165, 0, 0.06);
 }
 
-.discovered-device:hover {
-	backdrop-filter: blur(12px);
-	background: rgba(255,165,0,0.20); 
+.device-card[data-status="discovered"]:hover {
+	border-color: rgba(255, 165, 0, 0.5);
+	border-left-color: #ffa500;
 	border-style: solid;
+	background: rgba(255, 165, 0, 0.12);
+}
+
+.device-card-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.device-card-identity {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.device-card-status-dot {
+	flex: none;
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: #888;
+	box-shadow: 0 0 0 3px rgba(136, 136, 136, 0.15);
+}
+
+.device-card[data-status="online"] .device-card-status-dot {
+	background: var(--primary-color-green);
+	box-shadow: 0 0 0 3px rgba(129, 193, 39, 0.2);
+}
+
+.device-card[data-status="discovered"] .device-card-status-dot {
+	background: #ffa500;
+	box-shadow: 0 0 0 3px rgba(255, 165, 0, 0.2);
+}
+
+.device-card-name {
+	font-size: 16px;
+	font-weight: 600;
+	color: #fff;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.device-card-status-text {
+	font-size: 11px;
+	color: #888;
+	text-transform: capitalize;
+}
+
+.device-card[data-status="online"] .device-card-status-text {
+	color: var(--primary-color-green);
+}
+
+.device-card[data-status="discovered"] .device-card-status-text {
+	color: #ffa500;
+}
+
+.device-card-id {
+	flex: none;
+	font-size: 11px;
+	color: #888;
+	opacity: 0.7;
+	text-transform: uppercase;
+}
+
+.device-card-meta {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 10px 16px;
+}
+
+.device-card-meta-item {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.device-card-meta-item.wide {
+	grid-column: 1 / -1;
+}
+
+.device-card-meta-label {
+	font-size: 10px;
+	color: #888;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.device-card-meta-value {
+	font-size: 13px;
+	color: #ddd;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.device-card-hint {
+	font-size: 13px;
+	color: #ffa500;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.device-card-stats {
+	display: flex;
+	gap: 8px;
+	padding-top: 10px;
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.device-card-stat {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	padding: 6px 4px;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.03);
+	min-width: 0;
+}
+
+.device-card-stat-label {
+	font-size: 9px;
+	color: #888;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.device-card-stat-value {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.device-card-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.device-card-icon-btn {
+	flex: none;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	color: #bbb;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.device-card-icon-btn:hover {
+	background: rgba(255, 255, 255, 0.08);
+	color: #fff;
 	box-shadow: 0px 0px 5px rgba(200, 200, 200, 0.2);
+}
+
+.device-card-icon-btn.danger:hover {
+	background: rgba(220, 80, 80, 0.8);
+	color: #fff;
+	border-color: rgba(220, 80, 80, 0.9);
+}
+
+.device-card-icon-btn svg {
+	width: 15px;
+	height: 15px;
 }
 
 .discovery-card {
@@ -408,76 +595,10 @@ body::-webkit-scrollbar {
     margin-bottom: 20px;
 }
 
-.device-details {
-    text-align: left;
-}
-
-.device-tile-main {
-	display: flex;
-	flex-direction: column;
-	width: -webkit-fill-available;
-	gap: 6px;
-	/* margin: 15px; */
-}
-
-.device-tile-name {
-	font-size: 16px;
-	font-weight: 600;
-	color: #fff;
-}
-
-.device-tile-info {
-	display: flex;
-	flex-direction: column;
-	flex-wrap: wrap;
-	font-size: 14px;
-	color: #888;
-	width: 100%;
-	justify-content: space-between;
-}
-
-.device-tile-stats {
-	display: flex;
-	max-width: 450px;
-	justify-content: space-between;
-	gap: 15px;
-	font-size: 13px;
-}
-
-.device-stats {
-	display: flex;
-	gap: 16px;
-	font-size: 12px;
-	width: -webkit-fill-available;
-	padding-top: 8px;
-	border-top: 1px solid rgba(255,255,255,0.1);
-}
-
-.device-tile-remove {
-	background: #f7606020;
-	border: 1px solid #f87171;
-	color: #f87171;
-	padding: 8px 16px;
-	border-radius: 6px;
-	cursor: pointer;
-	font-size: 13px;
-}
-
-.device-tile-remove:hover {
-	background: #f87272;
-	color: #000000;
-	box-shadow: 0px 0px 5px rgba(200, 200, 200, 0.2);
-}
-
 @media (max-width: 600px) {
-    .device-tile {
-        flex-direction: column;
-        /* gap: 12px; */
-        align-items: flex-start;
-    }
-    .device-tile-remove {
-        width: -webkit-fill-available;
-    }
+	.device-card {
+		flex-basis: 100%;
+	}
 }
 
 .device-spacer {
@@ -606,12 +727,6 @@ body::-webkit-scrollbar {
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF TILES css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ GRIDS ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
-
-.devices-grid {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-}
 
 .devices-grid {
 	display: flex;

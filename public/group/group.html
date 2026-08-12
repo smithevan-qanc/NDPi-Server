@@ -238,52 +238,62 @@
 
 		function createGroupDeviceTile(dev) {
 			const tile = document.createElement('div');
-			tile.className = 'device-tile';
+			tile.className = 'device-card';
 			tile.dataset.deviceId = dev.id || dev.deviceId;
 			tile.innerHTML = `
-				<div class="device-tile-main">
-					<div class="device-tile-name">
-						<span></span>
-						⌇ <span class="device-tile-devname"></span>
-					</div>
-					<div class="device-tile-info mono">
-						<div style='flex:2;'><code></code></div>
-						<div style='flex:4; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'></div>
-					</div>
-					<div class="device-stats" style="display:none;">
-						<span></span>
-						<span></span>
-						<span></span>
+				<div class="device-card-header">
+					<div class="device-card-identity">
+						<span class="device-card-status-dot"></span>
+						<div style="display:flex;flex-direction:column;min-width:0;">
+							<span class="device-card-name"></span>
+							<span class="device-card-status-text"></span>
+						</div>
 					</div>
 				</div>
-				<button class="device-tile-remove" style="display:none;"></button>
-				<button class="device-tile-remove">
-					TV Power |
-					<span style="font-weight: 800;">ON</span>
-				</button>
-				<button class="device-tile-remove">
-					TV Power |
-					<span style="font-weight: 800;">OFF</span>
-				</button>
+				<div class="device-card-meta">
+					<div class="device-card-meta-item">
+						<span class="device-card-meta-label">IP Address</span>
+						<span class="device-card-meta-value mono"></span>
+					</div>
+					<div class="device-card-meta-item">
+						<span class="device-card-meta-label">Source</span>
+						<span class="device-card-meta-value"></span>
+					</div>
+				</div>
+				<div class="device-card-stats" style="display:none;">
+					<div class="device-card-stat"><span class="device-card-stat-label">CPU</span><span class="device-card-stat-value"></span></div>
+					<div class="device-card-stat"><span class="device-card-stat-label">Temp</span><span class="device-card-stat-value"></span></div>
+					<div class="device-card-stat"><span class="device-card-stat-label">Mem</span><span class="device-card-stat-value"></span></div>
+				</div>
+				<div class="device-card-actions">
+					<button class="device-card-icon-btn" data-action="remove" style="display:none;" title="Remove from group">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>
+					</button>
+					<button class="device-card-icon-btn" data-action="cec-on" title="TV Power On (CEC)">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"></path><path d="M18.4 6.6a9 9 0 1 1-12.77.04"></path></svg>
+					</button>
+					<button class="device-card-icon-btn danger" data-action="cec-off" title="TV Power Off (CEC)">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"></path><path d="M18.4 6.6a9 9 0 1 1-12.77.04"></path><path d="M4 4l16 16"></path></svg>
+					</button>
+				</div>
 			`;
 
-			const infoDivs = tile.querySelectorAll('.device-tile-info > div');
-			const statSpans = tile.querySelectorAll('.device-stats span');
-			const removeButtons = tile.querySelectorAll('.device-tile-remove');
+			const metaValues = tile.querySelectorAll('.device-card-meta-value');
+			const statValues = tile.querySelectorAll('.device-card-stat-value');
 
 			const refs = {
 				root: tile,
-				statusSpan: tile.querySelector('.device-tile-name span'),
-				nameSpan: tile.querySelector('.device-tile-devname'),
-				ipCode: tile.querySelector('.device-tile-info code'),
-				sourceDiv: infoDivs[1],
-				stats: tile.querySelector('.device-stats'),
-				cpu: statSpans[0],
-				temp: statSpans[1],
-				mem: statSpans[2],
-				removeButton: removeButtons[0],
-				cecOnButton: removeButtons[1],
-				cecOffButton: removeButtons[2],
+				statusText: tile.querySelector('.device-card-status-text'),
+				nameSpan: tile.querySelector('.device-card-name'),
+				ipValue: metaValues[0],
+				sourceValue: metaValues[1],
+				stats: tile.querySelector('.device-card-stats'),
+				cpu: statValues[0],
+				temp: statValues[1],
+				mem: statValues[2],
+				removeButton: tile.querySelector('[data-action="remove"]'),
+				cecOnButton: tile.querySelector('[data-action="cec-on"]'),
+				cecOffButton: tile.querySelector('[data-action="cec-off"]'),
 			};
 
 			const deviceId = dev.id || dev.deviceId;
@@ -296,17 +306,16 @@
 
 		function updateGroupDeviceTile(refs, dev) {
 			const deviceId = dev.id || dev.deviceId;
-			const statusColor = dev.status === 'online' ? 'rgb(129, 193, 39)' : '#888';
 
-			refs.root.classList.toggle('active', dev.status === 'online');
-			refs.statusSpan.textContent = dev.status;
-			refs.statusSpan.style.color = statusColor;
+			refs.root.dataset.status = dev.status === 'online' ? 'online' : 'offline';
+			refs.statusText.textContent = dev.status;
 			refs.nameSpan.textContent = dev.name;
-			refs.ipCode.textContent = dev.ip;
+			refs.nameSpan.title = dev.name;
+			refs.ipValue.textContent = dev.ip;
 
 			const sourceText = isNoSource(dev.currentSource) ? 'No Active Source' : dev.currentSource;
-			refs.sourceDiv.textContent = sourceText;
-			refs.sourceDiv.title = sourceText;
+			refs.sourceValue.textContent = sourceText;
+			refs.sourceValue.title = sourceText;
 
 			const showStats = !!(dev.systemStats && dev.status === 'online');
 			refs.stats.style.display = showStats ? '' : 'none';
@@ -315,17 +324,16 @@
 				const tempColor = dev.systemStats.temperature > 70 ? '#f87171' : dev.systemStats.temperature > 55 ? '#fbbf24' : '#4ade80';
 				const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
 				const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
-				refs.cpu.textContent = `CPU ${dev.systemStats.cpu}%`;
+				refs.cpu.textContent = `${dev.systemStats.cpu}%`;
 				refs.cpu.style.color = cpuColor;
-				refs.temp.textContent = `TEMP ${tempF}°F`;
+				refs.temp.textContent = `${tempF}°F`;
 				refs.temp.style.color = tempColor;
-				refs.mem.textContent = `MEM ${dev.systemStats.memory.percent}%`;
+				refs.mem.textContent = `${dev.systemStats.memory.percent}%`;
 				refs.mem.style.color = memColor;
 			}
 
 			if (account.isAdmin) {
 				refs.removeButton.style.display = '';
-				refs.removeButton.textContent = 'Remove';
 				refs.removeButton.onclick = (e) => { e.stopPropagation(); removeDeviceFromGroup(deviceId, dev.name); };
 			} else {
 				refs.removeButton.style.display = 'none';
