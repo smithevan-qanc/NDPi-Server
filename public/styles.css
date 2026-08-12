@@ -6,7 +6,7 @@
 	--primary-color-green: rgba(129, 193, 39, 1);
 	--topbar-height: 7vh;
 	--bottombar-height: 7vh;
-	--main-body-padding: 16px;
+	--main-body-padding: 2vw;
 }
 
 html, body { 
@@ -58,13 +58,13 @@ body::-webkit-scrollbar {
 */
 .app {
 	min-height: 100%;
-	padding-left: var(--main-body-padding);
+	padding-top: calc(var(--topbar-height) + var(--main-body-padding));
 	padding-right: var(--main-body-padding);
+	padding-bottom: calc(var(--bottombar-height) + var(--main-body-padding));
+	padding-left: var(--main-body-padding);
 	display: flex;
 	flex-direction: column;
 	gap: var(--main-body-padding);
-	padding-bottom: calc(var(--bottombar-height) + var(--main-body-padding));
-	padding-top: calc(var(--topbar-height) + var(--main-body-padding));
 }
 /*
     TOP
