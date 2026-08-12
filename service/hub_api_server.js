@@ -10,6 +10,7 @@ const NDIStreamManager = require('./NDIStreamManager');
 const { v4: uuidv4 } = require('uuid');
 const http_lib = require('http');
 const bonjour = require('bonjour')();
+const func = require('./functions.js');
 
 
 // Python NDI server configuration
@@ -2045,6 +2046,31 @@ class NDPiCommandServer_Client extends EventEmitter {
         .route('/api/system/network')
         .post((req, res) => {
             res.status(501).json({ error: 'Hub network reconfiguration is not implemented.' });
+        });
+
+        // Software update for the Hub itself -- same sh/check-for-update and
+        // sh/install-update scripts the Client uses on itself, just run
+        // directly here instead of over a device command channel (there's
+        // no "other machine" to relay to; the Hub is checking/updating its
+        // own install). Result lands in the ndpi_version_update_available /
+        // ndpi_version_update_version settings (hub_fs.js), which the
+        // already-existing /ws/system feed pushes to the browser.
+        this.Routes
+        .route('/api/system/check-for-update')
+        .post((req, res) => {
+            res.json({ success: true, message: 'Checking for update...' });
+            func.checkForUpdate().catch((error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'check-for-update', error.message);
+            });
+        });
+
+        this.Routes
+        .route('/api/system/install-update')
+        .post((req, res) => {
+            res.json({ success: true, message: 'Installing update...' });
+            func.updateInstall().catch((error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'install-update', error.message);
+            });
         });
     }
 

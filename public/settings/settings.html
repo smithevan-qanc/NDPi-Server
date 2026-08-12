@@ -127,6 +127,20 @@
 				</div>
 			`;
 
+			const section_SoftwareUpdate = document.createElement('div');
+			section_SoftwareUpdate.className = 'card';
+			section_SoftwareUpdate.innerHTML = `
+				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+					<h2>Software Update</h2>
+					<div class="settings-row">
+						<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
+							<button onclick="checkForHubUpdate()" class="button-subtle">Check for Update</button>
+							<button onclick="installHubUpdate()" id="installHubUpdateBtn" class="button-primary" hidden>Install Update</button>
+						</div>
+					</div>
+				</div>
+			`;
+
 			const section_SystemControls = document.createElement('div');
 			section_SystemControls.className = 'card';
 			//section_SystemControls.style.gridColumn = 1 / -1;
@@ -214,6 +228,7 @@
 			mainContainer.appendChild(section_UserPreferences);
 			mainContainer.appendChild(section_ScreenSaver);
 			mainContainer.appendChild(section_ServerManagement);
+			mainContainer.appendChild(section_SoftwareUpdate);
 
 			if (account.isAdmin) {
 				mainContainer.appendChild(section_SystemControls);
@@ -574,6 +589,79 @@
 				}
 			} catch (e) {
 				toast.error('Error restarting server');
+			}
+		}
+
+		/**
+		 *  Software Update (for the Hub itself) -- mirrors
+		 *  Client__v3_1_0/public/system.js's own update UI exactly: a direct
+		 *  `/ws/system` connection (this Hub's own settings feed, see
+		 *  hub_api_server.js's __ws_HubSystem()) pushes the full settings
+		 *  snapshot on connect and again any time a setting changes;
+		 *  watching for `ndpi_version_update_available` there is what shows/
+		 *  hides the Install button, same as the Client does for
+		 *  `check_device_update`/`device_update`.
+		 */
+		let hubSystemSocket = null;
+		let hubSystemReconnectTimer = null;
+
+		function connectHubSystemSocket() {
+			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+			hubSystemSocket = new WebSocket(`${protocol}//${window.location.host}/ws/system`);
+
+			hubSystemSocket.onmessage = (event) => {
+				try {
+					const tuples = JSON.parse(event.data);
+					if (!Array.isArray(tuples)) return;
+					const entry = tuples.find(([key]) => key === 'ndpi_version_update_available');
+					const installBtn = document.getElementById('installHubUpdateBtn');
+					if (!installBtn || !entry) return;
+					const hasUpdate = String(entry[1].value) === 'true';
+					installBtn.hidden = !hasUpdate;
+					installBtn.disabled = !hasUpdate;
+				} catch (e) {
+					console.error('Invalid /ws/system message:', e);
+				}
+			};
+			hubSystemSocket.onclose = () => {
+				clearTimeout(hubSystemReconnectTimer);
+				hubSystemReconnectTimer = setTimeout(connectHubSystemSocket, 5000);
+			};
+			hubSystemSocket.onerror = () => {};
+		}
+		connectHubSystemSocket();
+
+		window.addEventListener('beforeunload', () => {
+			clearTimeout(hubSystemReconnectTimer);
+			try { hubSystemSocket && hubSystemSocket.close(); } catch (e) {}
+		});
+
+		async function checkForHubUpdate() {
+			try {
+				const res = await fetch('/api/system/check-for-update', { method: 'POST' });
+				if (res.ok) {
+					toast.info('Checking for update...');
+				} else {
+					toast.error('Failed to check for update');
+				}
+			} catch (e) {
+				toast.error('Error checking for update');
+			}
+		}
+
+		async function installHubUpdate() {
+			const confirmed = await modal.confirm('Install the available update on this Hub? The Hub server will restart its services.', 'Install Update', { confirmText: 'Install' });
+			if (!confirmed) return;
+			try {
+				const res = await fetch('/api/system/install-update', { method: 'POST' });
+				if (res.ok) {
+					toast.info('Installing update...');
+					setTimeout(() => window.location.reload(), 5000);
+				} else {
+					toast.error('Failed to install update');
+				}
+			} catch (e) {
+				toast.error('Error installing update');
 			}
 		}
 

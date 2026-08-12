@@ -137,9 +137,34 @@ async function checkForUpdate() {
     });
 }
 
+async function updateInstall() {
+    let response = {
+        success: false,
+        message: '',
+    };
+    await new Promise((resolve) => {
+        exec(path.join(__dirname, '..', 'sh', 'install-update'), (error, stdout, stderr) => {
+            if (error)
+            {
+                response.message = stdoutToArray(stderr).join('. ').toString();
+                resolve();
+            }
+            else
+            {
+                response.data = stdoutToArray(stdout);
+                response.success = true;
+                response.message = 'Update Installed';
+                resolve();
+            }
+        });
+    });
+    return response;
+}
+
 module.exports = {
     stdoutToArray,
     waitForNetwork,
     setDisplayResolution,
     checkForUpdate,
+    updateInstall,
 };
