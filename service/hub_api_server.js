@@ -2235,6 +2235,38 @@ class NDPiCommandServer_Client extends EventEmitter {
         try { this.ws_serv_devices_system?.close(); } catch {}
         try { this.ws_serv_devices_stats?.close(); } catch {}
 
+        // The wss.close() calls above only stop each server from accepting
+        // *new* connections -- per the `ws` library (these all run in
+        // `noServer` mode), close() does NOT close already-open client
+        // connections, and it won't emit its own 'close' event until they
+        // disconnect on their own. `this.Server.closeAllConnections()` /
+        // `this.Server.close()` further below don't reach them either,
+        // since ownership of the socket is handed off to `ws` during the
+        // 'upgrade' event and Node's http server stops tracking it.
+        // Confirmed empirically: without this, `this.Server.close()`'s
+        // callback simply never fires while any browser tab or Client
+        // device is still connected -- which is effectively always -- so
+        // every graceful shutdown was silently falling through to the 10s
+        // forced-exit watchdog in server.js's quitNDPi(). terminate() (not
+        // close()) is used deliberately: we're forcing a shutdown, not
+        // negotiating one, and terminate() doesn't wait on a close
+        // handshake the other end may never complete.
+        const terminate = (ws) => { try { ws.terminate(); } catch {} };
+        this.ws_conn_gui.forEach((_info, ws) => terminate(ws));
+        this.ws_conn_hub_system.forEach(terminate);
+        this.ws_conn_hub_stats.forEach(terminate);
+        this.ws_conn_devices_system.forEach(terminate);
+        this.ws_conn_devices_stats.forEach(terminate);
+        this.ws_conn_sources.forEach(terminate);
+        this.deviceConnections.forEach(terminate);
+        this.ws_conn_gui.clear();
+        this.ws_conn_hub_system.clear();
+        this.ws_conn_hub_stats.clear();
+        this.ws_conn_devices_system.clear();
+        this.ws_conn_devices_stats.clear();
+        this.ws_conn_sources.clear();
+        this.deviceConnections.clear();
+
         if (this.hubStatsSendInterval)
         {
             clearInterval(this.hubStatsSendInterval);
