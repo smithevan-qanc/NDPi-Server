@@ -1333,7 +1333,7 @@ class NDPiCommandServer_Client extends EventEmitter {
          *  specific /api/* route above — Express matches routes in
          *  registration order, and `/:page/:ext/` (two path segments) would
          *  otherwise shadow any two-segment API path (e.g. `/api/devices`,
-         *  `/api/groups`, `/api/account`, `/api/resolution`) before it ever
+         *  `/api/groups`, `/api/account`, `/api/setting`) before it ever
          *  reaches its real handler.
          */
         this.Routes.route('/test-page').get((req, res) => {
@@ -1966,41 +1966,31 @@ class NDPiCommandServer_Client extends EventEmitter {
             res.json({ success: true });
         });
 
+        // Generic write path for the Hub's own settings (hub_fs.js's
+        // fileMap) -- the Hub-side equivalent of Client__v3_1_0's remote
+        // settings editor (`set-setting` command -> this.settings.put()).
+        // Same shape as the per-device settings route
+        // (deviceCommandRoute('setting', ...), body: {name, value}), and
+        // deliberately just as permissive: like the Client's own
+        // updateSetting(), this only checks that the key exists, it doesn't
+        // enforce allowEditExternal server-side (that flag is UI-only).
+        // Currently used for output_display_resolution_preference (Display
+        // Resolution on settings.html) -- writing it triggers the existing
+        // this.settings.on('output_display_resolution_preference', ...)
+        // listener in server.js, which calls func.setDisplayResolution()
+        // (xrandr + openbox restart), exactly mirroring how the Client
+        // applies its own output_display_resolution_preference changes.
         this.Routes
-        .route('/api/resolution')
-        .get((req, res) => {
-            exec('DISPLAY=:0 xrandr', (error, stdout, stderr) => {
-                if (error)
-                { return res.status(500).json({ error: true, message: stderr }); }
-
-                let resObj = { resolutionOptions: [] };
-                const arr = CRLFArray(stdout);
-                arr[0].split(', ').forEach((ln) => {
-                    if (ln.includes('current'))
-                    {
-                        const splt = ln.trim().split(' ');
-                        resObj.currentSize = `${splt[1]}x${splt[3]}`;
-                    }
-                });
-                arr.forEach((ln) => {
-                    const str = ln.trim();
-                    if (/^[1-9]/.test(str))
-                    { resObj.resolutionOptions.push(str.split(' ')[0]); }
-                });
-                res.json(resObj);
-            });
-        })
+        .route('/api/setting')
         .post((req, res) => {
-            const { output, resolution, rate } = req.body;
-            if (!resolution)
-            { return res.status(400).json({ error: true, message: 'Missing resolution. (e.g. 1920x1080)' }); }
+            const { name, value } = req.body;
+            if (!name)
+            { return res.status(400).json({ error: true, message: 'Missing setting name' }); }
+            if (this.settings.get(name) === null)
+            { return res.status(404).json({ error: true, message: `Unknown setting: ${name}` }); }
 
-            exec(`DISPLAY=:0 xrandr --output ${output ? output : 'HDMI-1'} --mode ${resolution}${rate ? ` --rate ${rate}` : ''}`, (error, stdout, stderr) => {
-                if (error)
-                { res.status(400).json({ error: true, message: stderr }); }
-                else
-                { res.json({ error: false, message: `Resolution set: ${resolution}.` }); }
-            });
+            this.settings.put(name, String(value ?? ''));
+            res.json({ success: true });
         });
 
         this.Routes

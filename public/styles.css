@@ -325,7 +325,7 @@ body::-webkit-scrollbar {
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ TILES ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
 .device-section {
-    margin-bottom: 32px;
+    margin-bottom: 0;
 }
 
 .device-section h3 {

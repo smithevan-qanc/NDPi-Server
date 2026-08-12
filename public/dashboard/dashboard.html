@@ -120,46 +120,9 @@
 				</div>
 			</div>
 
-			<!-- Test Resolution Section -->
-			<div class="card">
-				<h2>Resolution</h2>
-				<div class="card-content">
-					<button onclick="setResolution('HDMI-1', '1920x1080', '60')" class="button-primary">1920x1080</button>
-					<button onclick="setResolution('HDMI-1', '2560x1440', '60')" class="button-primary">2560x1440</button>
-					<button onclick="setResolution('HDMI-1', '3840x2160', '60')" class="button-primary">3840x2160</button>
-				</div>
-			</div>
 		</section>
 	</div>
 	<script src="/scripts/functions.js"></script>
-
-	
-	<script>
-		async function setResolution(output, resolution, rate) {
-			let body = {};
-			if (output) body.output = output;
-			if (resolution) body.resolution = resolution;
-			if (rate) body.rate = rate;
-			try {
-				if (!body) throw new Error('Resolution Not Provided');
-				const res = await fetch('/api/resolution', { 
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(body),
-				});
-				
-				if (!res.ok) {
-					const err = await res.json();
-					throw new Error(err.message);		
-				} else {
-					const resData = await res.json();
-					toast.success(resData.message);
-				}
-			} catch (err) {
-				toast.error(`${err}`)
-			}
-		}
-	</script>
 
 
 	<script>

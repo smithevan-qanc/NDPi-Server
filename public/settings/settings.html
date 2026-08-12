@@ -127,6 +127,23 @@
 				</div>
 			`;
 
+			const section_DisplayResolution = document.createElement('div');
+			section_DisplayResolution.className = 'card';
+			section_DisplayResolution.innerHTML = `
+				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+					<h2>Display Resolution</h2>
+					<div class="settings-row">
+						<div class="info-grid" id="displayResolutionInfo" style="margin-top:8px; margin-left:8px; margin-right:8px;">
+							<p style="color:#888;grid-column:1/-1;">Loading display info...</p>
+						</div>
+						<div style="display:flex; align-items:center; gap:10px; margin-top:16px; margin-left:8px; flex-wrap:wrap;">
+							<label for="resolutionPreferenceSelect" class="settings-label">Resolution</label>
+							<select id="resolutionPreferenceSelect" class="mono" onchange="saveResolutionPreference(this.value)" disabled></select>
+						</div>
+					</div>
+				</div>
+			`;
+
 			const section_SoftwareUpdate = document.createElement('div');
 			section_SoftwareUpdate.className = 'card';
 			section_SoftwareUpdate.innerHTML = `
@@ -228,6 +245,7 @@
 			mainContainer.appendChild(section_UserPreferences);
 			mainContainer.appendChild(section_ScreenSaver);
 			mainContainer.appendChild(section_ServerManagement);
+			mainContainer.appendChild(section_DisplayResolution);
 			mainContainer.appendChild(section_SoftwareUpdate);
 
 			if (account.isAdmin) {
@@ -613,12 +631,16 @@
 				try {
 					const tuples = JSON.parse(event.data);
 					if (!Array.isArray(tuples)) return;
+
 					const entry = tuples.find(([key]) => key === 'ndpi_version_update_available');
 					const installBtn = document.getElementById('installHubUpdateBtn');
-					if (!installBtn || !entry) return;
-					const hasUpdate = String(entry[1].value) === 'true';
-					installBtn.hidden = !hasUpdate;
-					installBtn.disabled = !hasUpdate;
+					if (installBtn && entry) {
+						const hasUpdate = String(entry[1].value) === 'true';
+						installBtn.hidden = !hasUpdate;
+						installBtn.disabled = !hasUpdate;
+					}
+
+					renderDisplayResolutionInfo(tuples);
 				} catch (e) {
 					console.error('Invalid /ws/system message:', e);
 				}
@@ -662,6 +684,94 @@
 				}
 			} catch (e) {
 				toast.error('Error installing update');
+			}
+		}
+
+		/**
+		 *  Display Resolution -- backend works exactly like the Client's own
+		 *  handling of its output display (Client__v3_1_0/service/client_fs.js
+		 *  + index.js): output_display_* is a normal fileMap setting group,
+		 *  DRM-detected and kept current by hub_fs.js's updateOutputDisplayFiles(),
+		 *  and writing output_display_resolution_preference triggers the
+		 *  server.js listener that already calls func.setDisplayResolution()
+		 *  (xrandr + openbox restart) -- same mechanism Client's index.js uses
+		 *  for itself. This UI just reads/writes that setting generically over
+		 *  /ws/system + POST /api/setting, the same pattern device.html uses
+		 *  for a remote device's settings.
+		 */
+		function renderDisplayResolutionInfo(tuples) {
+			const infoGrid = document.getElementById('displayResolutionInfo');
+			const select = document.getElementById('resolutionPreferenceSelect');
+			if (!infoGrid || !select) return;
+
+			const getEntry = (key) => {
+				const found = tuples.find(([k]) => k === key);
+				return found ? found[1] : null;
+			};
+
+			const port = getEntry('output_display_port');
+			if (!port || !port.value) {
+				infoGrid.innerHTML = '<p style="color:#888;grid-column:1/-1;">No display detected.</p>';
+				select.innerHTML = '';
+				select.disabled = true;
+				return;
+			}
+
+			const current = getEntry('output_display_resolution_current');
+			const currentFR = getEntry('output_display_framerate_current');
+			const preferred = getEntry('output_display_resolution_preferred');
+			const preferredFR = getEntry('output_display_framerate_preferred');
+			const manufacturer = getEntry('output_display_manufacturer');
+			const model = getEntry('output_display_model');
+			const pref = getEntry('output_display_resolution_preference');
+
+			infoGrid.innerHTML = `
+				<div class="info-item">
+					<span class="info-label">Port</span>
+					<span class="info-value mono">${port.value}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Display</span>
+					<span class="info-value">${[manufacturer && manufacturer.value, model && model.value].filter(Boolean).join(' ') || 'Unknown'}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Current Resolution</span>
+					<span class="info-value mono">${(current && current.value) || 'Unknown'}${currentFR && currentFR.value ? ` @ ${currentFR.value}Hz` : ''}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Preferred Resolution</span>
+					<span class="info-value mono">${(preferred && preferred.value) || 'Unknown'}${preferredFR && preferredFR.value ? ` @ ${preferredFR.value}Hz` : ''}</span>
+				</div>
+			`;
+
+			if (pref && Array.isArray(pref.options) && pref.options.length > 0) {
+				select.disabled = false;
+				select.innerHTML = pref.options.map(([label, value]) =>
+					`<option value="${value}" ${value === pref.value ? 'selected' : ''}>${label}</option>`
+				).join('');
+			} else if (pref) {
+				select.disabled = true;
+				select.innerHTML = `<option value="${pref.value}">${pref.value || 'Unknown'}</option>`;
+			} else {
+				select.disabled = true;
+				select.innerHTML = '';
+			}
+		}
+
+		async function saveResolutionPreference(value) {
+			try {
+				const res = await fetch('/api/setting', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ name: 'output_display_resolution_preference', value }),
+				});
+				if (res.ok) {
+					toast.info('Applying resolution...');
+				} else {
+					toast.error('Failed to set resolution');
+				}
+			} catch (e) {
+				toast.error('Error setting resolution');
 			}
 		}
 
