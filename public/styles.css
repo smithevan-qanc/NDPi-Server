@@ -255,7 +255,8 @@ body::-webkit-scrollbar {
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ LAYER 1 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
 .card {
-	background: rgba(0, 0, 0, 0.03);
+	/* background: rgba(0, 0, 0, 0.03); */
+	background: rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(10px) brightness(1.5);
 	box-shadow: 0 0 80px rgba(0, 0, 0, 0.8);
 	border: 1px solid rgba(255, 255, 255, 0.12);
