@@ -538,7 +538,7 @@ class Toast {
 				animation-delay: 0s, var(--toast-duration, 2s);
 				pointer-events: auto;
 				max-width: 90vw;
-				min-width: clamp(70vw, 400px, 50vw);
+				min-width: clamp(50vw, 300px, 50vw);
 				transition: all 1s ease;
 			}
 			
