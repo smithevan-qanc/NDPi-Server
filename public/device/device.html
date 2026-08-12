@@ -97,7 +97,11 @@
 		}
 
 		function formatUptime(seconds) {
-			if (!seconds || seconds < 0) return '0s';
+			// Called with values relayed verbatim from whatever the Client
+			// device reports (device.ndiInfo.uptime in particular) -- don't
+			// assume it arrives as a well-formed number.
+			seconds = Number(seconds);
+			if (!Number.isFinite(seconds) || seconds < 0) return '0s';
 			seconds = Math.round(seconds);
 			const hours = Math.floor(seconds / 3600);
 			const minutes = Math.floor((seconds % 3600) / 60);
@@ -409,6 +413,13 @@
 			// Update info grid
 			const infoGrid = document.getElementById('infoGrid');
 			if (infoGrid) {
+				// device.ndiInfo is relayed verbatim from whatever the Client
+				// device itself reports (hub_api_server.js's client-status
+				// handler passes message.ndiInfo through unvalidated) -- don't
+				// assume framerate arrives as a number.
+				const framerate = device.ndiInfo ? Number(device.ndiInfo.framerate) : NaN;
+				const framerateLabel = Number.isFinite(framerate) && framerate > 0 ? framerate.toFixed(2) : 'Unknown';
+
 				infoGrid.innerHTML = `
 					<div class="info-item">
 						<span class="info-label">Device ID</span>
@@ -454,7 +465,7 @@
 					<div class="info-item">
 						<span class="info-label">Framerate</span>
 						<div>
-							<span class="info-value mono">${device.ndiInfo.framerate ? device.ndiInfo.framerate.toFixed(2) : 'Unknown'}</span>
+							<span class="info-value mono">${framerateLabel}</span>
 							<span style="font-size: 70%;"> fps</span>
 						</div>
 					</div>
