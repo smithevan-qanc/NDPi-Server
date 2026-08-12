@@ -363,6 +363,7 @@ body::-webkit-scrollbar {
 	/* max-width: 420px; */
 	/* min-width: 260px; */
 	width: stretch;
+	width: -webkit-fill-available;
 	box-sizing: border-box;
 	backdrop-filter: blur(8px);
 	background: rgba(255, 255, 255, 0.04);
