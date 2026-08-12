@@ -570,22 +570,22 @@ class Toast {
 
 			@keyframes toastIn {
 				from {
-					transform: translateX(-50%) translateY(-12px);
+					transform: translateX(-50%) translateY(-50%) translateY(-8px);
 					opacity: 0;
 				}
 				to {
-					transform: translateX(-50%) translateY(0);
+					transform: translateX(-50%) translateY(-50%);
 					opacity: 1;
 				}
 			}
 
 			@keyframes toastOut {
 				from {
-					transform: translateX(-50%) translateY(0);
+					transform: translateX(-50%) translateY(-50%);
 					opacity: 1;
 				}
 				to {
-					transform: translateX(-50%) translateY(-12px);
+					transform: translateX(-50%) translateY(-50%) translateY(-8px);
 					opacity: 0;
 				}
 			}
@@ -603,13 +603,16 @@ class Toast {
 	}
 
 	// Not a child of .topbar -- a sibling fixed overlay whose position is
-	// computed from the topbar's actual rendered bottom edge each time a
-	// toast is shown (rather than once on load), so it stays correctly
-	// centered under the topbar even if the topbar's own height has since
-	// changed (text wrap, viewport resize, etc).
+	// computed from the topbar's actual rendered vertical center each time
+	// a toast is shown (rather than once on load), so it stays correctly
+	// centered on the topbar even if the topbar's own height has since
+	// changed (text wrap, viewport resize, etc). Each .toast then centers
+	// itself on this anchor via translateY(-50%) in its own transform, so
+	// the toast's own height doesn't need to be known here.
 	positionContainer(container) {
 		const topbar = document.querySelector('.topbar');
-		const top = topbar ? topbar.getBoundingClientRect().bottom + 15 : 15;
+		const rect = topbar ? topbar.getBoundingClientRect() : null;
+		const top = rect ? rect.top + (rect.height / 2) : 15;
 		container.style.top = `${top}px`;
 	}
 
