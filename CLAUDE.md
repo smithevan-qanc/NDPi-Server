@@ -635,6 +635,60 @@ instead of deliberately ignoring it. My own new Hub-side code still calls
 these explicitly (`os.arch()`, `os.uptime()`, etc.) rather than relying on
 the coercion quirk — equally correct, just less surprising to read.
 
+**Wired the multi-device pages to the relay endpoints** (follow-up to the
+above, user request). Added a new shared client
+`public/01-scripts/ws-devices.js` (`NDPiDevicesRelay` class), mirroring how
+`ws-client.js` already wraps the single `/ws` GUI connection — one class
+handles connecting to either `/ws/devices/system` or `/ws/devices/stats`,
+buffers the snapshot + live relay messages into a local `cache` keyed by
+deviceId, debounces bursts of per-device updates (200ms) so many devices
+reporting close together coalesce into one re-render instead of one per
+device, and auto-reconnects (5s) like every other socket in this app.
+Exports two pure helper functions used by consuming pages:
+`deriveDeviceStats(raw)` (converts a device's raw `/ws/stats` payload into
+the `{cpu,memory,temperature,uptime}` shape `dev.systemStats` already uses
+everywhere) and `getRelayedSetting(tuples, key)` (pulls one setting's
+`{value,...}` out of a cached `/ws/system` tuple array).
+- **`devices.html`** and **`group.html`**: both now additionally subscribe
+  to the stats relay (updates each tile's `dev.systemStats` /
+  `group.devices[].systemStats`, re-rendering) and the system relay
+  (updates `currentSource` from the live `ndpi_status_ndi_source_target`
+  setting) — supplementing their existing Hub-relayed `ws.onDevicesUpdate`
+  (~5s cadence, stays as the fallback/baseline for Hub-only fields like
+  group/status), so tile stats and source changes now reflect within
+  ~1s instead of ~5s, using one shared connection each rather than one
+  per device.
+- **`dashboard.html`**: same device-tile wiring as above, **plus** this
+  was the page the user explicitly named for the Hub's own `/ws/stats` —
+  replaced the old `ws.onSystemStatsUpdate` handler (fed by the `/ws` GUI
+  socket's ~5s `system-stats` broadcast, backed by the separate
+  `hubSystemStats()` method, left untouched server-side) with a direct
+  connection to the Hub's new dedicated `/ws/stats`, converting its raw
+  shape to the summarized one `updateSystemStats()` already renders
+  (`deriveHubStats()`, same formula as `deriveDeviceStats()` but inlined
+  since it targets different DOM/shape — `diskUsage` has no raw
+  equivalent, kept at `0` matching `hubSystemStats()`'s own placeholder).
+  Also fixed a pre-existing latent bug noticed in passing but out of scope
+  to chase further right now: `ws.onViewersUpdate` unconditionally called
+  `updateViewersDisplay()`, which is fully commented out on this page —
+  guarded with a `typeof` check (matches how `devices.html` already
+  guards the same call) so a viewer-join/leave broadcast doesn't throw.
+- `groups.html` (the plural list page — group *summaries*, not per-device
+  tiles) was **not** wired — it has no per-device data displayed, so
+  neither relay has anything to attach to there.
+- **Verified three ways**: (1) syntax-checked all four edited files'
+  extracted scripts plus the new shared script; (2) unit-tested
+  `deriveDeviceStats()`/`getRelayedSetting()` against real payload shapes
+  (the actual device's captured `/ws/stats` JSON, and realistic
+  `/ws/system` tuples) — correct output confirmed; (3) loaded the *actual,
+  unmodified* `ws-devices.js` file into Node with a minimal
+  `window`/`WebSocket` shim and drove the real `NDPiDevicesRelay` class
+  against the real running Hub plus a fake Client device on a real port —
+  confirmed it correctly connects, receives the snapshot, and derives the
+  right stats/settings shape, as close to an actual browser run as
+  possible without one. Full page/API regression sweep still 200s, clean
+  shutdown throughout.
+
 Still open (lower priority, not blocking, nothing crashes): dead
 `public/0app.js` / `public/01-scripts/set-page.js` (unused, loaded by no
 page); orphaned `showNetworkSettings()`/`cecInactiveSource()`/

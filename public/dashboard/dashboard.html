@@ -6,6 +6,7 @@
 	<link rel="stylesheet" href="/styles.css">
 	<script src="/scripts/auth.js"></script>
 	<script src="/scripts/ws-client.js"></script>
+	<script src="/scripts/ws-devices.js"></script>
 	<script src="/scripts/modal.js"></script>
 	<script src="/scripts/screen-saver.js"></script>
 	<title>NDPi Monitor</title>
@@ -355,13 +356,87 @@
 		// Handle viewer updates from WebSocket
 		ws.onViewersUpdate = (viewers) => {
 			activeViewers = viewers;
-			updateViewersDisplay();
+			if (typeof updateViewersDisplay === 'function') {
+				updateViewersDisplay();
+			}
 		};
 
-		// Handle system stats updates from WebSocket
-		ws.onSystemStatsUpdate = (stats) => {
-			updateSystemStats(stats);
-		};
+		/**
+		 *  This Hub's own live stats — connects directly to the Hub's
+		 *  dedicated /ws/stats (service/hub_api_server.js) instead of the
+		 *  ~5s-cadence system-stats message on the shared /ws GUI socket,
+		 *  matching Client__v3_1_0's own local system.js pattern. The raw
+		 *  os.*-derived payload is converted to the summarized shape
+		 *  updateSystemStats() already expects.
+		 */
+		function deriveHubStats(raw) {
+			if (!raw || !Array.isArray(raw.loadavg) || !Array.isArray(raw.cpus) || !raw.totalmem) return null;
+
+			const totalMem = raw.totalmem;
+			const usedMem = totalMem - raw.freemem;
+
+			return {
+				cpuUsage: Math.round(Math.min(raw.loadavg[0] / raw.cpus.length, 1) * 1000) / 10,
+				cpuTemp: (raw.thermal && raw.thermal.thermal_zone0) || 0,
+				memoryUsage: Math.round((usedMem / totalMem) * 100),
+				memoryTotal: Math.round((totalMem / 1024 / 1024 / 1024) * 10) / 10,
+				memoryUsed: Math.round((usedMem / 1024 / 1024 / 1024) * 10) / 10,
+				diskUsage: 0,
+				loadAverage: raw.loadavg,
+				uptime: raw.osUptime,
+			};
+		}
+
+		let hubStatsSocket = null;
+		let hubStatsReconnectTimer = null;
+		function connectHubStatsSocket() {
+			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+			hubStatsSocket = new WebSocket(`${protocol}//${window.location.host}/ws/stats`);
+
+			hubStatsSocket.onmessage = (event) => {
+				try {
+					const derived = deriveHubStats(JSON.parse(event.data));
+					if (derived) { updateSystemStats(derived); }
+				} catch (e) {
+					console.error('Invalid /ws/stats message:', e);
+				}
+			};
+			hubStatsSocket.onclose = () => {
+				clearTimeout(hubStatsReconnectTimer);
+				hubStatsReconnectTimer = setTimeout(connectHubStatsSocket, 5000);
+			};
+			hubStatsSocket.onerror = () => {};
+		}
+		connectHubStatsSocket();
+
+		/**
+		 *  Multi-device relay — one Hub connection covers every device
+		 *  tile's live stats/settings (see 01-scripts/ws-devices.js).
+		 */
+		const devicesStatsRelay = new NDPiDevicesRelay('stats', (cache) => {
+			let changed = false;
+			devices.forEach((dev) => {
+				const stats = cache[dev.id || dev.deviceId];
+				if (stats) { dev.systemStats = stats; changed = true; }
+			});
+			if (changed) { renderDevices(); }
+		});
+
+		const devicesSystemRelay = new NDPiDevicesRelay('system', (cache) => {
+			let changed = false;
+			devices.forEach((dev) => {
+				const currentSource = getRelayedSetting(cache[dev.id || dev.deviceId], 'ndpi_status_ndi_source_target');
+				if (currentSource) { dev.currentSource = currentSource.value || 'None'; changed = true; }
+			});
+			if (changed) { renderDevices(); }
+		});
+
+		window.addEventListener('beforeunload', () => {
+			clearTimeout(hubStatsReconnectTimer);
+			try { hubStatsSocket && hubStatsSocket.close(); } catch (e) {}
+			devicesStatsRelay.close();
+			devicesSystemRelay.close();
+		});
 
 		// Update system stats display
 		function updateSystemStats(stats) {

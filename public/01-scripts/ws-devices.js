@@ -1,0 +1,126 @@
+/**
+ *  NDPiDevicesRelay — shared client for the Hub's multi-device relay
+ *  endpoints (service/hub_api_server.js: /ws/devices/system,
+ *  /ws/devices/stats). The Hub maintains its own outbound connection to
+ *  every adopted device's own /ws/system and /ws/stats
+ *  (Client__v3_1_0/service/client_api_server.js) and relays every message
+ *  here, tagged by deviceId — so a page showing many devices only opens
+ *  ONE connection to the Hub instead of one per device, and still gets a
+ *  full snapshot immediately on connect instead of sitting blank between
+ *  per-device updates.
+ *
+ *  Usage:
+ *      const relay = new NDPiDevicesRelay('stats', (cache, changedDeviceId) => {
+ *          // cache: { [deviceId]: derivedStats }, changedDeviceId: string|null
+ *      });
+ *      // ... later ...
+ *      relay.close();
+ */
+
+/**
+ * Convert a device's raw /ws/stats payload (client_api_server.js's
+ * getSystemStats() — plain os.* fields) into the same
+ * {cpu,memory,temperature,uptime} shape the Hub's own REST/`/ws`
+ * device-relay already uses (device.systemStats), so existing per-page
+ * rendering code doesn't need to know the two shapes are different.
+ */
+function deriveDeviceStats(raw) {
+	if (!raw || !Array.isArray(raw.loadavg) || !Array.isArray(raw.cpus) || !raw.totalmem) return null;
+
+	const totalMem = raw.totalmem;
+	const usedMem = totalMem - raw.freemem;
+
+	return {
+		cpu: Math.round(Math.min(raw.loadavg[0] / raw.cpus.length, 1) * 1000) / 10,
+		memory: {
+			percent: Math.round((usedMem / totalMem) * 100),
+			used: Math.round((usedMem / 1024 / 1024 / 1024) * 10) / 10,
+			total: Math.round((totalMem / 1024 / 1024 / 1024) * 10) / 10,
+		},
+		temperature: (raw.thermal && raw.thermal.thermal_zone0) || 0,
+		uptime: typeof raw.osUptime === 'number' ? raw.osUptime : 0,
+	};
+}
+
+/**
+ * Look up a single setting's {value,...} object out of a cached
+ * Array.from(fileMap)-shaped tuple array (as delivered by the 'system'
+ * relay), or null if that device/key isn't known yet.
+ */
+function getRelayedSetting(tuples, key) {
+	if (!Array.isArray(tuples)) return null;
+	const entry = tuples.find(([k]) => k === key);
+	return entry ? entry[1] : null;
+}
+
+class NDPiDevicesRelay {
+	/**
+	 * @param {string} kind - 'system' or 'stats' (connects to
+	 *   /ws/devices/<kind>).
+	 * @param {(cache: object, changedDeviceId: string|null) => void} onUpdate
+	 *   - called after the initial snapshot and after every update, debounced
+	 *   so a burst of per-device messages (e.g. many devices reporting
+	 *   stats within the same second) coalesces into one call instead of
+	 *   triggering a re-render per device.
+	 * @param {object} [options]
+	 * @param {number} [options.debounceMs=200]
+	 */
+	constructor(kind, onUpdate, options = {}) {
+		this.kind = kind; // 'system' | 'stats'
+		this.onUpdate = onUpdate || (() => {});
+		this.debounceMs = options.debounceMs ?? 200;
+
+		this.ws = null;
+		this.cache = {}; // deviceId -> latest data (raw tuples for 'system', derived stats for 'stats')
+		this.reconnectTimer = null;
+		this._debounceTimer = null;
+		this._pendingChangedId = null;
+		this._closed = false;
+
+		this.connect();
+	}
+
+	connect() {
+		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+		this.ws = new WebSocket(`${protocol}//${window.location.host}/ws/devices/${this.kind}`);
+
+		this.ws.onmessage = (event) => {
+			let msg;
+			try { msg = JSON.parse(event.data); }
+			catch (e) { console.error(`Invalid /ws/devices/${this.kind} message:`, e); return; }
+
+			if (msg.type === 'snapshot') {
+				Object.entries(msg.devices || {}).forEach(([deviceId, data]) => {
+					this.cache[deviceId] = this.kind === 'stats' ? deriveDeviceStats(data) : data;
+				});
+				this._scheduleUpdate(null);
+			}
+			else if (msg.type === 'device-system' || msg.type === 'device-stats') {
+				this.cache[msg.deviceId] = this.kind === 'stats' ? deriveDeviceStats(msg.data) : msg.data;
+				this._scheduleUpdate(msg.deviceId);
+			}
+		};
+
+		this.ws.onclose = () => {
+			if (this._closed) return;
+			this.reconnectTimer = setTimeout(() => this.connect(), 5000);
+		};
+		this.ws.onerror = () => {};
+	}
+
+	_scheduleUpdate(changedDeviceId) {
+		this._pendingChangedId = changedDeviceId;
+		if (this._debounceTimer) return;
+		this._debounceTimer = setTimeout(() => {
+			this._debounceTimer = null;
+			this.onUpdate(this.cache, this._pendingChangedId);
+		}, this.debounceMs);
+	}
+
+	close() {
+		this._closed = true;
+		clearTimeout(this.reconnectTimer);
+		clearTimeout(this._debounceTimer);
+		try { this.ws && this.ws.close(); } catch (e) {}
+	}
+}

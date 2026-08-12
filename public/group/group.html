@@ -6,6 +6,7 @@
 	<link rel="stylesheet" href="/styles.css">
 	<script src="/scripts/auth.js"></script>
 	<script src="/scripts/ws-client.js"></script>
+	<script src="/scripts/ws-devices.js"></script>
 	<script src="/scripts/modal.js"></script>
 	<script src="/scripts/screen-saver.js"></script>
 	<script src="/scripts/rokuControl.js"></script>
@@ -872,6 +873,36 @@
 				updateDevicesList();
 			}
 		};
+
+		/**
+		 *  Multi-device relay — one Hub connection covers every device
+		 *  tile's live stats/settings instead of waiting on the ~5s
+		 *  Hub-relayed client-status cadence (see 01-scripts/ws-devices.js).
+		 */
+		const devicesStatsRelay = new NDPiDevicesRelay('stats', (cache) => {
+			if (!group) return;
+			let changed = false;
+			group.devices.forEach((dev) => {
+				const stats = cache[dev.id || dev.deviceId];
+				if (stats) { dev.systemStats = stats; changed = true; }
+			});
+			if (changed) { updateDevicesList(); }
+		});
+
+		const devicesSystemRelay = new NDPiDevicesRelay('system', (cache) => {
+			if (!group) return;
+			let changed = false;
+			group.devices.forEach((dev) => {
+				const currentSource = getRelayedSetting(cache[dev.id || dev.deviceId], 'ndpi_status_ndi_source_target');
+				if (currentSource) { dev.currentSource = currentSource.value || 'None'; changed = true; }
+			});
+			if (changed) { updateDevicesList(); }
+		});
+
+		window.addEventListener('beforeunload', () => {
+			devicesStatsRelay.close();
+			devicesSystemRelay.close();
+		});
 
 	</script>
 </body>
