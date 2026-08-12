@@ -146,19 +146,21 @@ body::-webkit-scrollbar {
     DASHBOARD
 */
 .dashboard {
-	display: flex;
-	flex-direction: column;
+	grid-template-columns: repeat(auto-fit, minmax(clamp(300px, 400px, 100%), 1fr));
+	display: grid;
+	/* display: flex; */
+	/* flex-direction: column; */
 	gap: inherit;
 	flex: 1;
 	height: calc(100% - 32px);
 }
-@media (min-width: 900px) {
+/* @media (min-width: 900px) {
 	.dashboard {
 		display: grid;
 		grid-template-columns: 4fr 3fr;
 		flex: none;
 	}
-}
+} */
 
 
 /*
