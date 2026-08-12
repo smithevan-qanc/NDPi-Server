@@ -886,10 +886,14 @@
 		ws.onDevicesUpdate = (devices) => {
 			allDevices = devices;
 			if (group) {
-				// Update group devices with latest data (preserves scroll position)
+				// Update group devices with latest data (preserves scroll position).
+				// Keep the freshest systemStats we already have (kept live by
+				// devicesStatsRelay, ~1s cadence) instead of letting this ~5s Hub
+				// snapshot overwrite it with a staler copy -- otherwise stats
+				// visibly flash between two different values on every relay tick.
 				group.devices = group.devices.map(gDev => {
 					const fullDevice = devices.find(d => (d.id || d.deviceId) === (gDev.id || gDev.deviceId));
-					return fullDevice ? { ...gDev, ...fullDevice } : gDev;
+					return fullDevice ? { ...gDev, ...fullDevice, systemStats: gDev.systemStats || fullDevice.systemStats } : gDev;
 				});
 				updateGroupHeaderStats(); // keeps the "Online" pill current as device status changes
 				updateDevicesList();

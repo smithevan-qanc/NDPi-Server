@@ -60,6 +60,7 @@
 		let device = null;
 		let sources = [];
 		let groups = [];
+		let lastRenderedSettingsJSON = null; // last device.settings content the settings grid was built from
 
 		async function loadDevice() {
 			const params = new URLSearchParams(window.location.search);
@@ -231,6 +232,12 @@
 				<div style="margin-top:24px;">
 					<h3 style="margin-bottom:12px;">Device Information</h3>
 					<div id="infoGrid" class="info-grid"></div>
+				</div>
+
+				<!-- Full System Stats -->
+				<div style="margin-top:24px;">
+					<h3 style="margin-bottom:12px;">System Stats</h3>
+					<div id="fullStatsGrid" class="info-grid"></div>
 				</div>
 
 				<!-- Device Settings -->
@@ -459,6 +466,7 @@
 			}
 
 			renderSettings();
+			renderFullStats();
 			updateOverlayPreview();
 			updateUpdateSection();
 		}
@@ -481,6 +489,15 @@
 		function renderSettings() {
 			const grid = document.getElementById('deviceSettingsGrid');
 			if (!grid) return;
+
+			// updateDevice() calls this on every device change, not just settings
+			// changes (e.g. the ~5s Hub-relay status tick) -- skip rebuilding the
+			// grid when the reported settings haven't actually changed, so an
+			// in-progress edit in one of these inputs doesn't get wiped out by an
+			// unrelated update elsewhere on the page.
+			const settingsJSON = JSON.stringify(device.settings || null);
+			if (settingsJSON === lastRenderedSettingsJSON) return;
+			lastRenderedSettingsJSON = settingsJSON;
 
 			if (!Array.isArray(device.settings) || device.settings.length === 0) {
 				grid.innerHTML = '<p style="color:#888;grid-column:1/-1;">No settings reported by this device yet.</p>';
@@ -970,13 +987,28 @@
 			// /ws/stats socket (see applyDeviceRawStats()), never from this
 			// Hub relay, so carry the existing value forward instead of
 			// losing it every time this fires.
-			const { systemStats: oldStats, clockSync: oldClockSync, ...oldRest } = device;
-			const { systemStats: newStats, ...newRest } = updatedDevice;
+			//
+			// Also strip lastSeen/lastStatusUpdate (the Hub stamps both with
+			// `new Date()` on literally every client-status report) and
+			// ndiInfo.uptime (ticks up every second a stream is connected) --
+			// left in, these made `otherChanged` true on almost every ~5s
+			// tick, forcing a full settings-grid rebuild (via updateDevice()
+			// -> renderSettings()) constantly and making it impossible to
+			// edit a setting before the next tick wiped the input.
+			const { systemStats: oldStats, clockSync: oldClockSync, lastSeen: _oLS, lastStatusUpdate: _oLSU, ndiInfo: oldNdiInfo, ...oldRest } = device;
+			const { systemStats: newStats, lastSeen: _nLS, lastStatusUpdate: _nLSU, ndiInfo: newNdiInfo, ...newRest } = updatedDevice;
+			const stripUptime = (info) => info ? { ...info, uptime: undefined } : info;
 
 			const statsChanged = JSON.stringify(oldStats) !== JSON.stringify(newStats);
-			const otherChanged = JSON.stringify(oldRest) !== JSON.stringify(newRest);
+			const otherChanged = JSON.stringify(oldRest) !== JSON.stringify(newRest)
+				|| JSON.stringify(stripUptime(oldNdiInfo)) !== JSON.stringify(stripUptime(newNdiInfo));
 
-			device = { ...updatedDevice, clockSync: oldClockSync };
+			// Prefer the freshest stats we already have (kept live by the
+			// direct /ws/stats socket, ~1s cadence) over this ~5s relay
+			// snapshot, which is staler and would otherwise make the header
+			// visibly flash back to an older value every tick. Fall back to
+			// the relay's value only if we don't have one yet.
+			device = { ...updatedDevice, systemStats: oldStats || newStats, clockSync: oldClockSync };
 
 			if (otherChanged) {
 				updateDevice();
@@ -1138,7 +1170,80 @@
 				}
 			}
 
+			device.rawStats = raw;
+
 			updateStatsHeader();
+			renderFullStats();
+		}
+
+		/**
+		 * Renders every field from the device's raw /ws/stats payload (see
+		 * applyDeviceRawStats() above) -- the summarized {cpu,memory,
+		 * temperature,uptime} shown in the stats header only surfaces four
+		 * numbers; this shows everything else the device reports too
+		 * (host/OS info, per-source load average, fan speed, network
+		 * interfaces, etc). Only populated once the direct-to-device
+		 * /ws/stats socket has delivered at least one message -- the
+		 * Hub-relayed ~5s status report doesn't carry these raw fields.
+		 */
+		function formatBytesGB(bytes) {
+			return `${Math.round((bytes / 1024 / 1024 / 1024) * 10) / 10} GB`;
+		}
+
+		function renderFullStats() {
+			const grid = document.getElementById('fullStatsGrid');
+			if (!grid) return;
+
+			const raw = device && device.rawStats;
+			if (!raw) {
+				grid.innerHTML = '<p style="color:#888;grid-column:1/-1;">Full stats require a direct connection to the device (same network as this browser) -- waiting to connect...</p>';
+				return;
+			}
+
+			const items = [];
+			items.push(['System Time', raw.systemTime || 'Unknown']);
+			items.push(['Hostname', raw.hostname || 'Unknown']);
+			items.push(['OS Uptime', formatUptime(raw.osUptime)]);
+			items.push(['OS Platform', raw.osPlatform || 'Unknown']);
+			items.push(['OS Release', raw.osRelease || 'Unknown']);
+			items.push(['OS Version', raw.osVersion || 'Unknown']);
+			items.push(['Architecture', raw.osArchitecture || 'Unknown']);
+			items.push(['Machine', raw.osMachine || 'Unknown']);
+
+			if (Array.isArray(raw.cpus) && raw.cpus.length > 0) {
+				items.push(['CPU Model', raw.cpus[0].model || 'Unknown']);
+				items.push(['CPU Cores', String(raw.cpus.length)]);
+			}
+			if (Array.isArray(raw.loadavg)) {
+				items.push(['Load Avg (1/5/15m)', raw.loadavg.map((n) => n.toFixed(2)).join(' / ')]);
+			}
+			if (typeof raw.totalmem === 'number' && typeof raw.freemem === 'number') {
+				items.push(['Memory Used', `${formatBytesGB(raw.totalmem - raw.freemem)} / ${formatBytesGB(raw.totalmem)}`]);
+				items.push(['Memory Free', formatBytesGB(raw.freemem)]);
+			}
+			if (raw.thermal) {
+				if (typeof raw.thermal.thermal_zone0 === 'number') {
+					const tempF = ((raw.thermal.thermal_zone0 * 9 / 5) + 32).toFixed(0);
+					items.push(['Temperature', `${raw.thermal.thermal_zone0.toFixed(1)}°C (${tempF}°F)`]);
+				}
+				if (typeof raw.thermal.fan1_input === 'number' && raw.thermal.fan1_input > 0) {
+					items.push(['Fan Speed', `${raw.thermal.fan1_input} RPM`]);
+				}
+			}
+			if (raw.networkInterfaces) {
+				const addresses = Object.entries(raw.networkInterfaces)
+					.flatMap(([name, entries]) => (entries || [])
+						.filter((e) => e.family === 'IPv4' && !e.internal)
+						.map((e) => `${name}: ${e.address}`));
+				if (addresses.length > 0) { items.push(['Network Interfaces', addresses.join(', ')]); }
+			}
+
+			grid.innerHTML = items.map(([label, value]) => `
+				<div class="info-item">
+					<span class="info-label">${label}</span>
+					<span class="info-value mono">${String(value).replace(/</g, '&lt;')}</span>
+				</div>
+			`).join('');
 		}
 
 		window.addEventListener('beforeunload', () => {

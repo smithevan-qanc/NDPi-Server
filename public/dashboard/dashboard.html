@@ -418,7 +418,12 @@
 		// Handle device updates from WebSocket (also delivers a snapshot on connect,
 		// so no /api/devices REST fetch is needed on this page)
 		ws.onDevicesUpdate = (updatedDevices) => {
-			devices = updatedDevices;
+			// Preserve the freshest per-device stats (kept live by devicesStatsRelay,
+			// ~1s cadence) instead of letting this ~5s Hub snapshot overwrite them
+			// with a staler copy -- otherwise stats visibly flash between two
+			// different values on every relay tick.
+			const statsById = new Map(devices.map(d => [d.id, d.systemStats]));
+			devices = updatedDevices.map(d => ({ ...d, systemStats: statsById.get(d.id) || d.systemStats }));
 			renderDevices();
 		};
 
