@@ -502,29 +502,32 @@ const modal = new Modal();
 class Toast {
 	constructor() {
 		this.container = null;
+		// The one toast currently shown (if any) plus its auto-dismiss timer,
+		// so a new toast() call can interrupt it instead of stacking beside it.
+		this.currentToast = null;
+		this.currentTimeout = null;
 		this.initStyles();
 	}
 
 	initStyles() {
 		if (document.getElementById('toast-styles')) return;
-		
+
 		const style = document.createElement('style');
 		style.id = 'toast-styles';
 		style.textContent = `
 			.toast-container {
 				position: fixed;
-				top: 15px;
-				left: 50%;
-				transform: translateX(-50%);
+				left: 0;
+				right: 0;
+				height: 0;
 				z-index: 9998;
-				display: flex;
-				flex-direction: column-reverse;
-				gap: 20px;
 				pointer-events: none;
-				transition: all 1s ease;
 			}
-			
+
 			.toast {
+				position: absolute;
+				top: 0;
+				left: 50%;
 				background: #2a2a2a;
 				color: #fff;
 				padding: 14px 24px;
@@ -534,53 +537,55 @@ class Toast {
 				display: flex;
 				align-items: center;
 				gap: 10px;
-				animation: toastIn 0.4s ease, toastOut 0.5s ease-out forwards;
-				animation-delay: 0s, var(--toast-duration, 2s);
 				pointer-events: auto;
 				max-width: 90vw;
 				min-width: max(300px, 50vw);
-				transition: all 1s ease;
+				animation: toastIn 0.3s ease forwards;
 			}
-			
+
+			.toast.toast-exiting {
+				animation: toastOut 0.3s ease-in forwards;
+			}
+
 			.toast-success {
 				border-left: 8px solid #4ade80;
 			}
-			
+
 			.toast-error {
 				border-left: 8px solid #e74c3c;
 			}
-			
+
 			.toast-info {
 				border-left: 8px solid #5e5e5e;
 			}
-			
+
 			.toast-warning {
 				border-left: 8px solid #f59e0b;
 			}
-			
+
 			.toast-icon {
 				font-size: 18px;
 				flex-shrink: 0;
 			}
-			
+
 			@keyframes toastIn {
 				from {
-					transform: translateX(20px);
+					transform: translateX(-50%) translateY(-12px);
 					opacity: 0;
 				}
 				to {
-					transform: translateX(0);
+					transform: translateX(-50%) translateY(0);
 					opacity: 1;
 				}
 			}
-			
+
 			@keyframes toastOut {
 				from {
-					transform: translateX(0);
+					transform: translateX(-50%) translateY(0);
 					opacity: 1;
 				}
 				to {
-					transform: translateX(-20px);
+					transform: translateX(-50%) translateY(-12px);
 					opacity: 0;
 				}
 			}
@@ -597,31 +602,58 @@ class Toast {
 		return this.container;
 	}
 
+	// Not a child of .topbar -- a sibling fixed overlay whose position is
+	// computed from the topbar's actual rendered bottom edge each time a
+	// toast is shown (rather than once on load), so it stays correctly
+	// centered under the topbar even if the topbar's own height has since
+	// changed (text wrap, viewport resize, etc).
+	positionContainer(container) {
+		const topbar = document.querySelector('.topbar');
+		const top = topbar ? topbar.getBoundingClientRect().bottom + 15 : 15;
+		container.style.top = `${top}px`;
+	}
+
 	show(message, type = 'info', duration = 4000) {
 		const container = this.getContainer();
-		
-		const toast = document.createElement('div');
-		toast.className = `toast toast-${type}`;
-		toast.style.setProperty('--toast-duration', `${duration / 1000}s`);
-		
+		this.positionContainer(container);
+
+		// Only one toast at a time -- motion the previous one out instead of
+		// letting it sit alongside the new one.
+		if (this.currentToast) {
+			clearTimeout(this.currentTimeout);
+			this.dismiss(this.currentToast);
+		}
+
+		const toastEl = document.createElement('div');
+		toastEl.className = `toast toast-${type}`;
+
 		const icons = {
 			success: '✓',
 			error: '✕',
 			info: 'ℹ',
 			warning: '⚠'
 		};
-		
-		toast.innerHTML = `
+
+		toastEl.innerHTML = `
 			<span class="toast-icon">${icons[type] || icons.info}</span>
 			<span>${message}</span>
 		`;
-		
-		container.appendChild(toast);
-		
-		// Remove after animation completes
-		setTimeout(() => {
-			toast.remove();
-		}, duration + 300);
+
+		container.appendChild(toastEl);
+		this.currentToast = toastEl;
+
+		this.currentTimeout = setTimeout(() => {
+			this.dismiss(toastEl);
+		}, duration);
+	}
+
+	// Plays the exit animation, then removes the element once it finishes --
+	// used both for a toast's own natural timeout and for interrupting one
+	// early when a new toast replaces it.
+	dismiss(toastEl) {
+		if (this.currentToast === toastEl) { this.currentToast = null; }
+		toastEl.classList.add('toast-exiting');
+		toastEl.addEventListener('animationend', () => toastEl.remove(), { once: true });
 	}
 
 	success(message, duration = 3000) {
