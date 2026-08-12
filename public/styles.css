@@ -58,7 +58,8 @@ body::-webkit-scrollbar {
 */
 .app {
 	min-height: 100%;
-	padding: var(--main-body-padding);
+	padding-left: var(--main-body-padding);
+	padding-right: var(--main-body-padding);
 	display: flex;
 	flex-direction: column;
 	gap: var(--main-body-padding);
