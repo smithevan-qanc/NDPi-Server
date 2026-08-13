@@ -1980,6 +1980,19 @@ class NDPiCommandServer_Client extends EventEmitter {
         // listener in server.js, which calls func.setDisplayResolution()
         // (xrandr + openbox restart), exactly mirroring how the Client
         // applies its own output_display_resolution_preference changes.
+        // Single-setting read, mirroring the write route below. Lets a page
+        // apply a Hub-wide setting (e.g. ui_theme_color) on load with one
+        // small GET instead of opening /ws/system just to read one value.
+        this.Routes
+        .route('/api/setting/:name')
+        .get((req, res) => {
+            const value = this.settings.get(req.params.name);
+            if (value === null)
+            { return res.status(404).json({ error: true, message: `Unknown setting: ${req.params.name}` }); }
+
+            res.json({ name: req.params.name, value });
+        });
+
         this.Routes
         .route('/api/setting')
         .post((req, res) => {

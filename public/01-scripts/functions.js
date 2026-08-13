@@ -1,80 +1,91 @@
 /**
- *  Keeps `.app`'s top/bottom padding matched to the ACTUAL rendered
- *  height of .topbar/.bottombar, instead of the fixed --topbar-height/
- *  --bottombar-height estimate the base CSS uses. Both bars are
- *  `height: auto` with only a `min-height: var(--*-height)`, so their
- *  real height can exceed that estimate once content wraps (long device
- *  names, narrow viewports triggering the bottombar-nav wrap rules,
- *  etc.) -- when that happens the fixed-position bars start overlapping
- *  page content instead of just reserving space for it.
- *
- *  Recalculated on initial load and any time either bar's own box size
- *  actually changes, via ResizeObserver rather than a plain window
- *  'resize' listener -- a bar's height can change independent of the
- *  window itself (e.g. text reflow), and ResizeObserver only fires when
- *  the observed element's box actually changes, so it doesn't do
- *  wasted work on a width-only resize that leaves both bars' heights
- *  untouched. Runs independently of the account-loading IIFE below so
- *  layout is correct immediately, not after that async work resolves.
- *  Skips pages with no app shell (set-pin.html, create-account.html)
- *  the same way the bootstrap below already does.
+ *  Theme accent color -- Hub-wide setting (`ui_theme_color`, hub_fs.js),
+ *  read/written through the existing generic `/api/setting` GET/POST
+ *  routes so the chosen color is persisted on the Hub itself, not just in
+ *  this one browser's localStorage. localStorage is still used as a
+ *  same-device cache so the very first paint on a page load already has
+ *  the right color instead of flashing the CSS default before the fetch
+ *  resolves -- see the inline snippet at the top of every page's <head>
+ *  that applies the cached value synchronously before this file even
+ *  loads.
  */
-function syncAppPaddingToBars() {
-	const appEl = document.querySelector('.app');
-	const topbarEl = document.querySelector('.topbar');
-	const bottombarEl = document.querySelector('.bottombar');
-	if (!appEl || !topbarEl || !bottombarEl) return;
+const THEME_COLOR_CACHE_KEY = 'ndpi_theme_color';
 
-	appEl.style.paddingTop = `calc(${topbarEl.offsetHeight}px + var(--main-body-padding))`;
-	appEl.style.paddingBottom = `calc(${bottombarEl.offsetHeight}px + var(--main-body-padding))`;
+function hexToRgbString(hex) {
+	const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+	if (!match) return null;
+	const r = parseInt(match[1], 16);
+	const g = parseInt(match[2], 16);
+	const b = parseInt(match[3], 16);
+	return `${r}, ${g}, ${b}`;
 }
 
-function initAppPaddingSync() {
-	const appEl = document.querySelector('.app');
-	const topbarEl = document.querySelector('.topbar');
-	const bottombarEl = document.querySelector('.bottombar');
-	if (!appEl || !topbarEl || !bottombarEl) return;
-
-	syncAppPaddingToBars();
-
-	if (typeof ResizeObserver === 'function') {
-		const observer = new ResizeObserver(() => { syncAppPaddingToBars(); });
-		observer.observe(topbarEl);
-		observer.observe(bottombarEl);
-	} else {
-		window.addEventListener('resize', syncAppPaddingToBars);
-	}
+function applyThemeColor(hex) {
+	if (!hex) return;
+	const rgb = hexToRgbString(hex);
+	document.documentElement.style.setProperty('--accent', hex);
+	if (rgb) { document.documentElement.style.setProperty('--accent-rgb', rgb); }
+	localStorage.setItem(THEME_COLOR_CACHE_KEY, hex);
 }
 
-if (document.readyState === 'loading') {
-	document.addEventListener('DOMContentLoaded', initAppPaddingSync);
-} else {
-	initAppPaddingSync();
+async function fetchAndApplyThemeColor() {
+	try {
+		const res = await fetch('/api/setting/ui_theme_color');
+		if (!res.ok) return;
+		const data = await res.json();
+		if (data && data.value) { applyThemeColor(data.value); }
+	} catch (e) { /* offline / not-yet-connected -- cached value already applied */ }
+}
+
+async function saveThemeColor(hex) {
+	applyThemeColor(hex);
+	try {
+		await fetch('/api/setting', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ name: 'ui_theme_color', value: hex }),
+		});
+	} catch (e) { console.error('Failed to save theme color:', e); }
 }
 
 (async () => {
 	setScale();
 
 	// Auth-flow pages (set-pin, create-account) don't have the persistent
-	// app shell (topbar/bottombar nav) — skip shell-specific setup on them
+	// app shell (sidebar/topbar nav) -- skip shell-specific setup on them
 	// instead of throwing, since that would abort this whole IIFE before
 	// loadUserAccount()/initPage() ever run.
-	const pageLogo = document.getElementById('topbarLogo');
-	const topbarEl = document.querySelector('.topbar');
-	if (pageLogo && topbarEl) {
-		const topbarHeight = topbarEl.clientHeight;
-		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
-		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
-	}
-
 	await loadUserAccount();
 
 	if (document.getElementById('navDashboard')) {
 		setNavigationButtons();
 	}
 
+	fetchAndApplyThemeColor();
+
 	if (typeof initPage === 'function') { initPage(account); }
 })();
+
+/**
+ *  Best-effort screen-orientation lock -- keeps a phone/tablet from
+ *  flipping its layout on rotation. The Screen Orientation API only
+ *  grants a lock while the page is actually fullscreen (true in the
+ *  Hub's own kiosk-mode chromium, per config/kiosk.service); in an
+ *  ordinary mobile browser tab the lock request is rejected by the
+ *  browser itself, so this is wrapped to fail silently rather than
+ *  throw -- the responsive layout (sidebar -> bottom bar breakpoint)
+ *  already handles both orientations fine either way.
+ */
+function lockOrientation() {
+	try {
+		const current = (screen.orientation && screen.orientation.type) || '';
+		const target = current.startsWith('portrait') ? 'portrait' : 'landscape';
+		if (screen.orientation && typeof screen.orientation.lock === 'function') {
+			screen.orientation.lock(target).catch(() => {});
+		}
+	} catch (e) { /* not supported / not fullscreen -- ignore */ }
+}
+lockOrientation();
 
 function setScale() {
     const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
@@ -86,42 +97,37 @@ function setScale() {
 	}
 }
 
+const NAV_ACCOUNT_ICON = `<span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg></span>`;
+
+function wireNavButton(id, label, href) {
+	const el = document.getElementById(id);
+	if (!el) return;
+	const labelEl = el.querySelector('.nav-btn-label');
+	if (labelEl) { labelEl.textContent = label; }
+	el.addEventListener('click', function (e) {
+		this.onclick = null;
+		e.preventDefault();
+		window.location.href = href;
+	});
+}
+
 function setNavigationButtons() {
-	const dashboardNavEl = document.getElementById('navDashboard');
-	dashboardNavEl.textContent = `Dashboard`;
-	dashboardNavEl.addEventListener('click', function(e) {
-		this.onclick = null;
-		e.preventDefault();
-		window.location.href = '/';
-	});
-	const devicesNavEl = document.getElementById('navDevices');
-	devicesNavEl.textContent = `Devices`;
-	devicesNavEl.addEventListener('click', function(e) {
-		this.onclick = null;
-		e.preventDefault();
-		window.location.href = '/devices.html';
-	});
-	const groupsNavEl = document.getElementById('navGroups');
-	groupsNavEl.textContent = `Groups`;
-	groupsNavEl.addEventListener('click', function(e) {
-		this.onclick = null;
-		e.preventDefault();
-		window.location.href = '/groups.html';
-	});
-	const settingsNavEl = document.getElementById('navSettings');
-	settingsNavEl.textContent = `Settings`;
-	settingsNavEl.addEventListener('click', function(e) {
-		this.onclick = null;
-		e.preventDefault();
-		window.location.href = '/settings.html';
-	});
+	wireNavButton('navDashboard', 'Dashboard', '/');
+	wireNavButton('navDevices', 'Devices', '/devices.html');
+	wireNavButton('navGroups', 'Groups', '/groups.html');
+	wireNavButton('navUsers', 'Users', '/users.html');
+	wireNavButton('navConsole', 'Console', '/console.html');
+	wireNavButton('navSettings', 'Settings', '/settings.html');
+
 	const userAccountNavEl = document.getElementById('navAccount');
-	userAccountNavEl.innerHTML = `<font style="font-weight:800; font-size:75%;">@</font><font style="font-weight:400;">${account.username}</font>`;
-	userAccountNavEl.addEventListener('click', function(e) {
-		this.onclick = null;
-		e.preventDefault();
-		window.location.href ='/account-settings.html';
-	});
+	if (userAccountNavEl) {
+		userAccountNavEl.innerHTML = `${NAV_ACCOUNT_ICON}<span class="nav-btn-label">${account.username}</span>`;
+		userAccountNavEl.addEventListener('click', function (e) {
+			this.onclick = null;
+			e.preventDefault();
+			window.location.href = '/account-settings.html';
+		});
+	}
 }
 
 function applyActiveNav(element) {

@@ -4,55 +4,64 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" href="/styles.css">
+	<script>(function(){var c=localStorage.getItem('ndpi_theme_color');if(c){document.documentElement.style.setProperty('--accent',c);}})();</script>
 	<script src="/scripts/modal.js"></script>
 	<script src="/scripts/auth.js"></script>
 	<title>Console | NDPi Monitor</title>
 	<link rel="icon" type="image/svg+xml" href="/media/favicon.svg">
 </head>
 <body class="hide-scrollbar">
-	<div id="wallpaper"></div>
 	<div id="main-div" class="app">
-		<div class="topbar">
-			<div class="back-btn" onclick="history.back()">
-				<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
-  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
-				</svg>
+		<nav class="sidebar">
+			<div class="sidebar-logo" onclick="window.location.href='/'">
+				<div class="topbar-logo" id="topbarLogo"></div>
+				<span class="sidebar-logo-title">NDPi Hub</span>
 			</div>
-			<div class="topbar-spacer"></div>
-			<!--button onclick="window.location.href='/account-settings.html'" class="button-logged-in-acct">
-				<span id="navAccount"></span>
-			</button-->
-			<div onclick="window.location.href='/'" class="topbar-logo" id="topbarLogo"></div>
-		</div>
-		
-		<div class="bottombar">
-			<div class="bottombar-nav">
-				<button id="navDashboard" class="nav-btn"></button>
-				<button id="navDevices" class="nav-btn"></button>
-				<button id="navGroups" class="nav-btn"></button>
-				<button id="navSettings" class="nav-btn"></button>
+			<div class="sidebar-nav">
+				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5M2 16l10 5 10-5"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2"/><path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m6 9 3 3-3 3M12 15h6"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="16" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="10" cy="18" r="2"/></svg></span><span class="nav-btn-label"></span></button>
+			</div>
+			<div class="sidebar-spacer"></div>
+			<div class="sidebar-footer">
 				<button id="navAccount" class="nav-btn"></button>
 			</div>
-		</div>
+		</nav>
+		<div class="main">
+			<div class="topbar">
+				<div class="back-btn" onclick="history.back()">
+					<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
+  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+					</svg>
+				</div>
+				<span class="topbar-title">Console</span>
+				<div class="topbar-spacer"></div>
+			</div>
+			<div class="content" style="overflow:hidden;">
 
 		<section class="dashboard" style="flex: 1;">
 			<div class="card" style="grid-column: 1 / -1;">
 				<div class="card-content" style="gap: 1vh;">
 					<div id="console-viewer" style="display: flex; flex: 1; flex-direction: column; justify-content: end; overflow: scroll; scrollbar-width: none;"></div>
-                    <div class="form-input" id="promptContainer" style="display: flex; align-items: center; padding-right: 10px; gap: 10px;">
-                        <div id="pwd-label" style="font-family: 'Courier New', Courier, monospace; letter-spacing: 0.5px; font-size: 12px; text-align: end; width: min-content;  text-wrap-mode: nowrap;">~ $</div>
-                        <input id="promptIn" type="text" class="console-input" style="border-left-color: rgba(0, 0, 0, 0) !important; border-left-width: 2px !important;" autocorrect="off" autocapitalize="off"></input>
+                    <div class="form-input" id="promptContainer" style="display: flex; align-items: center; padding-right: 0.625rem; gap: 0.625rem;">
+                        <div id="pwd-label" style="font-family: 'Courier New', Courier, monospace; letter-spacing: 0.0312rem; font-size: 0.75rem; text-align: end; width: min-content;  text-wrap-mode: nowrap;">~ $</div>
+                        <input id="promptIn" type="text" class="console-input" style="border-left-color: rgba(0, 0, 0, 0) !important; border-left-width: 0.125rem !important;" autocorrect="off" autocapitalize="off"></input>
                     </div>
 				</div>
 			</div>
 		</section>
+			</div>
+		</div>
 	</div>
 	<script src="/scripts/ws-console.js"></script>
 	<script src="/scripts/functions.js"></script>
 	<script>
 
 		(async () => {
-			applyActiveNav('navAccount');
+			applyActiveNav('navConsole');
 		})();
 
 		async function initPage(account) {
@@ -157,10 +166,6 @@
 			} catch {}
 		}
 
-		const pageLogo = document.getElementById('topbarLogo');
-		const topbarHeight = document.querySelector('.topbar').clientHeight;
-		pageLogo.style.width = topbarHeight ? `${topbarHeight - 10}px` : `100px`;
-		pageLogo.style.height = topbarHeight ? `${topbarHeight - 10}px` : `100%`;
 
 	</script>
 </body>

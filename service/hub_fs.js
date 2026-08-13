@@ -189,6 +189,14 @@ class FileSystemMonitor extends EventEmitter {
                 allowEditExternal: false,
             },
             {
+                key: "ui_theme_color",
+                value: `#81c127`,
+                group: `Display`,
+                options: ['#81c127', '#4f8ff7', '#22c1c3', '#f2994a', '#e0555c', '#a855f7'],
+                allowEditInternal: true,
+                allowEditExternal: true,
+            },
+            {
                 key: "output_display_resolution_preference",
                 value: `1920x1080`,
                 group: `Display_Resolution`,

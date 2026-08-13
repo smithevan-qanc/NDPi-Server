@@ -4,23 +4,12 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" href="/styles.css">
+	<script>(function(){var c=localStorage.getItem('ndpi_theme_color');if(c){document.documentElement.style.setProperty('--accent',c);}})();</script>
 	<script src="/scripts/auth.js"></script>
 	<title>Update Your PIN | NDPi Monitor</title>
 	<link rel="icon" type="image/svg+xml" href="/media/favicon.svg">
-	<style>
-		.welcome-message {
-			background: rgba(129, 193, 39, 0.1);
-			border: 1px solid rgba(129, 193, 39, 0.3);
-			border-radius: 12px;
-			padding: 16px;
-			margin-bottom: 24px;
-			text-align: center;
-			color: rgb(129, 193, 39);
-		}
-	</style>
 </head>
 <body class="hide-scrollbar">
-	<div id="wallpaper"></div>
 	<div class="auth-container">
 		<div class="auth-card">
 			<h1 class="auth-title">Welcome!</h1>
@@ -44,7 +33,7 @@
 					<p class="error-message" id="confirmError">PINs do not match</p>
 				</div>
 				
-				<p class="error-message" id="formError" style="margin-bottom: 15px;"></p>
+				<p class="error-message" id="formError" style="margin-bottom: 0.9375rem;"></p>
 				
 				<button type="submit" class="button-primary" style="width: 100%;">Set PIN & Continue</button>
 			</form>

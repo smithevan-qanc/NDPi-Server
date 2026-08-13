@@ -778,6 +778,108 @@ device/group tile renderer in the app:
   real browser before being fully trusted, since it's the one part of this
   change that couldn't be exercised outside a real DOM.
 
+### Full visual redesign — dark UniFi-style control-center theme (user request)
+
+User asked for the entire `public/` GUI to be redesigned to feel like
+Ubiquiti's UniFi cloud console, specified as the "modern dark UniFi" variant
+(not the light/white classic look) with the app's existing green
+(`rgba(129,193,39,1)`) as the accent instead of UniFi's blue, and asked for
+the accent to be user-selectable and persisted server-side rather than only
+in browser localStorage.
+
+- **`styles.css`** rewritten around CSS custom-property tokens: `--accent`/
+  `--accent-rgb` (the one selectable value — everything else is fixed
+  regardless of accent choice), a near-black `--bg-0`..`--bg-3` surface
+  scale (flat, no blur/glass — the old `.card`/`.device-card` glassmorphism
+  and the `#wallpaper` background image are gone), and fixed semantic
+  status colors (`--online`/`--offline`/`--warning`/`--danger`) so
+  online/offline meaning never depends on which accent is active. Added a
+  new `.status-pill` component and a `.theme-swatch` picker component.
+  Fixed a real pre-existing bug found while doing this: the back-button
+  style targeted `#back-btn` (an id selector) but every page markup uses
+  `class="back-btn"` — the rule never matched anything; now `.back-btn`,
+  restyled as a circular icon button in the new header.
+- **Shell replaced**: the old fixed `.topbar` (top) + `.bottombar` (bottom
+  nav bar, 5 buttons: Dashboard/Devices/Groups/Settings/Account) is now a
+  persistent left `.sidebar` (`.sidebar-logo` + `.sidebar-nav` +
+  `.sidebar-footer` holding the account button) plus a slim `.topbar`
+  header (page title only) above a scrollable `.content` pane — applied to
+  all 12 pages that use the `.app` shell (`dashboard`, `devices`, `device`,
+  `groups`, `group`, `settings`, `users`, `console`, `account-settings`,
+  `advanced-account-settings`, `device-discovery`). Added real sidebar
+  entries for **Users** and **Console** — both pages existed already but
+  were previously unreachable from any nav (confirmed via repo-wide grep:
+  nothing linked to `users.html` or `console.html` before this pass); each
+  had been faking `applyActiveNav('navAccount')` since no real nav button
+  existed for them, now fixed to their own `navUsers`/`navConsole`.
+  `01-scripts/functions.js`'s `setNavigationButtons()` rewritten to match
+  (sets a `.nav-btn-label` span instead of the whole button's
+  `textContent`, since nav buttons now also carry an inline SVG icon); the
+  old `syncAppPaddingToBars()`/`initAppPaddingSync()` ResizeObserver hack
+  and every page's duplicated `topbarLogo` width/height-from-clientHeight
+  JS snippet are both gone — no longer needed since the new shell sizes
+  itself with plain CSS (fixed sidebar width, fixed header height) instead
+  of measuring bars at runtime. Below 860px width the sidebar collapses
+  back into a bottom icon bar (flex-direction switch in CSS only) so
+  kiosk touchscreens/phones keep the original thumb-reachable bottom nav.
+- **Selectable, server-persisted accent color**: added `ui_theme_color`
+  to `hub_fs.js`'s settings `fileMap` (default `#81c127`, options list of
+  6 preset colors) — persisted the same way every other Hub setting is
+  (flat file under `DATA_NDPI_PATH`, picked up by the existing
+  `fs.watch` debounce path). Reused the existing generic
+  `POST /api/setting` write route as-is and added a matching
+  `GET /api/setting/:name` (previously only a full-settings-array read
+  existed, over `/ws/system`) so a page can read one setting back with a
+  small REST call instead of opening a websocket just for that. Added
+  `applyThemeColor()`/`fetchAndApplyThemeColor()`/`saveThemeColor()` to
+  `01-scripts/functions.js`: every page applies the last-known color
+  synchronously from `localStorage['ndpi_theme_color']` via a tiny inline
+  `<script>` at the very top of `<head>` (before `styles.css`'s default
+  ever paints), then reconciles against the Hub's authoritative value via
+  the new GET route once `functions.js` loads. `settings.html` got a new
+  "Appearance" card with a 6-swatch picker (`saveThemeColor()` on click)
+  under "User Preferences" — deliberately a Hub-wide setting rendered next
+  to the other Hub-wide settings (display resolution, etc.), not a
+  per-account preference, matching the user's "saved to the device itself"
+  framing.
+- **All sizing converted from `px` to `rem`** (user follow-up request, for
+  responsive PC/phone/tablet scaling): `styles.css` in full (322
+  conversions) plus every page's inline `style="..."` attributes and
+  embedded `<style>` blocks, via a script that deliberately skipped
+  `<script>...</script>` contents everywhere (to avoid corrupting real
+  pixel-math like `event.pageY`/`clientHeight`-based positioning) and
+  skipped `public/02-custom-overlays/*.html` entirely (OBS
+  compositing-overlay pages, calibrated in real pixels for stream layout —
+  out of scope). One exception left as-is on purpose: `01-scripts/modal.js`
+  and `01-scripts/screen-saver.js` inject their own `<style>` text via JS
+  template strings mixed with real measured-pixel positioning
+  (`logoBox.style.top = ...`) in the same file — converting those wasn't
+  attempted, to avoid conflating authored sizing with measured coordinates
+  in a higher-risk file.
+- **Best-effort orientation lock** (same follow-up request): added
+  `lockOrientation()` to `01-scripts/functions.js`, called once on every
+  page load. Only actually takes effect when the page is fullscreen (true
+  for the Hub's own kiosk-mode chromium per `config/kiosk.service`) — the
+  Screen Orientation API rejects the lock request in an ordinary browser
+  tab, so this is wrapped to fail silently there rather than throw; the
+  sidebar/bottom-bar responsive breakpoint already handles both
+  orientations regardless.
+- **Verified**: booted the Hub locally (`DATA_NDPI_PATH=/tmp/... PORT_API=3081
+  node server.js`), swept every page route (200), swept `/api/*` (200,
+  except the pre-existing `/api/active-viewers` 404 — no route ever
+  existed for it, unrelated to this change), round-tripped
+  `GET`/`POST /api/setting(/ui_theme_color)`, confirmed `styles.css` has
+  zero remaining `px`, confirmed the sidebar+content shell renders exactly
+  once on all 11 relevant pages, ran a full HTML tag-balance check (Python
+  `html.parser`) across every edited page (zero mismatches), and ran
+  `node --check` against every extracted inline `<script>` block across
+  every page plus the modified backend files (`hub_fs.js`,
+  `hub_api_server.js`) and `01-scripts/functions.js` — all clean. **Not**
+  verified in an actual browser (no visual/DOM smoke test available in
+  this environment) — the create/patch DOM logic from the prior pass and
+  the new CSS should still be reviewed visually before being fully
+  trusted.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via
