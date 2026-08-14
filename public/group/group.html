@@ -53,15 +53,17 @@
 			<div class="content">
 
 		<div class="card" style="max-width:75rem;margin:0 auto;width:100%;">
-			<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;">
-				<div style="display:flex;align-items:center;gap:0.75rem;">
-					<h2 id="groupName" style="font-size:2rem;margin:0;">Loading...</h2>
-					<div id="changeName"></div>
+			<div class="card-content">
+				<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
+					<div style="display:flex;align-items:center;gap:0.75rem;">
+						<h2 id="groupName" style="font-size:2rem;margin:0;">Loading...</h2>
+						<div id="changeName"></div>
+					</div>
+					<div id="groupStats" class="stats-page-header"></div>
 				</div>
-				<div id="groupStats" class="stats-page-header"></div>
-			</div>
-			<div id="groupContent">
-				<p style="color: #888; padding: 1.25rem;">Loading group...</p>
+				<div id="groupContent">
+					<p style="color: #888; padding: 1.25rem;">Loading group...</p>
+				</div>
 			</div>
 		</div>
 			</div>
@@ -485,7 +487,7 @@
 			document.getElementById('groupContent').innerHTML = `
 				<div class="group-page-container">
 					<div>
-						<h3 style="margin-bottom:8px;">Select NDI Source</h3>
+						<h3 class="section-title">Select NDI Source</h3>
 						<div id="groupSourceGrid" class="source-grid">
 							<div>
 								<div class="source-card ${isNoSource(curSource) ? 'selected' : ''}" data-source="" onclick="selectSource('')">
@@ -525,7 +527,7 @@
 					</div>
 					
 					<div style="margin-top:24px;">
-						<h3 style="margin-bottom:8px;">Display Controls</h3>
+						<h3 class="section-title">Display Controls</h3>
 						<p style="font-size:12px;color:#888;margin-bottom:12px;">These actions apply to all ${group.devices.length} device(s) in this group</p>
 						<div class="display-controls">
 							<button onclick="showGroupOverlay()" style="flex:5;" class="display-btn display-btn-overlay">Display Overlay</button>
@@ -536,7 +538,7 @@
 					
 					<div style="margin-top:24px;">
 						<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-							<h3 style="margin:0;">Devices in this Group</h3>
+							<h3 class="section-title" style="margin:0 0 0.5rem;">Devices in this Group</h3>
 							${admAddDeviceButtonHtml}
 						</div>
 						<div id="devicesContainer" class="devices-grid"></div>

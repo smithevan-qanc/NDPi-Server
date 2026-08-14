@@ -1541,6 +1541,85 @@ only show the star icon if it is a favorited source"):
   specific child items, so adding a second `.menu-item` needed no changes
   there. Not boot-tested against a real browser/device in this pass.
 
+### `device.html`/`group.html` layout fixes (oversized/clunky, content overflowing the card) + context menu ported to `device.html`
+
+User report: "the styling on the 'device' and 'group' page is looking a
+little wonky. everything is huge and kinda clunky. also the main content
+overflows the card. I also want to implement the context menu feature on
+the device page." Traced to three concrete, verifiable bugs — not a vague
+restyle — found by comparing these two pages' markup against every other
+page's `.card` usage, which all follow one consistent pattern these two
+had silently drifted from:
+
+1. **Dead `!important` was defeating the pages' own narrower width.**
+   `.card`'s CSS rule was `max-width: 106.25rem !important;` — but no
+   other rule in the stylesheet ever targeted `.card`'s `max-width`, so
+   the `!important` had no actual rule to out-rank; its only real effect
+   was silently defeating `device.html`/`group.html`'s own inline
+   `style="max-width:75rem"` (an inline style can never beat an
+   `!important` rule, regardless of specificity), so both pages were
+   rendering at the full 106.25rem (≈1700px) on wide screens instead of
+   the narrower single-column reading width the markup was actually
+   asking for — directly explaining "everything is huge." Fixed by
+   dropping the `!important` (nothing else relies on it).
+2. **Missing `.card-content` wrapper — the actual overflow bug.** Every
+   other page that uses `.card` wraps its real content in a child
+   `.card-content` div (`<div class="card"><h2>...</h2><div
+   class="card-content">...real content...</div></div>` — confirmed via
+   grep across every page). `.card-content` is what supplies the correct
+   padding (0.75rem) and the `min-height:fit-content` growth behavior
+   that lets `.content`'s own scrolling take over instead of content
+   clipping or spilling past the box. `device.html`/`group.html` were the
+   only two pages that skipped this wrapper — their real content sat
+   directly inside `.card`, which only has `padding:0.25rem`. Against
+   `.card`'s `border-radius: 0.875rem`, that padding is too thin to clear
+   the rounded corners, so backgrounds/elements near the card's edges
+   visually clipped into/past the rounded corner — this is what read as
+   "the main content overflows the card." Fixed by wrapping both pages'
+   header block + content div in `.card-content`, matching the
+   established pattern exactly.
+3. **Raw, unstyled `<h3>` section headers.** Every content section
+   ("Select NDI Source", "Display Controls", "Device Information", etc.)
+   was a bare `<h3 style="margin-bottom:8px;">...</h3>` with no class —
+   rendered at the browser's native `<h3>` size/weight (large, bold, no
+   letter-spacing), sticking out against the rest of this redesign's
+   deliberately tightened type scale (`.card h2` is 0.875rem;
+   `.device-section h3` elsewhere in the app is 0.75rem uppercase with
+   letter-spacing). Added a new shared `.section-title` class in
+   `styles.css` matching that established small-caps look, and applied it
+   to every one of these `<h3>` tags in both pages (7 in `device.html`, 3
+   in `group.html`) in place of their ad hoc inline `margin-bottom`.
+
+**Context menu ported to `device.html`** (user request — previously only
+`group.html` had one, added in the prior session's Favorite/Unfavorite
+pass): added the same `<div id="customMenu-source" class="context-menu">`
+at body level, and `renderSources()`'s source-card template now sets
+`oncontextmenu="buildContext_Source(event, {name:'...', url:'...',
+favorite:...})"` inline (matching this file's own existing convention of
+inline `onclick="selectSource('...')"` string-templated calls, rather
+than `group.html`'s alternate `createElement` + `addEventListener`
+approach — no functional difference, just matching whichever idiom was
+already established in each specific file). Added
+`toggleFavoriteSourceFromMenu(name, url)` to `device.html`, a direct port
+of `group.html`'s version from the prior session (POSTs the toggle, calls
+`renderSources()` to refresh afterward instead of `renderGroup()`).
+`buildContext_Source()` itself (`01-scripts/modal.js`) needed no changes
+— it already took the generic `{name, url, favorite}` object shape from
+the prior session's `group.html` work.
+
+**Verified**: `node --check` on every extracted `<script>` block in both
+files (clean); a Python `html.parser` tag-balance check on both files
+(zero mismatches); a brace-balance check on `styles.css` (0); booted the
+Hub locally and confirmed `device.html`/`group.html`/`styles.css` all
+still serve 200 with the new `card-content`/`section-title`/
+`customMenu-source` markup present in the live response body. **Not**
+verified visually in an actual browser — the box-model/specificity
+reasoning above is confident (verified by reading the actual CSS rules
+and their cascade order, not guessed from symptoms alone), but should
+still be checked on a real screen before fully trusting the corner-clip
+diagnosis specifically, since layout-level visual bugs are the one thing
+that can't be exercised outside a real browser in this environment.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

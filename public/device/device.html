@@ -14,6 +14,7 @@
 	<link rel="icon" type="image/svg+xml" href="/media/favicon.svg">
 </head>
 <body class="hide-scrollbar">
+	<div id="customMenu-source" class="context-menu"></div>
 	<div id="main-div" class="app">
 		<nav class="sidebar">
 			<div class="sidebar-logo" onclick="window.location.href='/'">
@@ -50,15 +51,17 @@
 			<div class="content">
 
 		<div class="card" style="max-width:75rem;margin:0 auto;width:100%;">
-			<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;">
-				<div style="display:flex;align-items:center;gap:0.75rem;">
-					<h2 id="deviceName" style="font-size:2rem;margin:0;">Loading...</h2>
-					<div id="changeName"></div>
+			<div class="card-content">
+				<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
+					<div style="display:flex;align-items:center;gap:0.75rem;">
+						<h2 id="deviceName" style="font-size:2rem;margin:0;">Loading...</h2>
+						<div id="changeName"></div>
+					</div>
+					<div id="systemStatsHeader" class="stats-page-header"></div>
 				</div>
-				<div id="systemStatsHeader" class="stats-page-header"></div>
-			</div>
-			<div id="deviceContent">
-				<p style="color: #888; padding: 1.25rem;">Loading device information...</p>
+				<div id="deviceContent">
+					<p style="color: #888; padding: 1.25rem;">Loading device information...</p>
+				</div>
 			</div>
 		</div>
 			</div>
@@ -190,13 +193,13 @@
 				<div class="device-page-container">
 					<!-- NDI Source Selection -->
 					<div>
-						<h3 style="margin-bottom:8px;">Select NDI Source</h3>
+						<h3 class="section-title">Select NDI Source</h3>
 						<div id="deviceSourceGrid" class="source-grid"></div>
 					</div>
 				
 					<!-- Display Controls -->
 					<div style="margin-top:24px;">
-						<h3 style="margin-bottom:8px;">Display Controls</h3>
+						<h3 class="section-title">Display Controls</h3>
 						<div class="display-controls">
 							<button onclick="showOverlay()" style="flex:5;" class="display-btn display-btn-overlay">Display Overlay</button>
 							<button onclick="showBlank()" style="flex:2;" class="display-btn display-btn-overlay">Blank Display</button>
@@ -232,7 +235,7 @@
 
 				<!-- Overlay Image -->
 				<div style="margin-top:24px;">
-					<h3 style="margin-bottom:8px;">Overlay Image</h3>
+					<h3 class="section-title">Overlay Image</h3>
 					<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
 						<img id="overlayPreview" style="max-width:160px;max-height:90px;border-radius:8px;background:rgba(255,255,255,0.05);object-fit:contain;">
 						<div style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:220px;">
@@ -247,25 +250,25 @@
 				
 				<!-- Device Status Information -->
 				<div style="margin-top:24px;">
-					<h3 style="margin-bottom:12px;">Device Information</h3>
+					<h3 class="section-title">Device Information</h3>
 					<div id="infoGrid" class="info-grid"></div>
 				</div>
 
 				<!-- Full System Stats -->
 				<div style="margin-top:24px;">
-					<h3 style="margin-bottom:12px;">System Stats</h3>
+					<h3 class="section-title">System Stats</h3>
 					<div id="fullStatsGrid" class="info-grid"></div>
 				</div>
 
 				<!-- Device Settings -->
 				<div style="margin-top:24px;">
-					<h3 style="margin-bottom:12px;">Device Settings</h3>
+					<h3 class="section-title">Device Settings</h3>
 					<div id="deviceSettingsGrid" class="info-grid"></div>
 				</div>
 
 				<!-- Software Update -->
 				<div style="margin-top:24px;">
-					<h3 style="margin-bottom:8px;">Software Update</h3>
+					<h3 class="section-title">Software Update</h3>
 					<div style="display:flex;gap:10px;flex-wrap:wrap;">
 						<button onclick="checkForDeviceUpdate()" class="button-subtle">Check for Update</button>
 						<button onclick="installDeviceUpdate()" id="installUpdateBtn" class="button-primary" hidden>Install Update</button>
@@ -325,7 +328,7 @@
 				const isSelected = String(device.currentSource || '').toUpperCase() == String(src.name || '').toUpperCase();
 				return `
 					<div>
-						<div class="source-card ${isSelected ? 'selected' : ''}" onclick="selectSource('${escAttr(src.name)}')">
+						<div class="source-card ${isSelected ? 'selected' : ''}" onclick="selectSource('${escAttr(src.name)}')" oncontextmenu="buildContext_Source(event, {name:'${escAttr(src.name)}', url:'${escAttr(src.url)}', favorite:${!!src.favorite}})">
 							${src.favorite ? `
 							<button type="button" class="source-fav-btn favorited" onclick="event.stopPropagation(); toggleFavoriteSource(this, '${escAttr(src.name)}', '${escAttr(src.url)}')" title="Remove from favorites">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z"/></svg>
@@ -375,6 +378,34 @@
 				toast.error('Error updating favorite');
 			} finally {
 				btnEl.disabled = false;
+			}
+		}
+
+		// Favorite/Unfavorite item on the source card's right-click context
+		// menu (see buildContext_Source() in 01-scripts/modal.js). No button
+		// element to patch in place here (unlike toggleFavoriteSource above,
+		// which owns the star button that triggered it) -- the star's own
+		// visibility depends on favorite state, so a full renderSources() is
+		// the simplest correct way to pick up the change everywhere it's
+		// reflected (star button, menu's own label next time it opens).
+		async function toggleFavoriteSourceFromMenu(name, url) {
+			try {
+				const res = await fetch('/api/favorite-ndi-sources/toggle', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ name, url }),
+				});
+				if (res.ok) {
+					const data = await res.json();
+					const src = sources.find(s => s.name === name);
+					if (src) { src.favorite = data.favorite; }
+					toast.success(data.favorite ? 'Added to favorites' : 'Removed from favorites');
+					renderSources();
+				} else {
+					toast.error('Failed to update favorite');
+				}
+			} catch (e) {
+				toast.error('Error updating favorite');
 			}
 		}
 
