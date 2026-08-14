@@ -142,7 +142,12 @@ a {
       |-- .sidebar   (fixed-width nav column, pinned left/full-height;
       |               collapses to a bottom bar below the mobile breakpoint)
       |-- .main      (normal flow, offset right by margin-left: var(--sidebar-width))
-            |-- .topbar    (fixed header, offset the same way via left: var(--sidebar-width))
+            |-- .topbar    (fixed header, spans the full viewport width (left:0)
+                             with .sidebar simply layered on top of its left end
+                             -- offset the same way as .main, but via padding-left
+                             instead of left/width, so its border-bottom is always
+                             full-width and never has to chase .sidebar's own
+                             independently-animated collapse/expand transition)
             |-- .content   (the one scrollable region; padding compensates
                              for both fixed bars via --live-topbar-height /
                              --live-bottombar-height, kept in sync by
@@ -422,19 +427,28 @@ html.sidebar-collapsed .nav-btn {
 .topbar {
 	position: fixed;
 	top: 0;
-	left: var(--live-sidebar-width);
+	/* Left edge is static at 0 -- spans the full viewport width, with
+	   .sidebar (higher z-index, opaque background) simply sitting on top
+	   of the leftmost --live-sidebar-width of it. This is deliberate: the
+	   border-bottom below is therefore always full-width and never has to
+	   move, so it can't visibly desync from .sidebar's own independently
+	   animated width during collapse/expand the way it used to when this
+	   box's own left edge (and therefore the left end of its border) was
+	   the thing tracking --live-sidebar-width. Only the *content* inside
+	   shifts now, via padding-left. */
+	left: 0;
 	right: 0;
 	height: var(--header-height);
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.625rem;
-	background: var(--bg-1);
+	background: var(--bg-0);
 	border-bottom: 0.0625rem solid var(--border);
-	padding: 0 1.5rem;
+	padding: 0 1.5rem 0 calc(var(--live-sidebar-width) + 1.5rem);
 	z-index: 90;
 	/* Same reasoning as .main's margin-left transition above. */
-	transition: left 0.1s ease-out;
+	transition: padding-left 0.1s ease-out;
 }
 
 .topbar-title {
@@ -601,7 +615,14 @@ html.sidebar-collapsed .nav-btn {
 	}
 
 	.topbar {
-		left: 0;
+		/* .sidebar is a bottom bar here, not a left column -- its
+		   offsetWidth (still measured into --live-sidebar-width, see
+		   syncFixedBarMetrics()'s comment) is the full viewport width in
+		   this mode, so the desktop rule's calc(--live-sidebar-width +
+		   1.5rem) padding-left must NOT apply here or it'd push this
+		   bar's entire content off-screen. Reset to the same flat
+		   1.5rem the right side already uses. */
+		padding-left: 1.5rem;
 	}
 
 	.toast-container {

@@ -1620,6 +1620,47 @@ still be checked on a real screen before fully trusting the corner-clip
 diagnosis specifically, since layout-level visual bugs are the one thing
 that can't be exercised outside a real browser in this environment.
 
+### `.topbar` offset changed from `left` to `padding-left`, topbar background matched to sidebar
+
+User report: "for the dynamic topbar, change the dynamic value from
+modifying the 'left' property to be padding (plus the already existing
+padding). The border is lagging behind during collapse and expansion and
+if we change this, the border will essentially always be there just the
+padding will change again." Root cause matched the user's own diagnosis
+exactly: `.topbar` (`position:fixed; left: var(--live-sidebar-width);
+right:0;`) resized its own box — and therefore the horizontal extent of
+its `border-bottom` — every time `--live-sidebar-width` changed, while
+`.sidebar` (the thing that variable is meant to track) resizes via its
+own separate `width`/`min-width` transition on a different element.
+Two independently-animated properties on two different elements chasing
+the same target is exactly the kind of thing that can visibly desync
+mid-transition, which is what read as the border "lagging behind."
+Fixed by pinning `.topbar`'s `left: 0` permanently (full viewport width,
+same as `.sidebar`'s own full-height column) and moving the dynamic part
+onto `padding-left: calc(var(--live-sidebar-width) + 1.5rem)` instead —
+`.sidebar` (`z-index:100`, opaque `--bg-0` background) simply renders on
+top of the leftmost `--live-sidebar-width` of the now-static topbar, so
+`border-bottom` spans the full width unconditionally and never has to
+move at all; only the topbar's *content* (title, back button) shifts via
+the animated padding, exactly as the user described. Also updated
+`transition: left` → `transition: padding-left` on the same rule, and
+fixed the one place this could have broken: the `<=53.75rem` mobile
+media query, where `.sidebar` becomes a full-width *bottom* bar (so its
+measured `offsetWidth` — what `--live-sidebar-width` actually holds —
+would be the entire viewport width in that mode) — previously that query
+just reset `.topbar`'s `left` back to `0` (now redundant, since the base
+rule already does that unconditionally), so it was changed to instead
+reset `padding-left` back to the flat `1.5rem` the right side already
+uses, preventing the desktop calc() from pushing all of the mobile
+topbar's content off-screen. Also applied the user's other request from
+the same message thread: `.topbar`'s `background` changed from
+`var(--bg-1)` (page-content background) to `var(--bg-0)` (the same token
+`.sidebar` uses), so the two fixed bars read as one continuous surface.
+**Verified**: brace-balance check on `styles.css` (0), booted the Hub
+locally and confirmed `styles.css` serves the new rule live. Not checked
+visually in a real browser — same standing caveat as the rest of this
+session's CSS-only changes.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via
