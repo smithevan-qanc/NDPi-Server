@@ -1637,7 +1637,7 @@ label {
 .modal-button-secondary {
 	background: var(--bg-3);
 	color: var(--text-1);
-	border-color: var(--border-strong);
+	border-color: var(--border);
 }
 
 .modal-button-secondary:hover {
@@ -1658,7 +1658,7 @@ label {
 .modal-option {
 	padding: 1rem;
 	background: var(--bg-3);
-	border: 0.125rem solid var(--border-strong);
+	border: 0.125rem solid var(--border);
 	border-radius: var(--radius-md);
 	margin-bottom: 0.5rem;
 	cursor: pointer;
@@ -1713,7 +1713,7 @@ label {
 	   transient overlay that needs to read clearly over any page content
 	   behind it, unlike --bg-2's card surfaces (which sit against a much
 	   more uniform, mostly-empty content background) */
-	background: rgba(80, 80, 80, 0.9);
+	background: rgba(100, 100, 100, 0.7);
 	backdrop-filter: blur(0.5rem);
 	-webkit-backdrop-filter: blur(0.5rem);
 	border: 0.0625rem solid var(--border-strong);
