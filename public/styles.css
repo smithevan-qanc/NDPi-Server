@@ -38,14 +38,14 @@
 
 	--primary-color-green: rgba(129, 193, 39, 1); /* kept for any legacy reference */
 
-	--bg-0: color-mix(in srgb, var(--accent) 6%, #07080a);   /* sidebar / outermost shell */
-	--bg-1: color-mix(in srgb, var(--accent) 7%, #0a0c0f);   /* main content background */
-	--bg-2: rgba(100, 100, 100, 0.25);   /* card / surface -- neutral gray, not accent-tinted */
-	--bg-2-hover: rgba(100, 100, 100, 0.32);
+	--bg-0: color-mix(in srgb, var(--accent) 3%, #07080a);   /* sidebar / outermost shell */
+	--bg-1: color-mix(in srgb, var(--accent) 3.5%, #0a0c0f);   /* main content background */
+	--bg-2: color-mix(in srgb, var(--accent) 1%, rgba(80,80,80,0.3));   /* card / surface -- neutral gray, not accent-tinted */
+	--bg-2-hover: color-mix(in srgb, var(--accent) 1%, rgba(80,80,80,0.35));
 	--bg-3: rgba(110, 110, 110, 0.3);    /* nested surface (inputs, stat chips) -- neutral gray */
 	--bg-3-hover: rgba(110, 110, 110, 0.38);
-	--bg-tile: color-mix(in srgb, var(--accent) 7%, #090a0d);        /* device/group/source/user tiles -- deliberately darker than --bg-2 so they pop against the card container instead of blending into it */
-	--bg-tile-hover: color-mix(in srgb, var(--accent) 9%, #0f1114);
+	--bg-tile: color-mix(in srgb, var(--accent) 4%, #090a0d);        /* device/group/source/user tiles -- deliberately darker than --bg-2 so they pop against the card container instead of blending into it */
+	--bg-tile-hover: color-mix(in srgb, var(--accent) 10%, #0f1114);
 
 	--border: rgba(255, 255, 255, 0.11);
 	--border-strong: rgba(255, 255, 255, 0.22);
@@ -170,8 +170,16 @@ a {
 	--sidebar-width: var(--sidebar-width-collapsed);
 }
 
+/* Faded/collapsed to zero width instead of `display: none` -- so they
+   ease out (and the sidebar's own fit-content width eases in along with
+   them) instead of vanishing/reappearing instantly. */
 .app.sidebar-collapsed .nav-btn-label,
-.app.sidebar-collapsed .sidebar-logo-title,
+.app.sidebar-collapsed .sidebar-logo-title {
+	opacity: 0;
+	max-width: 0;
+	pointer-events: none;
+}
+
 .app.sidebar-collapsed .sidebar-section-label {
 	display: none;
 }
@@ -179,6 +187,7 @@ a {
 .app.sidebar-collapsed .sidebar-logo {
 	justify-content: center;
 	padding: 0;
+	gap: 0;
 }
 
 .app.sidebar-collapsed .sidebar-nav,
@@ -191,6 +200,7 @@ a {
 	justify-content: center;
 	padding-left: 0;
 	padding-right: 0;
+	gap: 0;
 }
 
 /*
@@ -219,6 +229,13 @@ a {
 	overflow-y: auto;
 	overflow-x: hidden;
 	z-index: 100;
+	/* Collapse/expand ease -- width itself mostly just follows along as
+	   .nav-btn-label/.sidebar-logo-title's own opacity/max-width
+	   transitions (below) shrink or grow what fit-content has to fit, but
+	   min-width is listed explicitly too since that floor changes the
+	   instant .sidebar-collapsed toggles (--sidebar-width gets swapped to
+	   --sidebar-width-collapsed) rather than easing in on its own. */
+	transition: width 0.25s ease-in-out, min-width 0.25s ease-in-out;
 }
 
 .sidebar-logo {
@@ -230,6 +247,7 @@ a {
 	padding: 0 1.125rem;
 	border-bottom: 0.0625rem solid var(--border);
 	cursor: pointer;
+	transition: padding 0.2s ease-in-out, gap 0.2s ease-in-out;
 }
 
 .topbar-logo {
@@ -252,6 +270,9 @@ a {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	opacity: 1;
+	max-width: 12rem;
+	transition: opacity 0.2s ease-in-out, max-width 0.25s ease-in-out;
 }
 
 .sidebar-nav {
@@ -306,7 +327,8 @@ a {
 	font-size: 0.8438rem;
 	padding: 0.5625rem 0.75rem;
 	cursor: pointer;
-	transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+	transition: background 150ms ease, color 150ms ease, border-color 150ms ease,
+		width 0.25s ease-in-out, padding 0.2s ease-in-out, gap 0.2s ease-in-out;
 	border-radius: var(--radius-sm);
 	text-align: left;
 }
@@ -334,6 +356,9 @@ a {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	opacity: 1;
+	max-width: 12rem;
+	transition: opacity 0.2s ease-in-out, max-width 0.25s ease-in-out;
 }
 
 .nav-btn:hover {
@@ -370,6 +395,12 @@ a {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
+	/* --live-sidebar-width jumps to its new target the instant
+	   applySidebarCollapsed() sets it (01-scripts/functions.js), not
+	   gradually -- this is what actually eases that jump instead of
+	   .main's content snapping sideways out of step with .sidebar's own
+	   (child-driven) width animation. */
+	transition: margin-left 0.25s ease-in-out;
 }
 
 /*
@@ -390,6 +421,8 @@ a {
 	border-bottom: 0.0625rem solid var(--border);
 	padding: 0 1.5rem;
 	z-index: 90;
+	/* Same reasoning as .main's margin-left transition above. */
+	transition: left 0.25s ease-in-out;
 }
 
 .topbar-title {
