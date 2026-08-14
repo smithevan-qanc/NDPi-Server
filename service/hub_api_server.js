@@ -127,13 +127,30 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ndiSourceInterval = null;
         this.systemStatsInterval = null;
         this.deviceTimeoutInterval = null;
+        this.clientsUpdateDebounceTimer = null;
 
         this.App = null;    // express()
         this.Server = null; // http.createServer()
         this.Routes = null; // express.Router()
 
-        // Broadcast collection changes from the Hub's data layer to GUI clients.
-        fsData.on('clients-update', () => { this.broadcastDevices(`hub_fs.js( 'clients-update' )`); });
+        // Broadcast collection changes from the Hub's data layer to GUI
+        // clients. Debounced (trailing-edge) rather than firing
+        // broadcastDevices() -- which sends the Hub's *entire* client list,
+        // not a delta -- on every single upsertClient() call: several call
+        // sites can legitimately fire in a tight burst (most notably
+        // startDeviceTimeoutMonitor()'s forEach over every client, which
+        // calls upsertClient() once per newly-stale device found in the
+        // same synchronous tick), and each one used to trigger its own
+        // full broadcast to every connected browser. Coalescing them into
+        // one broadcast per burst is a pure win -- every consumer only
+        // ever wants the latest state, not one message per intermediate
+        // write.
+        fsData.on('clients-update', () => {
+            clearTimeout(this.clientsUpdateDebounceTimer);
+            this.clientsUpdateDebounceTimer = setTimeout(() => {
+                this.broadcastDevices(`hub_fs.js( 'clients-update' )`);
+            }, 150);
+        });
         fsData.on('groups-update', () => { this.broadcastToGUI({ type: 'groups-update', origin: `hub_fs.js( 'groups-update' )`, groups: this.settings.getGroups() }); });
         fsData.on('discovered-clients-update', () => { this.broadcastToGUI({ type: 'discovered-devices-update', origin: `hub_fs.js( 'discovered-clients-update' )`, devices: this.settings.getDiscoveredClients() }); });
 
@@ -915,9 +932,25 @@ class NDPiCommandServer_Client extends EventEmitter {
                 lastSeen: new Date().toISOString(),
             });
 
-            // Update IP/status of already-saved devices too.
+            // Update IP/status of already-saved devices too -- but only when
+            // there's no live /ws/client connection already telling us the
+            // truth. mDNS presence is a much flakier signal (multicast loss,
+            // TTL timing, plus the TXT-record decode corruption
+            // _extractMdnsTxtField works around) than the persistent
+            // /ws/client heartbeat, and the Client's own mDNS advertisement
+            // re-publishes periodically regardless of any real connectivity
+            // change (Client__v3_1_0/service/client_bonjour.js's 60s
+            // republish cycle does a stop-then-publish, which this browser
+            // sees as a down/up pair every single time) -- so without this
+            // guard, an already-online device's status got flipped to
+            // 'offline' then immediately back to 'online' on every one of
+            // those cycles, each write broadcasting the full device list to
+            // every connected browser (this is what was behind both the
+            // "adopted cards flash offline" and the "excessive
+            // devices-update" reports -- the offline flash and the flood
+            // were the same underlying bug, not two separate ones).
             const existingClient = this.settings.getClient(deviceId);
-            if (existingClient)
+            if (existingClient && !this.deviceConnections.has(deviceId))
             {
                 this.settings.upsertClient(deviceId, {
                     ip,
@@ -931,8 +964,14 @@ class NDPiCommandServer_Client extends EventEmitter {
             const deviceId = service.txt?.deviceId || service.txt?.deviceid || this._extractMdnsTxtField(service, 'deviceid');
             if (!deviceId) return;
 
+            // Same reasoning as the 'up' handler above: a live /ws/client
+            // connection is definitive and already has its own onclose
+            // handler to mark the device offline the moment it actually
+            // drops -- a transient mDNS "down" (e.g. the Client's periodic
+            // republish briefly withdrawing its old advertisement before
+            // publishing a new one) doesn't mean the connection is gone.
             const existingClient = this.settings.getClient(deviceId);
-            if (existingClient)
+            if (existingClient && !this.deviceConnections.has(deviceId))
             {
                 this.settings.upsertClient(deviceId, {
                     status: 'offline',
@@ -2286,6 +2325,8 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ndiSourceInterval = null;
         this.systemStatsInterval = null;
         this.deviceTimeoutInterval = null;
+        clearTimeout(this.clientsUpdateDebounceTimer);
+        this.clientsUpdateDebounceTimer = null;
 
         this.stopMdnsDiscovery();
 

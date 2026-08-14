@@ -40,10 +40,10 @@
 
 	--bg-0: color-mix(in srgb, var(--accent) 6%, #07080a);   /* sidebar / outermost shell */
 	--bg-1: color-mix(in srgb, var(--accent) 7%, #0a0c0f);   /* main content background */
-	--bg-2: rgba(255, 255, 255, 0.05);   /* card / surface -- neutral translucent, not accent-tinted */
-	--bg-2-hover: rgba(255, 255, 255, 0.075);
-	--bg-3: rgba(255, 255, 255, 0.09);   /* nested surface (inputs, stat chips) -- neutral translucent */
-	--bg-3-hover: rgba(255, 255, 255, 0.12);
+	--bg-2: rgba(100, 100, 100, 0.25);   /* card / surface -- neutral gray, not accent-tinted */
+	--bg-2-hover: rgba(100, 100, 100, 0.32);
+	--bg-3: rgba(110, 110, 110, 0.3);    /* nested surface (inputs, stat chips) -- neutral gray */
+	--bg-3-hover: rgba(110, 110, 110, 0.38);
 	--bg-tile: color-mix(in srgb, var(--accent) 7%, #090a0d);        /* device/group/source/user tiles -- deliberately darker than --bg-2 so they pop against the card container instead of blending into it */
 	--bg-tile-hover: color-mix(in srgb, var(--accent) 9%, #0f1114);
 
@@ -1603,7 +1603,13 @@ label {
 	position: absolute;
 	bottom: 0;
 	left: 50%;
-	background: var(--bg-2);
+	/* deliberately its own near-opaque gray, not var(--bg-2) -- a toast is a
+	   transient overlay that needs to read clearly over any page content
+	   behind it, unlike --bg-2's card surfaces (which sit against a much
+	   more uniform, mostly-empty content background) */
+	background: rgba(80, 80, 80, 0.9);
+	backdrop-filter: blur(0.5rem);
+	-webkit-backdrop-filter: blur(0.5rem);
 	border: 0.0625rem solid var(--border-strong);
 	color: var(--text-0);
 	padding: 0.875rem 1.5rem;

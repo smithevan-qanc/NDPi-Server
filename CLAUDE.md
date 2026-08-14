@@ -1279,6 +1279,86 @@ Four more from the user after trying the fixed-bar change on a real phone:
    checked on a real phone alongside the still-outstanding overscroll
    verification from the previous pass.
 
+### mDNS presence fighting the real `/ws/client` connection state (`/ws` broadcast flood + adopted cards flashing offline)
+
+Two user-reported symptoms turned out to be **the same root cause**, confirmed by a dedicated research pass reading the actual event chain rather than guessing from symptoms:
+
+- Adopted device cards' stats/status briefly flashed offline whenever a
+  `discovered-devices-update` message arrived on `/ws`.
+- Far more than the expected ~1 `devices-update` broadcast per 5s-per-device
+  was arriving on `/ws` — user measured >10/sec.
+
+**Root cause** (`hub_api_server.js`'s `startMdnsDiscovery()`, the
+`bonjourBrowser.on('up'/'down', ...)` handlers): both unconditionally
+called `this.settings.upsertClient(deviceId, {status: 'online'/'offline'})`
+for *any* device with a saved record, with no check for whether that
+device already has a live `/ws/client` connection (tracked in
+`this.deviceConnections`, the actually-authoritative signal — updated on
+real connect/disconnect, per-device). mDNS presence is a much flakier
+signal than that persistent connection: `Client__v3_1_0/service/
+client_bonjour.js`'s republish cycle does a `service.stop()` (→ mDNS
+"goodbye", seen here as `down`) followed by `bonjour.publish()` (→ `up`)
+**every 60 seconds, for every adopted device, regardless of whether
+anything actually changed** — and that republish is *also* wired to 6
+separate settings-change listeners, so a burst of settings changes (e.g.
+at Client boot) could trigger several such cycles back to back. Each
+down/up pair flipped an already-online device's `status` to `'offline'`
+then immediately back to `'online'`, and each of those two writes
+independently triggered `hub_fs.js`'s `clients-update` event →
+`broadcastDevices()` → a **full** (not delta) device list sent to every
+browser on `/ws`. The transient `status:'offline'` write is exactly what
+briefly hid an adopted device's stats client-side (`devices.html`'s
+`showStats` check gates on `dev.status === 'online'`) — the
+`discovered-devices-update` message the user noticed alongside it was a
+red herring correlated in time (both the `up` handler's
+`upsertDiscoveredClient()` and its `upsertClient()` fire from the same
+mDNS event), not itself capable of touching adopted-device data (verified
+by tracing `devices.html`'s `onDiscoveredDevicesUpdate` handler: it only
+ever touches the separate `discoveredDevices` array, never the adopted
+`devices` array). **Fixed** by gating both mDNS handlers on
+`!this.deviceConnections.has(deviceId)` — mDNS now only ever sets
+`status` for a device that *doesn't* currently have a live `/ws/client`
+socket (i.e. it's still a legitimate fallback for devices not yet
+talking to the Hub, just no longer allowed to override the real
+connection's own authority once one exists; that connection's own
+`onclose` handler already marks it offline the instant it actually
+drops).
+
+**Also added, as defense-in-depth** (not itself the root cause, but a
+real gap `hub_fs.js`'s settings-file writes don't have — those already go
+through a 500ms debounce, `_fsEvent`/`__flushQueue`; `clients.json`
+writes via `saveClients()` never did): debounced the `clients-update` →
+`broadcastDevices()` wiring itself (trailing-edge, 150ms). This also
+coalesces a separate legitimate burst source noticed while investigating:
+`startDeviceTimeoutMonitor()`'s 20s-interval `forEach` over every client
+calls `upsertClient()` once per newly-stale device found in the same
+synchronous tick — if several devices go stale together (e.g. a network
+blip), that used to fire one full broadcast per device instead of one
+broadcast for the whole batch.
+
+**Investigated and confirmed NOT a bug**: user also asked whether
+`/ws/devices/system` (the per-device settings relay) was only ever
+sending its initial snapshot. Traced `connectDeviceSystemRelay()` and
+confirmed it forwards every message it receives from a device's own
+`/ws/system`, not just the first — the reason it can appear to send only
+one message for long stretches is that `Client__v3_1_0`'s `/ws/system`
+itself only pushes when that device's *settings actually change*
+(`fsData.on('update', ...)`), with no periodic heartbeat push (unlike
+`/ws/stats`, which does have one) — so a quiet device with no setting
+changes will legitimately go long stretches without a `device-system`
+message. Correct behavior, not a relay bug; not changed.
+
+**Verified**: booted the Hub against a live network with real discoverable
+devices (unadopted in the fresh test datastore, so the exact
+already-adopted-device-flapping scenario couldn't be directly reproduced
+without adopting a real device's Hub connection — not done, per this
+file's standing rule against side-effecting a real physical device
+without explicit authorization), connected a raw `ws` client to `/ws` and
+counted message types over a 10s window: exactly one `devices-update`
+(the connect-time snapshot) plus the expected steady-state
+`heartbeat`/`system-stats`/`ndi-sources` — no flood. `node --check` on
+`hub_api_server.js`, and a page-route sweep (all 200s).
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via
