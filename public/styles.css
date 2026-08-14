@@ -412,7 +412,7 @@ html.sidebar-collapsed .nav-btn {
 	   gradually -- this is what actually eases that jump instead of
 	   .main's content snapping sideways out of step with .sidebar's own
 	   (child-driven) width animation. */
-	transition: margin-left 0.2s ease-out;
+	transition: margin-left 0.2s ease-in;
 }
 
 /*
@@ -434,7 +434,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0 1.5rem;
 	z-index: 90;
 	/* Same reasoning as .main's margin-left transition above. */
-	transition: left 0.2s ease-out;
+	transition: left 0.2s ease-in;
 }
 
 .topbar-title {
