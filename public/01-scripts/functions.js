@@ -292,7 +292,9 @@ function addTouchScrollEventListener() {
 	});
 
 	list.addEventListener('touchend', () => {
-		document.body.style.removeProperty('cursor');
+		setTimeout(() => {
+			document.body.style.removeProperty('cursor');
+		}, 250);
 	});
 }
 addTouchScrollEventListener();
