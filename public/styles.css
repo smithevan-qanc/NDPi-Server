@@ -47,12 +47,12 @@
 	--bg-tile: color-mix(in srgb, var(--accent) 4%, #090a0d);        /* device/group/source/user tiles -- deliberately darker than --bg-2 so they pop against the card container instead of blending into it */
 	--bg-tile-hover: color-mix(in srgb, var(--accent) 10%, #0f1114);
 
-	--border: rgba(255, 255, 255, 0.11);
-	--border-strong: rgba(255, 255, 255, 0.22);
+	--border: rgba(84, 84, 84, 1);
+	--border-strong: rgba(96, 96, 96, 1);
 
-	--text-0: #ffffff;
-	--text-1: #d2d5db;
-	--text-2: #8b909c;
+	--text-0: rgba(255,255,255,1);
+	--text-1: rgba(219,219,219,1);
+	--text-2: rgba(53,53,53,1);
 	--text-3: #8f8f8f;
 
 	--online: #3fca6a;
@@ -243,7 +243,7 @@ html.sidebar-collapsed .nav-btn {
 	   min-width is listed explicitly too since that floor changes the
 	   instant .sidebar-collapsed toggles (--sidebar-width gets swapped to
 	   --sidebar-width-collapsed) rather than easing in on its own. */
-	transition: width 0.25s ease-in-out, min-width 0.25s ease-in-out;
+	transition: width 0.2s ease-out, min-width 0.2s ease-in;
 }
 
 .sidebar-logo {
@@ -280,7 +280,7 @@ html.sidebar-collapsed .nav-btn {
 	text-overflow: ellipsis;
 	opacity: 1;
 	max-width: 12rem;
-	transition: opacity 0.2s ease-in-out, max-width 0.25s ease-in-out;
+	transition: opacity 0.2s ease, max-width 0.3s ease;
 }
 
 .sidebar-nav {
@@ -336,7 +336,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0.5625rem 0.75rem;
 	cursor: pointer;
 	transition: background 150ms ease, color 150ms ease, border-color 150ms ease,
-		width 0.25s ease-in-out, padding 0.2s ease-in-out, gap 0.2s ease-in-out;
+		width 0.2s ease-in-out, padding 0.2s ease-in-out, gap 0.2s ease-in-out;
 	border-radius: var(--radius-sm);
 	text-align: left;
 }
@@ -366,7 +366,7 @@ html.sidebar-collapsed .nav-btn {
 	white-space: nowrap;
 	opacity: 1;
 	max-width: 12rem;
-	transition: opacity 0.2s ease-in-out, max-width 0.25s ease-in-out;
+	transition: opacity 0.2s ease-out, max-width 0.2s ease-in;
 }
 
 .nav-btn:hover {
@@ -408,7 +408,7 @@ html.sidebar-collapsed .nav-btn {
 	   gradually -- this is what actually eases that jump instead of
 	   .main's content snapping sideways out of step with .sidebar's own
 	   (child-driven) width animation. */
-	transition: margin-left 0.25s ease-in-out;
+	transition: margin-left 0.25s ease-out;
 }
 
 /*
@@ -430,7 +430,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0 1.5rem;
 	z-index: 90;
 	/* Same reasoning as .main's margin-left transition above. */
-	transition: left 0.25s ease-in-out;
+	transition: left 0.2s ease-out;
 }
 
 .topbar-title {
@@ -599,6 +599,10 @@ html.sidebar-collapsed .nav-btn {
 	.topbar {
 		left: 0;
 	}
+
+	.toast-container {
+		left: 0;
+	}
 }
 
 @media (max-width: 31.25rem) {
@@ -740,7 +744,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0.875rem 1rem;
 	cursor: pointer;
 	user-select: none;
-	transition: all 0.2s ease-in-out;
+	transition: all 0.15s ease-in-out;
 	display: flex;
 	flex-direction: column;
 	gap: 0.75rem;
@@ -1024,7 +1028,7 @@ html.sidebar-collapsed .nav-btn {
     background: var(--bg-tile);
     cursor: pointer;
 	flex: 1 1 25rem;
-	transition: all 0.2s ease;
+	transition: all 0.15s ease;
 	font-size: 0.8125rem;
 	width: 100%;
 	box-sizing: border-box;
@@ -1136,7 +1140,7 @@ html.sidebar-collapsed .nav-btn {
 	border-radius: var(--radius-md);
 	padding: 0.75rem 0.875rem;
 	cursor: pointer;
-	transition: all 0.2s ease-in-out;
+	transition: all 0.15s ease-in-out;
 	position: relative;
 }
 
@@ -1189,7 +1193,7 @@ html.sidebar-collapsed .nav-btn {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: rgba(0, 0, 0, 0.35);
+	background: rgba(0, 0, 0, 0);
 	border: 0.0625rem solid var(--border);
 	border-radius: 50%;
 	color: var(--text-3);
@@ -1210,7 +1214,7 @@ html.sidebar-collapsed .nav-btn {
 .source-fav-btn:hover {
 	color: var(--warning);
 	border-color: var(--warning);
-	background: rgba(0, 0, 0, 0.5);
+	background: rgba(0, 0, 0, 0);
 }
 
 .source-fav-btn.favorited {
@@ -1227,7 +1231,7 @@ html.sidebar-collapsed .nav-btn {
 	top: 0.5rem;
 	right: 0.5rem;
 	background: var(--accent);
-	color: #0a0b0d;
+	color: #000000;
 	font-size: 0.625rem;
 	padding: 0.125rem 0.5rem;
 	border-radius: var(--radius-sm);
@@ -1355,7 +1359,7 @@ label {
     font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 }
 
 .admin-toggle-btn.grant {
@@ -1564,7 +1568,7 @@ label {
 	border-radius: var(--radius-md);
 	cursor: pointer;
 	font-family: inherit;
-	transition: all 0.2s ease;
+	transition: all 0.15s ease;
 	min-width: 6.25rem;
 }
 
@@ -1624,7 +1628,7 @@ label {
 	cursor: pointer;
 	color: var(--text-0);
 	font-size: 1rem;
-	transition: all 0.2s ease;
+	transition: all 0.15s ease;
 }
 
 .modal-option:hover {
@@ -1650,7 +1654,13 @@ label {
  */
 .toast-container {
 	position: fixed;
-	left: 0;
+	/* Spans the same horizontal region as .content (offset past the
+	   sidebar, same as .topbar's own left) instead of the full viewport,
+	   so a centered toast lands centered over the actual visible content
+	   area rather than off-center toward the right once a sidebar's
+	   showing. Overridden back to a plain 0 on mobile, where the sidebar
+	   is a bottom bar and doesn't offset the content horizontally at all. */
+	left: var(--live-sidebar-width);
 	right: 0;
 	/* clears the collapsed bottom nav bar on narrow/kiosk-touch viewports; 0 on wider ones */
 	bottom: calc(var(--live-bottombar-height) + 1.25rem);
@@ -1752,12 +1762,7 @@ label {
 	position: fixed;
 	inset: 0;
 	z-index: 9999;
-	transition: backdrop-filter 1000ms ease, background-color 1000ms ease;
-}
-
-@keyframes blurAnimation {
-	from { backdrop-filter: blur(0.25rem); background-color: rgba(0, 0, 0, 0.7); }
-	to   { backdrop-filter: blur(0.5625rem); background-color: rgba(0, 0, 0, 1); }
+	transition: backdrop-filter 2000ms ease-in, background-color 2000ms ease-in;
 }
 
 #logo-container {
@@ -1771,6 +1776,11 @@ label {
 	height: 100%;
 	width: 100%;
 	transition: transform 1000ms ease, opacity 1000ms ease;
+}
+
+@keyframes blurAnimation {
+	from { backdrop-filter: blur(0.25rem); background-color: rgba(0, 0, 0, 0.7); }
+	to   { backdrop-filter: blur(0.5625rem); background-color: rgba(0, 0, 0, 1); }
 }
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF SCREEN SAVER css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
@@ -1889,7 +1899,7 @@ label {
     border-radius: 50%;
     background: var(--bg-3-hover);
     margin: 0 0.375rem;
-    transition: background 0.2s;
+    transition: background 0.15s ease;
 }
 
 .dot.filled {
@@ -1916,7 +1926,7 @@ select, button {
 	font-size: 0.8438rem;
 	font-family: inherit;
     cursor: pointer;
-	transition: all 0.18s ease-in-out;
+	transition: all 0.15s ease-in-out;
 }
 
 /**
@@ -2001,7 +2011,7 @@ select option {
 	font-size: 0.8438rem;
 	cursor: pointer;
 	padding: 0.5rem;
-	transition: all 0.18s ease-in-out;
+	transition: all 0.15s ease-in-out;
 }
 
 .button-transparent:hover {
@@ -2101,7 +2111,7 @@ select option {
 	font-weight: bold;
 	cursor: pointer;
 	box-shadow: var(--shadow-pop);
-	transition: all 200ms ease-in-out;
+	transition: all 0.15s ease-in-out;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -2229,8 +2239,8 @@ input[type="number"]::-webkit-outer-spin-button {
 	display: flex;
 	gap: 0.1875rem;
 	flex-direction: column;
-    background-color: var(--bg-2);
-    border: 0.0625rem solid var(--border-strong);
+    background-color: rgba(20,20,20,1);
+    border: 0.0625rem solid var(--border-strong), 0.0625rem solid var(--border);
 	border-radius: var(--radius-md);
     box-shadow: var(--shadow-pop);
     padding: 0.25rem;
@@ -2255,7 +2265,7 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .menu-item:hover {
-    background-color: rgba(var(--accent-rgb), 0.15);
+    background-color: rgba(32,80,202,1);
 	color: var(--text-0);
 }
 

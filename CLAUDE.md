@@ -1502,6 +1502,45 @@ a drop-in replacement needing no Client-side change.
   service restart on the Hub and both Client devices) before the
   original real-traffic flood can be directly re-confirmed gone.
 
+**Source-card context menu: Favorite/Unfavorite option, star badge now
+favorited-only** (user request: "add 'Favorite'/'Unfavorite' option and
+only show the star icon if it is a favorited source"):
+- `device/device.html` and `group/group.html`'s `renderSources()`/
+  source-card templates: the star badge in each source card now renders
+  only when `src.favorite` is true (was previously always visible,
+  outline when unfavorited / filled when favorited). Clicking it always
+  means "remove from favorites" now, so its `title` is fixed at "Remove
+  from favorites" instead of being computed.
+- `01-scripts/modal.js`'s `buildContext_Source(event, source)` — the only
+  page with a right-click context menu on source cards is `group.html`
+  (`device.html` has no `#customMenu-source` div/menu CSS, so it wasn't
+  touched here). Changed its second parameter from a bare source-name
+  string to the full `{name, url, favorite}` object `group.html`'s
+  `contextmenu` listener now passes, and added a second menu item
+  (`menuItem_favoriteSource`) alongside the existing "Select: ‹name›" one,
+  labeled "Favorite" or "Unfavorite" depending on `source.favorite`. It
+  calls a page-level global, `toggleFavoriteSourceFromMenu(name, url)`
+  (new, in `group.html`), the same way the existing item already calls
+  the page-level `selectSource(name)`.
+- `toggleFavoriteSourceFromMenu()` in `group.html` is a sibling of the
+  existing `toggleFavoriteSource(btnEl, name, url)` (the star button's own
+  handler) rather than a shared refactor of it: the star-button version
+  needs a `btnEl` to patch in place, but the context-menu item has no
+  button element to reference (there may not even be one in the DOM yet,
+  if the source was unfavorited), and the star's own visibility is now
+  favorite-state-dependent — so after the POST to
+  `/api/favorite-ndi-sources/toggle` succeeds, it just calls the existing
+  `renderGroup()` to fully rebuild the source grid, which naturally
+  picks up the star showing/hiding and re-wires the context-menu listener
+  with the new `favorite` value for next time.
+- **Verified**: `node --check` on `modal.js` directly, plus every extracted
+  `<script>` block in both `group.html` and `device.html` via a Python
+  extraction + `node --check` pass — all clean. `showCustomMenu()`/
+  `hideCustomMenu()` in `modal.js` operate on the whole `.context-menu`
+  container generically (position + `active` class toggle), not on
+  specific child items, so adding a second `.menu-item` needed no changes
+  there. Not boot-tested against a real browser/device in this pass.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

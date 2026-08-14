@@ -86,14 +86,12 @@
 			}
 
 			try {
-				const [devRes, srcRes, grpRes] = await Promise.all([
+				const [devRes, grpRes] = await Promise.all([
 					fetch('/api/devices'),
-					fetch('/api/ndi-sources'),
 					fetch('/api/groups')
 				]);
-				
+
 				const devData = await devRes.json();
-				sources = await srcRes.json();
 				const grpData = await grpRes.json();
 				groups = grpData.groups || [];
 				
@@ -328,9 +326,11 @@
 				return `
 					<div>
 						<div class="source-card ${isSelected ? 'selected' : ''}" onclick="selectSource('${escAttr(src.name)}')">
-							<button type="button" class="source-fav-btn ${src.favorite ? 'favorited' : ''}" onclick="event.stopPropagation(); toggleFavoriteSource(this, '${escAttr(src.name)}', '${escAttr(src.url)}')" title="${src.favorite ? 'Remove from favorites' : 'Add to favorites'}">
+							${src.favorite ? `
+							<button type="button" class="source-fav-btn favorited" onclick="event.stopPropagation(); toggleFavoriteSource(this, '${escAttr(src.name)}', '${escAttr(src.url)}')" title="Remove from favorites">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z"/></svg>
 							</button>
+							` : ''}
 							<div class="source-name">${parsed.sourceName}</div>
 							<div class="source-host">${parsed.hostname}</div>
 							<div class="source-info">
@@ -351,7 +351,7 @@
 		// toggle). Updates this card's button immediately from the
 		// server's authoritative response rather than guessing locally,
 		// and patches the matching entry in `sources` so a later
-		// renderSources() (e.g. from the next ws.onNDISourceUpdate) stays
+		// renderSources() (e.g. from the next /ws/sources push) stays
 		// consistent.
 		async function toggleFavoriteSource(btnEl, name, url) {
 			btnEl.disabled = true;
@@ -1071,13 +1071,40 @@
 			}
 		};
 
-		// Handle NDI source updates from WebSocket
-		ws.onNDISourceUpdate = (sourcesUpdate) => {
-			if (JSON.stringify(sources) !== JSON.stringify(sourcesUpdate)) {
-				sources = sourcesUpdate;
-				renderSources();
-			}
-		};
+		/**
+		 *  NDI source list -- a direct connection to the Hub's own
+		 *  /ws/sources (same origin, not a per-device socket) instead of a
+		 *  message type on the shared /ws GUI socket. Mirrors exactly how
+		 *  Client__v3_1_0's own local system.js UI gets its source list:
+		 *  the Hub keeps a long-running `ndpi_discover` subprocess going
+		 *  and pushes its output straight through on connect (a snapshot,
+		 *  favorites already merged in) and again every time the process
+		 *  reports a change -- no polling, no separate periodic broadcast.
+		 */
+		let sourcesSocket = null;
+		let sourcesReconnectTimer = null;
+		function connectSourcesSocket() {
+			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+			sourcesSocket = new WebSocket(`${protocol}//${window.location.host}/ws/sources`);
+
+			sourcesSocket.onmessage = (event) => {
+				try {
+					const sourcesUpdate = JSON.parse(event.data);
+					if (Array.isArray(sourcesUpdate) && JSON.stringify(sources) !== JSON.stringify(sourcesUpdate)) {
+						sources = sourcesUpdate;
+						if (device) { renderSources(); }
+					}
+				} catch (e) {
+					console.error('Invalid /ws/sources message:', e);
+				}
+			};
+			sourcesSocket.onclose = () => {
+				clearTimeout(sourcesReconnectTimer);
+				sourcesReconnectTimer = setTimeout(connectSourcesSocket, 5000);
+			};
+			sourcesSocket.onerror = () => {};
+		}
+		connectSourcesSocket();
 
 		/**
 		 *  Direct-to-device live sockets — connects this browser straight to
@@ -1303,6 +1330,8 @@
 		window.addEventListener('beforeunload', () => {
 			try { deviceSystemSocket && deviceSystemSocket.close(); } catch (e) {}
 			try { deviceStatsSocket && deviceStatsSocket.close(); } catch (e) {}
+			clearTimeout(sourcesReconnectTimer);
+			try { sourcesSocket && sourcesSocket.close(); } catch (e) {}
 		});
 
 	</script>

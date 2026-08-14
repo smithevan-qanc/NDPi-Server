@@ -452,7 +452,17 @@ document.addEventListener("click", function(e) {
 	});
 });
 
-function buildContext_Source(event, sourceItem) {
+/**
+ *  `source` is {name, url, favorite} -- callers pass the full object (not
+ *  just the name) so this can build the Favorite/Unfavorite item too.
+ *  Relies on two globals the page itself defines: `selectSource(name)`
+ *  (already required before this existed) and, new here,
+ *  `toggleFavoriteSourceFromMenu(name, url)` -- same pattern as
+ *  `selectSource`, kept in the page rather than here since the actual
+ *  favorite-toggle POST/state update already lives there (shared with the
+ *  source card's own star button).
+ */
+function buildContext_Source(event, source) {
 	const menu = document.getElementById('customMenu-source');
 
 	if (menu) {
@@ -464,10 +474,26 @@ function buildContext_Source(event, sourceItem) {
 			menuItem_select.className = 'menu-item';
 			menu.appendChild(menuItem_select);
 		}
-		menuItem_select.innerText = `Select: ${sourceItem}`;
+		menuItem_select.innerText = `Select: ${source.name}`;
 		menuItem_select.onclick = null;
 		menuItem_select.onclick = () => {
-			selectSource(sourceItem);
+			selectSource(source.name);
+			hideCustomMenu();
+		};
+
+		let menuItem_favorite = document.getElementById('menuItem_favoriteSource');
+		if (!menuItem_favorite) {
+			menuItem_favorite = document.createElement('div');
+			menuItem_favorite.id = 'menuItem_favoriteSource';
+			menuItem_favorite.className = 'menu-item';
+			menu.appendChild(menuItem_favorite);
+		}
+		menuItem_favorite.innerText = source.favorite ? 'Unfavorite' : 'Favorite';
+		menuItem_favorite.onclick = null;
+		menuItem_favorite.onclick = () => {
+			if (typeof toggleFavoriteSourceFromMenu === 'function') {
+				toggleFavoriteSourceFromMenu(source.name, source.url);
+			}
 			hideCustomMenu();
 		};
 	}

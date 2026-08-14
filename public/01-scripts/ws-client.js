@@ -80,13 +80,7 @@ class NDPiWebSocket {
                     this.onNDISourceUpdate(message.sources);
                 }
                 break;
-                
-			case 'system-stats':
-				if (this.onSystemStatsUpdate) {
-					this.onSystemStatsUpdate(message.stats);
-				}
-				break;
-				
+
 			case 'server-shutdown':
 			case 'server-reboot':
                 if (this.onServerEvent) {

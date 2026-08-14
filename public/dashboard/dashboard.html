@@ -387,11 +387,13 @@
 
 		/**
 		 *  This Hub's own live stats — connects directly to the Hub's
-		 *  dedicated /ws/stats (service/hub_api_server.js) instead of the
-		 *  ~5s-cadence system-stats message on the shared /ws GUI socket,
-		 *  matching Client__v3_1_0's own local system.js pattern. The raw
-		 *  os.*-derived payload is converted to the summarized shape
-		 *  updateSystemStats() already expects.
+		 *  dedicated /ws/hub-stats (service/hub_api_server.js; named
+		 *  distinctly from each device's own /ws/stats to keep the two
+		 *  apart in devtools) instead of the shared /ws GUI socket, which
+		 *  no longer sends a system-stats message at all now that every
+		 *  page gets Hub stats from here directly. The raw os.*-derived
+		 *  payload is converted to the summarized shape updateSystemStats()
+		 *  already expects.
 		 */
 		function deriveHubStats(raw) {
 			if (!raw || !Array.isArray(raw.loadavg) || !Array.isArray(raw.cpus) || !raw.totalmem) return null;
@@ -415,7 +417,7 @@
 		let hubStatsReconnectTimer = null;
 		function connectHubStatsSocket() {
 			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-			hubStatsSocket = new WebSocket(`${protocol}//${window.location.host}/ws/stats`);
+			hubStatsSocket = new WebSocket(`${protocol}//${window.location.host}/ws/hub-stats`);
 
 			hubStatsSocket.onmessage = (event) => {
 				try {

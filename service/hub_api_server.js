@@ -121,10 +121,14 @@ class NDPiCommandServer_Client extends EventEmitter {
          *  devices use — Client__v3_1_0/service/client_api_server.js
          *  `startDiscovery()`) that pushes the live NDI source list to
          *  connected browser clients as it changes, rather than polling.
-         *  The current list itself is NOT kept here — it's written straight
-         *  through to `this.settings` (hub_fs.js, `discovered-ndi-sources.json`)
-         *  on every change, and every reader (this socket's initial send,
-         *  `getNDISources()`, `/api/ndi-sources`) reads it back from there.
+         *  This is now the ONE mechanism device.html/group.html get NDI
+         *  source updates from -- no separate periodic /ws broadcast and
+         *  no REST endpoint alongside it, both removed. The raw discovered
+         *  list itself is NOT kept here — it's written straight through to
+         *  `this.settings` (hub_fs.js, `discovered-ndi-sources.json`) on
+         *  every change; `mergeFavoritedSources()` reads it back from there
+         *  (or takes a just-parsed list directly) and applies the Hub's
+         *  favorited-sources list on top before anything gets sent out.
          */
         this.discoveryExec = null;
         this.ws_serv_sources = null;
@@ -193,8 +197,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.bonjourBrowser = null;
 
         this.heartbeatInterval = null;
-        this.ndiSourceInterval = null;
-        this.systemStatsInterval = null;
         this.deviceTimeoutInterval = null;
         this.clientsUpdateDebounceTimer = null;
 
@@ -328,7 +330,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             const knownSources = this.settings.getDiscoveredSources();
             if (Array.isArray(knownSources) && knownSources.length > 0)
-            { ws.send(JSON.stringify(knownSources)); }
+            { ws.send(JSON.stringify(this.mergeFavoritedSources(knownSources))); }
 
             if (!this.discoveryExec)
             { this.startDiscovery(); }
@@ -359,13 +361,12 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.discoveryExec = null;
 
         // A missing/wrong-arch/non-executable binary makes spawn() throw
-        // *synchronously* (not just an async 'error' event). Since
-        // getNDISources() calls this from inside an async function, an
-        // uncaught synchronous throw here rejects that promise; Express 4
-        // does not catch async route-handler rejections, so it would reach
-        // process.on('unhandledRejection') and take the whole Hub down.
-        // Guard it so a broken discovery binary only disables source
-        // discovery, not the entire Hub.
+        // *synchronously* (not just an async 'error' event) -- guarded so
+        // a broken discovery binary only disables source discovery, not
+        // the entire Hub (this used to matter more when an async route
+        // handler called this indirectly via the now-removed
+        // getNDISources(); kept regardless since a synchronous throw here
+        // would still be uncaught either way).
         try
         {
             this.discoveryExec = spawn(programName, {
@@ -392,8 +393,10 @@ class NDPiCommandServer_Client extends EventEmitter {
                 if (Array.isArray(sources))
                 {
                     this.settings.setDiscoveredSources(sources);
+                    const merged = this.mergeFavoritedSources(sources);
                     this.ws_conn_sources.forEach((ws) => {
-                        ws.send(JSON.stringify(sources));
+                        if (ws.readyState === WebSocket.OPEN)
+                        { try { ws.send(JSON.stringify(merged)); } catch {} }
                     });
                 }
             }
@@ -587,7 +590,11 @@ class NDPiCommandServer_Client extends EventEmitter {
     }
 
     /**
-     *      Hub's own System Stats - WebSocket Connection Handler ( /ws/stats )
+     *      Hub's own System Stats - WebSocket Connection Handler
+     *      ( /ws/hub-stats -- named distinctly from each device's own
+     *      /ws/stats, which this Hub also separately relays outbound
+     *      connections to, so the two are easy to tell apart in
+     *      devtools/logs.)
      *      Mirrors Client__v3_1_0/service/client_api_server.js's local
      *      __ws_Stats(): sends current stats on connect, then every ~1s.
      */
@@ -1081,20 +1088,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.heartbeatInterval = setInterval(() => {
             this.broadcastToGUI({ type: 'heartbeat', origin: 'interval 10s', timestamp: Date.now() });
         }, 10000);
-
-        this.ndiSourceInterval = setInterval(async () => {
-            try
-            {
-                const sources = await this.getNDISources();
-                this.broadcastToGUI({ type: 'ndi-sources', origin: 'interval 10s', sources });
-            }
-            catch (error)
-            { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'NDI source discovery', error); }
-        }, 10000);
-
-        this.systemStatsInterval = setInterval(() => {
-            this.broadcastToGUI({ type: 'system-stats', origin: 'interval 5s', stats: this.hubSystemStats() });
-        }, 5000);
     }
 
     /**
@@ -1113,24 +1106,23 @@ class NDPiCommandServer_Client extends EventEmitter {
     }
 
     /**
-     *      NDI Source Discovery, merged with the Hub's favorited-sources
-     *      list. Reads the last-known source list straight from hub_fs.js
-     *      (`discovered-ndi-sources.json`), which the long-running
-     *      `ndpi_discover` process (`startDiscovery()`) keeps up to date —
-     *      no per-request exec. The old `./ndi-discover` binary this used
-     *      to shell out to is no longer functional.
+     *      Merges a raw discovered-source list with the Hub's
+     *      favorited-sources list, flagging/sorting favorites the same way
+     *      regardless of where the raw list came from -- the /ws/sources
+     *      connect handler (from the persisted discovered-ndi-sources.json)
+     *      and startDiscovery()'s stdout handler (from the live process
+     *      output, before it's even finished being persisted) both call
+     *      this so every consumer of /ws/sources sees the same merged
+     *      shape, exactly what `getNDISources()` (removed -- this replaces
+     *      its only real job) used to hand back over the now-removed
+     *      periodic /ws broadcast and the now-removed GET /api/ndi-sources.
      */
-    async getNDISources() {
-        if (!this.discoveryExec)
-        { this.startDiscovery(); }
-
-        const knownSources = this.settings.getDiscoveredSources();
-        const sources = Array.isArray(knownSources)
-            ? knownSources.map((src) => ({ ...src }))
+    mergeFavoritedSources(discoveredSources) {
+        const sources = Array.isArray(discoveredSources)
+            ? discoveredSources.map((src) => ({ ...src, favorite: false }))
             : [];
 
         const favoritedSources = this.settings.getFavoritedSources();
-        sources.forEach((src) => { src.favorite = false; });
 
         const mergedSources = [];
         const usedFavoritedIndices = new Set();
@@ -1168,39 +1160,16 @@ class NDPiCommandServer_Client extends EventEmitter {
         return mergedSources;
     }
 
-    /**
-     *      The Hub machine's own system stats (distinct from each Client
-     *      device's `systemStats`, which arrives via `client-status`).
-     */
-    hubSystemStats() {
-        try
-        {
-            const load = os.loadavg();
-            const totalMem = os.totalmem();
-            const freeMem = os.freemem();
-            const usedMem = totalMem - freeMem;
-
-            let cpuTemp = 0;
-            const tempFile = '/sys/class/thermal/thermal_zone0/temp';
-            if (fs.existsSync(tempFile))
-            { cpuTemp = parseInt(fs.readFileSync(tempFile, 'utf8')) / 1000; }
-
-            return {
-                cpuUsage: Math.round(Math.min(load[0] / os.cpus().length, 1) * 1000) / 10,
-                cpuTemp,
-                memoryUsage: Math.round((usedMem / totalMem) * 100),
-                memoryTotal: Math.round((totalMem / 1024 / 1024 / 1024) * 10) / 10,
-                memoryUsed: Math.round((usedMem / 1024 / 1024 / 1024) * 10) / 10,
-                diskUsage: 0,
-                loadAverage: load,
-                uptime: os.uptime(),
-            };
-        }
-        catch (error)
-        {
-            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'hubSystemStats', error);
-            return { cpuUsage: 0, cpuTemp: 0, memoryUsage: 0, memoryTotal: 0, memoryUsed: 0, diskUsage: 0, loadAverage: [0, 0, 0], uptime: 0 };
-        }
+    // Recomputes the merged list from the last-persisted discovered-source
+    // snapshot and pushes it to every /ws/sources client immediately --
+    // used after a favorite is toggled (the discovery process itself
+    // hasn't changed anything, so there's no new stdout output to wait on).
+    broadcastMergedSources() {
+        const merged = this.mergeFavoritedSources(this.settings.getDiscoveredSources());
+        this.ws_conn_sources.forEach((ws) => {
+            if (ws.readyState === WebSocket.OPEN)
+            { try { ws.send(JSON.stringify(merged)); } catch {} }
+        });
     }
 
     getServerIP() {
@@ -2061,13 +2030,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         this.Routes
-        .route('/api/ndi-sources')
-        .get(async (req, res) => {
-            const sources = await this.getNDISources();
-            res.json(sources);
-        });
-
-        this.Routes
         .route('/api/favorite-ndi-sources')
         .get((req, res) => { res.json(this.settings.getFavoritedSources()); })
         .post((req, res) => {
@@ -2081,12 +2043,12 @@ class NDPiCommandServer_Client extends EventEmitter {
         // Single-source add/remove -- the star button on a source card
         // (device.html/group.html), as opposed to the bulk-replace route
         // above (settings.html's manual editor). Re-broadcasts the merged
-        // NDI source list immediately (same shape/type the periodic 10s
-        // interval already sends) so every connected browser's source
-        // grid re-sorts/updates right away instead of waiting up to 10s.
+        // NDI source list to every /ws/sources client immediately, so
+        // every connected browser's source grid re-sorts/updates right
+        // away instead of waiting on the discovery process's next output.
         this.Routes
         .route('/api/favorite-ndi-sources/toggle')
-        .post(async (req, res) => {
+        .post((req, res) => {
             const { name, url } = req.body;
             if (!name && !url)
             { return res.status(400).json({ error: true, message: 'name or url required' }); }
@@ -2094,13 +2056,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             const result = this.settings.toggleFavoritedSource({ name, url });
             res.json({ success: true, favorite: result.favorited, favorites: result.list });
 
-            try
-            {
-                const sources = await this.getNDISources();
-                this.broadcastToGUI({ type: 'ndi-sources', origin: 'favorite-toggle', sources });
-            }
-            catch (error)
-            { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Broadcasting NDI sources after favorite toggle', error); }
+            this.broadcastMergedSources();
         });
     }
 
@@ -2368,7 +2324,7 @@ class NDPiCommandServer_Client extends EventEmitter {
                     this.ws_serv_hub_system.emit('connection', ws, request);
                 });
             }
-            else if (pathname === '/ws/stats')
+            else if (pathname === '/ws/hub-stats')
             {
                 this.ws_serv_hub_stats.handleUpgrade(request, socket, head, (ws) => {
                     this.ws_serv_hub_stats.emit('connection', ws, request);
@@ -2401,11 +2357,9 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         console.info(`[ CLOSING ][ ${path.basename(__filename).split('.')[0]} ]`);
 
-        for (const timer of [this.heartbeatInterval, this.ndiSourceInterval, this.systemStatsInterval, this.deviceTimeoutInterval])
+        for (const timer of [this.heartbeatInterval, this.deviceTimeoutInterval])
         { try { clearInterval(timer); } catch {} }
         this.heartbeatInterval = null;
-        this.ndiSourceInterval = null;
-        this.systemStatsInterval = null;
         this.deviceTimeoutInterval = null;
         clearTimeout(this.clientsUpdateDebounceTimer);
         this.clientsUpdateDebounceTimer = null;
