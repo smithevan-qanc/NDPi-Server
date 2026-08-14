@@ -1774,25 +1774,39 @@ when a click changes an element in place (a button's label swapping to
 and the cursor doesn't move afterward, nothing ever tells the browser to
 re-evaluate hover — there's no way to "time it out" with CSS alone.
 
-**Fix**: added `initHoverReset()` to `01-scripts/functions.js` — one
-delegated `click` listener on `document` (covers every button/card/nav
-item app-wide, present and future, no per-page wiring) that toggles
-`pointer-events: none` on the clicked element for one frame. That removes
-it from hit-testing, which immediately clears `:hover` on it (the browser
-hands hover to whatever's underneath); restoring `pointer-events` right
-after does **not** bring `:hover` back on its own, since browsers only
-ever recompute hover targets on an actual pointer-move event — so this
-reliably resets the hover look on every click without waiting for the
-user to move the mouse away and back. Uses a double
-`requestAnimationFrame` (not a single one, or an arbitrary `setTimeout`)
-to guarantee at least one full paint has actually happened with
-`pointer-events` off before restoring it, which is the reliable way to
-force this across browsers. The click-target selector
+**Fix, v1**: added `initHoverReset()` to `01-scripts/functions.js` — one
+delegated `click` listener on `document` that toggled `pointer-events:
+none` on the clicked element for one frame. That removes it from
+hit-testing, which immediately clears `:hover` on it (the browser hands
+hover to whatever's underneath); restoring `pointer-events` right after
+does **not** bring `:hover` back on its own, since browsers only ever
+recompute hover targets on an actual pointer-move event.
+
+**Fix, v2** (user follow-up: "can we just have a hover timeout? like
+'onmouseover'... reset for 'mousemove'"): click alone only resolves the
+stuck look *after a click* — it did nothing for a cursor just resting on
+an unclicked element. Generalized into a real idle timeout, keeping the
+same underlying `pointer-events` trick (still the only reliable
+cross-browser way to force `:hover` to clear from JS) but driving it from
+a timer instead of only a click: `mouseover` starts a `HOVER_TIMEOUT_MS`
+(1500ms) timer on whichever element the cursor is newly over,
+`mousemove` resets that timer on every real movement while still over
+the same element (so genuine movement/jitter keeps the hover alive
+indefinitely), and `mouseout` cancels it once the cursor actually leaves.
+If the timeout fires, `clearHoverVisual()` (the shared helper both
+triggers now call) clears the look exactly as before; moving the mouse
+again afterward brings the hover back with no extra code needed, since
+restoring `pointer-events` lets the browser's own native hover recompute
+handle that on the next real `mousemove`. The click-based trigger was
+kept alongside the timeout (not replaced) since a click that swaps a
+button's own label/disabled state should clear instantly, not wait out
+the full 1500ms idle timer. All of this stays inside one delegated set of
+listeners on `document` via a shared `HOVER_RESET_SELECTOR`
 (`button, a, select, .nav-btn, [class*="card"], [class*="tile"],
-[onclick]`) deliberately casts a wide net matching this app's own
-conventions (most custom clickable elements are wired via inline
-`onclick="..."` attributes) rather than hand-listing every specific
-class, so new buttons/cards get this for free without needing to opt in.
+[onclick]`) — deliberately a wide net matching this app's own convention
+of wiring most custom clickable elements via inline `onclick="..."`
+attributes, rather than hand-listing every specific class, so new
+buttons/cards get this for free with no per-page wiring or opt-in.
 Doesn't conflict with genuinely `:disabled` buttons (`button:disabled`'s
 existing `pointer-events: none !important` still wins regardless of the
 inline style being toggled back to `''`).
