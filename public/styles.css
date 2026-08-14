@@ -1189,7 +1189,7 @@ html.sidebar-collapsed .nav-btn {
  */
 .source-fav-btn {
 	position: absolute;
-	top: 0.5rem;
+	bottom: 0.5rem;
 	right: 0.5rem;
 	width: 1.75rem;
 	height: 1.75rem;
@@ -1197,7 +1197,7 @@ html.sidebar-collapsed .nav-btn {
 	align-items: center;
 	justify-content: center;
 	background: rgba(0, 0, 0, 0);
-	border: 0.0625rem solid var(--border);
+	/* border: 0.0625rem solid var(--border); */
 	border-radius: 50%;
 	color: var(--text-3);
 	cursor: pointer;
@@ -1215,14 +1215,14 @@ html.sidebar-collapsed .nav-btn {
 }
 
 .source-fav-btn:hover {
-	color: var(--warning);
-	border-color: var(--warning);
+	color: var(--accent);
+	/* border-color: var(--warning); */
 	background: rgba(0, 0, 0, 0);
 }
 
 .source-fav-btn.favorited {
-	color: var(--warning);
-	border-color: rgba(245, 165, 36, 0.4);
+	color: var(--accent);
+	/* border-color: rgba(245, 165, 36, 0.4); */
 }
 
 .source-fav-btn.favorited svg {
@@ -1231,9 +1231,10 @@ html.sidebar-collapsed .nav-btn {
 
 .source-selected-badge {
 	position: absolute;
+	color: #000000;
 	top: 0.5rem;
 	right: 0.5rem;
-	background: var(--accent);
+	background: var(--accent) !important;
 	border-color: var(--text-2);
 	font-size: 0.625rem;
 	padding: 0.125rem 0.5rem;
