@@ -142,11 +142,12 @@ if (document.readyState === 'loading') {
 const SIDEBAR_COLLAPSED_KEY = 'ndpi_sidebar_collapsed';
 
 function applySidebarCollapsed(collapsed) {
-	const appEl = document.querySelector('.app');
+	// On <html>, not .app -- so the inline <head> snippet (see every
+	// page's <head>) can apply this before .app even exists in the DOM,
+	// avoiding a flash-of-expanded-then-animate-to-collapsed on load.
 	const toggleBtn = document.getElementById('sidebarToggle');
-	if (!appEl) return;
 
-	appEl.classList.toggle('sidebar-collapsed', collapsed);
+	document.documentElement.classList.toggle('sidebar-collapsed', collapsed);
 
 	if (toggleBtn) {
 		toggleBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
@@ -168,8 +169,7 @@ function initSidebarToggle() {
 	applySidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
 
 	toggleBtn.addEventListener('click', () => {
-		const appEl = document.querySelector('.app');
-		const collapsed = !appEl.classList.contains('sidebar-collapsed');
+		const collapsed = !document.documentElement.classList.contains('sidebar-collapsed');
 		applySidebarCollapsed(collapsed);
 		localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
 	});

@@ -41,7 +41,7 @@
 	--bg-0: color-mix(in srgb, var(--accent) 3%, #07080a);   /* sidebar / outermost shell */
 	--bg-1: color-mix(in srgb, var(--accent) 3.5%, #0a0c0f);   /* main content background */
 	--bg-2: color-mix(in srgb, var(--accent) 1%, rgba(80,80,80,0.3));   /* card / surface -- neutral gray, not accent-tinted */
-	--bg-2-hover: color-mix(in srgb, var(--accent) 1%, rgba(80,80,80,0.35));
+	--bg-2-hover: color-mix(in srgb, var(--accent) 20%, rgba(80,80,80,0.2));
 	--bg-3: rgba(110, 110, 110, 0.3);    /* nested surface (inputs, stat chips) -- neutral gray */
 	--bg-3-hover: rgba(110, 110, 110, 0.38);
 	--bg-tile: color-mix(in srgb, var(--accent) 4%, #090a0d);        /* device/group/source/user tiles -- deliberately darker than --bg-2 so they pop against the card container instead of blending into it */
@@ -165,37 +165,45 @@ a {
  *  --sidebar-width at all, so redefining it is inert -- consistent with
  *  #sidebarToggle itself being hidden on mobile (collapsing a bottom bar
  *  isn't a meaningful action).
+ *
+ *  The class lives on <html>, not .app -- a tiny inline <script> at the
+ *  top of every page's <head> (before .app exists, before first paint)
+ *  applies it synchronously from the cached localStorage preference, the
+ *  same flash-of-wrong-state fix already used for the theme accent color.
+ *  Without that, every page load would start from the expanded state and
+ *  visibly *animate* into collapsed (now that this has a real transition)
+ *  even for someone who always keeps it collapsed.
  */
-.app.sidebar-collapsed {
+html.sidebar-collapsed {
 	--sidebar-width: var(--sidebar-width-collapsed);
 }
 
 /* Faded/collapsed to zero width instead of `display: none` -- so they
    ease out (and the sidebar's own fit-content width eases in along with
    them) instead of vanishing/reappearing instantly. */
-.app.sidebar-collapsed .nav-btn-label,
-.app.sidebar-collapsed .sidebar-logo-title {
+html.sidebar-collapsed .nav-btn-label,
+html.sidebar-collapsed .sidebar-logo-title {
 	opacity: 0;
 	max-width: 0;
 	pointer-events: none;
 }
 
-.app.sidebar-collapsed .sidebar-section-label {
+html.sidebar-collapsed .sidebar-section-label {
 	display: none;
 }
 
-.app.sidebar-collapsed .sidebar-logo {
+html.sidebar-collapsed .sidebar-logo {
 	justify-content: center;
 	padding: 0;
 	gap: 0;
 }
 
-.app.sidebar-collapsed .sidebar-nav,
-.app.sidebar-collapsed .sidebar-footer {
+html.sidebar-collapsed .sidebar-nav,
+html.sidebar-collapsed .sidebar-footer {
 	align-items: center;
 }
 
-.app.sidebar-collapsed .nav-btn {
+html.sidebar-collapsed .nav-btn {
 	width: 2.75rem;
 	justify-content: center;
 	padding-left: 0;
@@ -2033,8 +2041,8 @@ select option {
 
 .button-subtle:hover {
 	background: var(--bg-2-hover);
-	color: var(--accent);
-	border-color: rgba(var(--accent-rgb), 0.35);
+	color: var(--bg-2);
+	border-color: rgba(var(--accent-rgb), 0.25);
 }
 
 .discovery-button {
