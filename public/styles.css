@@ -2041,7 +2041,7 @@ select option {
 
 .button-subtle:hover {
 	background: var(--bg-2-hover);
-	color: var(--bg-2);
+	/* color: var(--bg-2); */
 	border-color: rgba(var(--accent-rgb), 0.25);
 }
 
