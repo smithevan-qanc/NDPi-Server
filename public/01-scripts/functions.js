@@ -264,7 +264,7 @@ function setNavigationButtons() {
 
 	const userAccountNavEl = document.getElementById('navAccount');
 	if (userAccountNavEl) {
-		userAccountNavEl.innerHTML = `${NAV_ACCOUNT_ICON}<span class="nav-btn-label">${account.username}</span>`;
+		userAccountNavEl.innerHTML = `${NAV_ACCOUNT_ICON}<span class="nav-btn-label">${String(account.username).toUpperCase()}</span>`;
 		userAccountNavEl.addEventListener('click', function (e) {
 			this.onclick = null;
 			e.preventDefault();
