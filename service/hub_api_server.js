@@ -142,7 +142,11 @@ class NDPiCommandServer_Client extends EventEmitter {
 
     start() {
         this.App = express();
-        this.App.use(express.json());
+        // Default express.json() caps bodies at 100kb, too small for a
+        // base64-encoded image upload (logo, device overlay image) -- 5mb
+        // covers those comfortably without opening this LAN-only admin app
+        // up to any meaningfully larger risk.
+        this.App.use(express.json({ limit: '5mb' }));
         this.App.use(
             express.static(path.join(__dirname, '..', 'public'), {
                 setHeaders: (res, path) => {
@@ -2003,6 +2007,41 @@ class NDPiCommandServer_Client extends EventEmitter {
             { return res.status(404).json({ error: true, message: `Unknown setting: ${name}` }); }
 
             this.settings.put(name, String(value ?? ''));
+            res.json({ success: true });
+        });
+
+        // Optional Hub-branding override for the sidebar/login logo
+        // (hub_fs.js's custom-logo.json, uploaded from settings.html).
+        // GET always succeeds -- serves the uploaded image if one exists,
+        // otherwise redirects to the bundled default SVG -- so every page
+        // can point at this single URL (styles.css's .topbar-logo
+        // background-image, the auth-flow pages' <img>) without needing
+        // any JS to pick between "custom" and "default".
+        this.Routes
+        .route('/api/logo')
+        .get((req, res) => {
+            const logo = this.settings.getCustomLogo();
+            const match = logo && logo.dataUrl ? /^data:([^;]+);base64,(.+)$/s.exec(logo.dataUrl) : null;
+            if (!match)
+            { return res.redirect('/media/logo-page-header.svg'); }
+
+            res.set('Cache-Control', 'no-cache');
+            res.type(match[1]).send(Buffer.from(match[2], 'base64'));
+        })
+        .post((req, res) => {
+            const { name, type, dataUrl } = req.body;
+            if (!dataUrl || !/^data:image\/(png|jpe?g|svg\+xml|webp|gif);base64,/.test(dataUrl))
+            { return res.status(400).json({ error: true, message: 'Upload must be a PNG, JPEG, WEBP, GIF, or SVG image' }); }
+            // Base64 text runs ~4/3 the original byte size -- 2MB of
+            // encoded text is a generous cap for a logo image.
+            if (dataUrl.length > 2 * 1024 * 1024)
+            { return res.status(400).json({ error: true, message: 'Image is too large (2MB max)' }); }
+
+            this.settings.setCustomLogo({ name: name || 'logo', type: type || '', dataUrl, dateUploaded: new Date().toISOString() });
+            res.json({ success: true });
+        })
+        .delete((req, res) => {
+            this.settings.setCustomLogo(null);
             res.json({ success: true });
         });
 

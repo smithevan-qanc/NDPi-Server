@@ -880,6 +880,80 @@ in browser localStorage.
   the new CSS should still be reviewed visually before being fully
   trusted.
 
+### Post-redesign fixes: account-settings crash, bigger sidebar logo, uploadable logo
+
+Three follow-ups from the user after trying the redesigned UI:
+
+1. **`account-settings.html` crashed on load**
+   (`Cannot read properties of null (reading 'username')`) — same root
+   cause as the other "reads `account.x` before it's loaded" crashes fixed
+   earlier in this file (settings.html, set-pin.html): `account-settings.js`
+   ran `populateFields()` as a top-level IIFE statement, which executes
+   before `01-scripts/functions.js`'s async `loadUserAccount()` call has
+   resolved, so the global `account` was still `null`. This was the one
+   page that had never been fixed to the established pattern. Fixed by
+   wrapping the same code in a plain `function initPage() {...}` instead —
+   `functions.js`'s bootstrap already calls `initPage(account)` once
+   `account` has actually loaded, and picks it up correctly even though
+   `account-settings.js`'s `<script>` tag loads *after* `functions.js`'s,
+   because `functions.js`'s own top-level IIFE yields at its first
+   `await` (the account fetch) before `initPage` would need to exist,
+   giving the browser time to synchronously load and execute
+   `account-settings.js` (defining `initPage`) first.
+2. **Sidebar logo enlarged** (user request) — `.topbar-logo` in
+   `styles.css` bumped from `1.625rem` (26px) to `2.25rem` (36px); still
+   fits comfortably inside the `3.5rem` sidebar header row.
+3. **Uploadable custom Hub logo, with before/after preview** (user
+   request) — new Hub-wide branding override:
+   - **`hub_fs.js`**: new `custom-logo.json` collection file (mirrors the
+     `favorited-sources.json`/`discovered-ndi-sources.json` pattern) via
+     `loadCustomLogo()`/`getCustomLogo()`/`setCustomLogo()`. Stores
+     `{ name, type, dataUrl, dateUploaded }` — the image itself as a
+     base64 data URL, same idiom Client__v3_1_0 used for its (Hub-removed)
+     `media_overlay_image` setting.
+   - **`hub_api_server.js`**: new `/api/logo` route (registered inside
+     `__RoutesSystem()`, i.e. before the generic page-serving routes, per
+     this file's standing routing-order rule).
+     `GET` decodes and serves the stored image with its real content type
+     if one is set, otherwise **redirects to the bundled
+     `/media/logo-page-header.svg`** — so every consumer (CSS
+     `background-image`, an `<img src>`) can point at this one URL
+     unconditionally and always get a valid image, with zero JS needed to
+     choose between "custom" and "default". `POST` validates the MIME
+     type (png/jpeg/webp/gif/svg only) and a 2MB cap before saving;
+     `DELETE` clears it back to default. Also bumped the global
+     `express.json()` body-size limit from Express's 100kb default to
+     `5mb` (was previously undersized for *any* base64 image upload in
+     this app, including the pre-existing device overlay-image route —
+     not newly broken by this change, just newly noticed while adding a
+     second image-upload route).
+   - **Every place the old static logo path was hardcoded now points at
+     `/api/logo` instead**: `styles.css`'s `.topbar-logo`
+     `background-image` (covers the sidebar logo on all 12 shell pages
+     from one place), and the centered `<img>` on `sign-in.html` and
+     `not-found.html` (the only two standalone pages that had one).
+   - **`settings.html`**: extended the "Appearance" card (added earlier
+     this session for the theme-color picker) with a "Logo" row —
+     side-by-side `.logo-preview-box` squares for "Current" (`<img
+     src="/api/logo">`) and "New (unsaved)" (populated via
+     `FileReader.readAsDataURL()` the moment a file is chosen, before
+     anything is sent to the server), plus Choose/Save/Reset buttons.
+     Save POSTs the pending data URL, then cache-busts (`?t=Date.now()`)
+     both the current-logo `<img>` and every `.topbar-logo` element's
+     inline `background-image` so the change is visible immediately
+     without a full page reload; Reset calls `DELETE /api/logo` through
+     the same `modal.confirm()` pattern used elsewhere in this app (e.g.
+     sign-out).
+   - **Verified live**: booted the Hub, round-tripped a real 1x1 PNG
+     through `POST`/`GET`/`DELETE /api/logo` (byte-for-byte match via
+     `diff` against the decoded original, confirmed `Content-Type:
+     image/png`), confirmed `GET /api/logo` 302s to the default SVG both
+     before upload and after reset, confirmed a non-image MIME type is
+     rejected with 400, `node --check` on all modified backend files plus
+     `account-settings.js` and `settings.html`'s extracted script, and a
+     full page-route sweep (all still 200, including
+     `account-settings.html`).
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

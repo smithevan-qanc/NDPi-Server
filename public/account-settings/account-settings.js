@@ -1,6 +1,13 @@
 const ws = initWebSocket();
 
-(async () => {
+// Called by 01-scripts/functions.js's bootstrap once `account` has actually
+// loaded. This used to run as a top-level IIFE that read account.username
+// immediately on script load -- but that runs before the async
+// loadUserAccount() call (in functions.js) resolves, so `account` was still
+// null and this threw before the event listeners below were ever attached
+// (same root cause CLAUDE.md documents as already fixed on settings.html,
+// set-pin.html, etc. -- this file was missed).
+function initPage() {
     populateFields();
 
     function populateFields() {
@@ -30,5 +37,4 @@ const ws = initWebSocket();
         this.onclick = null;
         await signOut();
     });
-
-})();
+}

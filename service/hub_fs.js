@@ -61,6 +61,7 @@ class FileSystemMonitor extends EventEmitter {
         this.rokuTvsFile           = null;
         this.favoritedSourcesFile  = null;
         this.discoveredSourcesFile = null;
+        this.customLogoFile        = null;
 
         this.accounts           = new Map();   // accountId    -> account record
         this.clients             = new Map();   // deviceId     -> saved/managed NDPi Client device
@@ -72,6 +73,8 @@ class FileSystemMonitor extends EventEmitter {
                                                  // long-running `ndpi_discover` process (startDiscovery()).
                                                  // Persisted so the last-known list survives a Hub restart and
                                                  // so requests never need to talk to the discovery process directly.
+        this.customLogo          = null;        // { name, type, dataUrl, dateUploaded } | null -- optional
+                                                 // Hub-branding override for the sidebar/login logo (settings.html).
 
         process.nextTick(() => { this.init(); });
     }
@@ -302,6 +305,7 @@ class FileSystemMonitor extends EventEmitter {
         this.rokuTvsFile           = path.join(this.dataDir, 'roku-tvs.json');
         this.favoritedSourcesFile  = path.join(this.dataDir, 'favorited-sources.json');
         this.discoveredSourcesFile = path.join(this.dataDir, 'discovered-ndi-sources.json');
+        this.customLogoFile        = path.join(this.dataDir, 'custom-logo.json');
 
         this.loadAccounts();
         this.loadClients();
@@ -309,6 +313,7 @@ class FileSystemMonitor extends EventEmitter {
         this.loadRokuTvs();
         this.loadFavoritedSources();
         this.loadDiscoveredSources();
+        this.loadCustomLogo();
 
         this.start();
     }
@@ -1062,6 +1067,42 @@ class FileSystemMonitor extends EventEmitter {
         catch (error)
         { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving discovered-ndi-sources.json`, error); }
         return this.discoveredSources;
+    }
+
+    /* =====================================================================
+     *  CUSTOM LOGO
+     *  -----------
+     *  Optional Hub-branding override for the sidebar/login logo, uploaded
+     *  from settings.html. Stored as a data URL (same base64-in-a-JSON-file
+     *  pattern Client__v3_1_0 used for its media_overlay_image setting) so
+     *  hub_api_server.js's GET /api/logo route can decode and serve it
+     *  directly without a second file read.
+     * ===================================================================== */
+
+    loadCustomLogo() {
+        try
+        { this.customLogo = fs.existsSync(this.customLogoFile) ? JSON.parse(fs.readFileSync(this.customLogoFile, 'utf8')) : null; }
+        catch (error)
+        {
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Loading custom-logo.json`, error);
+            this.customLogo = null;
+        }
+    }
+
+    getCustomLogo() { return this.customLogo; }
+
+    setCustomLogo(logo = null) {
+        this.customLogo = logo;
+        try
+        {
+            if (logo)
+            { fs.writeFileSync(this.customLogoFile, JSON.stringify(logo, null, 2)); }
+            else if (fs.existsSync(this.customLogoFile))
+            { fs.unlinkSync(this.customLogoFile); }
+        }
+        catch (error)
+        { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Saving custom-logo.json`, error); }
+        return this.customLogo;
     }
 }
 

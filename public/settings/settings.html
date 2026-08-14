@@ -67,6 +67,114 @@
 			initializeScale();
 			initializeScreenSaverSettings();
 			initializeThemeSwatches();
+			initializeLogoUpload();
+		}
+
+		// Hub-wide logo override (hub_fs.js's custom-logo.json, served at
+		// GET /api/logo -- redirects to the bundled default SVG when no
+		// custom logo has been uploaded, so the <img> preview below always
+		// shows something). Lets an admin preview a replacement image
+		// before committing it, matching the "Current" box next to it.
+		function refreshLogoElements() {
+			// Cache-bust so the browser re-fetches instead of reusing
+			// whatever it already painted the sidebar logo with.
+			const bustedUrl = `/api/logo?t=${Date.now()}`;
+			document.getElementById('currentLogoPreview').src = bustedUrl;
+			document.querySelectorAll('.topbar-logo').forEach((el) => {
+				el.style.backgroundImage = `url('${bustedUrl}')`;
+			});
+		}
+
+		function initializeLogoUpload() {
+			const fileInput = document.getElementById('logoFileInput');
+			const chooseBtn = document.getElementById('chooseLogoBtn');
+			const saveBtn = document.getElementById('saveLogoBtn');
+			const resetBtn = document.getElementById('resetLogoBtn');
+			const newPreviewBox = document.getElementById('newLogoPreviewBox');
+			const newPreviewImg = document.getElementById('newLogoPreview');
+			const newLabel = document.getElementById('newLogoLabel');
+
+			let pendingDataUrl = null;
+			let pendingFile = null;
+
+			chooseBtn.addEventListener('click', () => fileInput.click());
+
+			fileInput.addEventListener('change', () => {
+				const file = fileInput.files && fileInput.files[0];
+				if (!file) return;
+
+				if (!/^image\/(png|jpe?g|webp|gif|svg\+xml)$/.test(file.type)) {
+					toast.error('Logo must be a PNG, JPEG, WEBP, GIF, or SVG image');
+					fileInput.value = '';
+					return;
+				}
+				if (file.size > 2 * 1024 * 1024) {
+					toast.error('Image is too large (2MB max)');
+					fileInput.value = '';
+					return;
+				}
+
+				const reader = new FileReader();
+				reader.onload = () => {
+					pendingDataUrl = reader.result;
+					pendingFile = file;
+					newPreviewImg.src = pendingDataUrl;
+					newPreviewBox.style.display = 'flex';
+					newLabel.style.display = 'block';
+					saveBtn.disabled = false;
+				};
+				reader.readAsDataURL(file);
+			});
+
+			saveBtn.addEventListener('click', async () => {
+				if (!pendingDataUrl || !pendingFile) return;
+				saveBtn.disabled = true;
+				try {
+					const res = await fetch('/api/logo', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ name: pendingFile.name, type: pendingFile.type, dataUrl: pendingDataUrl }),
+					});
+					if (res.ok) {
+						toast.success('Logo updated');
+						refreshLogoElements();
+						newPreviewBox.style.display = 'none';
+						newLabel.style.display = 'none';
+						fileInput.value = '';
+						pendingDataUrl = null;
+						pendingFile = null;
+					} else {
+						const data = await res.json().catch(() => ({}));
+						toast.error(data.message || 'Failed to save logo');
+						saveBtn.disabled = false;
+					}
+				} catch (e) {
+					toast.error('Error saving logo');
+					saveBtn.disabled = false;
+				}
+			});
+
+			resetBtn.addEventListener('click', async () => {
+				const confirmed = await modal.confirm('Reset to the default NDPi logo?', 'Reset Logo');
+				if (!confirmed) return;
+				try {
+					const res = await fetch('/api/logo', { method: 'DELETE' });
+					if (res.ok) {
+						toast.success('Logo reset to default');
+						refreshLogoElements();
+						newPreviewBox.style.display = 'none';
+						newLabel.style.display = 'none';
+						fileInput.value = '';
+						saveBtn.disabled = true;
+						pendingDataUrl = null;
+						pendingFile = null;
+					} else {
+						toast.error('Failed to reset logo');
+					}
+				} catch (e) {
+					toast.error('Error resetting logo');
+				}
+			});
 		}
 
 		// Hub-wide accent color, persisted via the generic /api/setting
@@ -148,6 +256,26 @@
 						<div class="settings-label">Theme Color</div>
 						<div class="theme-swatches" id="themeSwatches"></div>
 						<p>Saved to this Hub and applied on every device that opens it.</p>
+					</div>
+					<div class="settings-row">
+						<div class="settings-label">Logo</div>
+						<div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+							<div style="display:flex; flex-direction:column; align-items:center; gap:0.375rem;">
+								<div class="logo-preview-box"><img id="currentLogoPreview" src="/api/logo" alt="Current logo"></div>
+								<span class="info-label">Current</span>
+							</div>
+							<div style="display:flex; flex-direction:column; align-items:center; gap:0.375rem;">
+								<div class="logo-preview-box" id="newLogoPreviewBox" style="display:none;"><img id="newLogoPreview" alt="New logo preview"></div>
+								<span class="info-label" id="newLogoLabel" style="display:none;">New (unsaved)</span>
+							</div>
+						</div>
+						<input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none;">
+						<div style="display:flex; gap:0.625rem; margin-top:0.625rem; flex-wrap:wrap;">
+							<button type="button" class="button-subtle" id="chooseLogoBtn">Choose Image...</button>
+							<button type="button" class="button-primary" id="saveLogoBtn" disabled>Save Logo</button>
+							<button type="button" class="button-danger" id="resetLogoBtn">Reset to Default</button>
+						</div>
+						<p>PNG, JPEG, WEBP, GIF, or SVG. 2MB max. Applies to the sidebar and sign-in logo on every device.</p>
 					</div>
 				</div>
 			`;
