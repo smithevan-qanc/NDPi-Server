@@ -2004,7 +2004,7 @@ select option {
 
 .button-primary:hover {
 	filter: brightness(1.08);
-	box-shadow: 0 0 0 0.1875rem rgba(var(--accent-rgb), 0.18);
+	/* box-shadow: 0 0 0 0.1875rem rgba(var(--accent-rgb), 0.18); */
 }
 
 .button-transparent {
