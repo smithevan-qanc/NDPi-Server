@@ -362,37 +362,8 @@
 			}
 		}
 
-		function addTouchScrollEventListener() {
-			const list = document.querySelector('.content');
-			if (!list) return;
-			
-			let isTouching = false;
-			let startY = 0;
-			let scrollTop = 0;
-
-			list.addEventListener('touchstart', (e) => {
-				isTouching = true;
-				startY = e.touches[0].clientY;
-				scrollTop = list.scrollTop;
-			}, { passive: true });
-
-			list.addEventListener('touchmove', (e) => {
-				document.body.style.cursor = 'none';
-				// if (!isTouching) return;
-				// const currentY = e.touches[0].clientY;
-				// const deltaY = startY - currentY;
-				// list.scrollTop = scrollTop + deltaY;
-			}, { passive: true });
-
-			list.addEventListener('touchend', () => {
-				document.body.style.removeProperty('cursor');
-				isTouching = false;
-			});
-		}
-
 		// Initial load
 		fetchGroups();
-		addTouchScrollEventListener();
 
 		// Initialize WebSocket connection
 		const ws = initWebSocket();

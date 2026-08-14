@@ -66,6 +66,7 @@ async function saveThemeColor(hex) {
 	if (typeof initPage === 'function') { initPage(account); }
 })();
 
+
 /**
  *  Best-effort screen-orientation lock -- keeps a phone/tablet from
  *  flipping its layout on rotation. The Screen Orientation API only
@@ -143,3 +144,22 @@ function applyActiveNav(element) {
 	if (!element) return;
 	document.getElementById(element).classList.add('active');
 }
+
+
+function addTouchScrollEventListener() {
+	const list = document.querySelector('.content');
+	if (!list) return;
+
+	list.addEventListener('touchstart', (e) => {
+		document.body.style.cursor = 'grab';
+	});
+
+	list.addEventListener('touchmove', (e) => {
+		document.body.style.cursor = 'grabbing';
+	});
+
+	list.addEventListener('touchend', () => {
+		document.body.style.removeProperty('cursor');
+	});
+}
+addTouchScrollEventListener();
