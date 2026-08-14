@@ -30,15 +30,12 @@
 		</div>
 	</div>
 	<script>
-		///**/
-		// Initialize UI scale from saved setting
+		// Initialize UI scale from saved setting -- via root font-size, not
+		// body zoom/transform (see 01-scripts/functions.js's setScale() for
+		// why: zoom/transform conflict with 100dvh-based layout elsewhere
+		// in the app).
 		const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
-		const scaleDecimal = savedScale / 100;
-		document.body.style.zoom = scaleDecimal;
-		if (!document.body.style.zoom) {
-			document.body.style.transform = `scale(${scaleDecimal})`;
-			document.body.style.transformOrigin = 'top left';
-		}
+		document.documentElement.style.fontSize = `${savedScale}%`;
 		
 		const form = document.getElementById('signinForm');
 		const pinInput = document.getElementById('pin');

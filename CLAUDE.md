@@ -954,6 +954,96 @@ Three follow-ups from the user after trying the redesigned UI:
      full page-route sweep (all still 200, including
      `account-settings.html`).
 
+### Toast repositioning, star-to-favorite, theme contrast/hue, and the UI-scale bug
+
+Four more user requests/fixes in one pass:
+
+1. **Toast notifications moved to the bottom of the screen** (user
+   request) — `01-scripts/modal.js`'s `Toast` class used to position
+   itself off the live-measured vertical center of `.topbar`
+   (`positionContainer()`, computed fresh on every `show()` call). Removed
+   that entirely; `.toast-container` is now simply `position: fixed;
+   bottom: 20px` (bumped higher on ≤860px viewports via
+   `var(--mobile-navbar-height)` so it clears the collapsed bottom nav
+   bar, same clearance `.floating-actions` already used), and the
+   in/out keyframes animate via `translateY` from/to `0` instead of the
+   old centering `translateY(-50%)` trick.
+2. **Star-to-favorite on source cards** (user request) — previously the
+   *only* way to favorite an NDI source was `settings.html`'s "Favorite
+   NDI Sources" editor, a fully manual name/URL entry flow
+   (`viewFavoriteSources()`/`publishFavoriteSources()`, bulk-replaces the
+   whole list via `POST /api/favorite-ndi-sources`, unchanged). Source
+   cards (`.source-card`, only ever rendered on `device.html` and
+   `group.html` — confirmed via repo-wide grep) already carried a
+   `src.favorite` flag from `getNDISources()`'s merge logic, but the only
+   UI for it was a tiny non-interactive star badge that showed up *only
+   when already favorited* (`.source-info.favorite` — also had a real
+   layout bug: `position: fixed` instead of `absolute`, so it was
+   actually positioned relative to the viewport, not its own card).
+   Replaced with an always-visible, always-clickable `.source-fav-btn`
+   (outlined when not favorited, filled accent-warning-colored when it
+   is) in the same top-right corner spot, wired to a new single-source
+   add/remove path: `hub_fs.js#toggleFavoritedSource()` (same
+   exact-then-fuzzy name/url matching `getNDISources()`'s merge already
+   used, so a source flagged `favorite: true` there is recognized as the
+   same entry and removed rather than duplicated) behind a new
+   `POST /api/favorite-ndi-sources/toggle` route, which also immediately
+   re-broadcasts `{type:'ndi-sources'}` to every connected GUI (same
+   shape the existing 10s polling interval already sends) so every
+   browser's source grid updates right away instead of waiting up to
+   10s. `device.html`/`group.html` each got their own
+   `toggleFavoriteSource()` — duplicated per-page rather than shared,
+   matching this codebase's existing convention of per-page copies of
+   `parseSourceName()`/`parseNdiUrl()`/etc. rather than a shared module.
+3. **More contrast + accent-tinted backgrounds** (user request: "a
+   little more contrast" and "match the hue of all the background colors
+   to match the selected theme color", after noticing a blue tint) — the
+   `--bg-0`..`--bg-3` tokens (`styles.css`) were fixed hex values that
+   happened to read slightly blue (each had B > R/G, e.g. `#16181d`).
+   Rewritten as `color-mix(in srgb, var(--accent) N%, <base-hex>)`, so
+   every surface's hue now follows whichever accent color is selected —
+   and because custom properties recompute live, switching the accent
+   swatch in Settings re-tints the whole app instantly with no JS
+   changes needed beyond what already sets `--accent`. Also widened the
+   lightness gap between layers (page background vs. card vs. nested
+   surface like inputs) for more visible separation, bumped `--border`/
+   `--border-strong` opacity (0.08→0.11, 0.16→0.22), and brightened
+   `--text-0`/`--text-1` (pure white / lighter gray) for stronger
+   text-on-surface contrast. Border colors were deliberately left
+   hue-neutral (translucent white, not accent-tinted) — mixing an opaque
+   accent into a low-alpha white via `color-mix` raises the *alpha* too
+   (interpolated alongside color), which would have made every border
+   far more prominent/colored than intended; only backgrounds were asked
+   for and only backgrounds were changed.
+4. **UI-scale setting broke the mobile bottom nav bar** (user-reported:
+   floats above the bottom edge at <100% scale, renders off-screen at
+   >100%) — root cause: `setScale()` (`01-scripts/functions.js`, plus
+   duplicated live copies in `sign-in.html`, `not-found.html`, and
+   `settings.html`'s `applyScale()`) scaled the whole page via
+   `body.style.zoom` (falling back to `transform: scale()`), but `.app`'s
+   `height: 100dvh` is a viewport-relative unit that's computed against
+   the *real, unscaled* device viewport regardless of an ancestor's
+   zoom/transform — so the two stopped matching at any scale other than
+   100%: at <100% the visually-shrunk `.app` box no longer reached the
+   bottom of the real screen (gap below the nav bar); at >100% the
+   visually-grown box overflowed past it (nav bar rendered off-screen).
+   Fixed by scaling via the root `<html>` font-size instead
+   (`document.documentElement.style.fontSize = scale + '%'`) — viable
+   now (wasn't before) because the entire app was converted from `px` to
+   `rem` earlier this session, so every dimension rescales from root
+   font-size alone, while `100dvh`/other viewport units stay correctly
+   pinned to the real screen at any scale since font-size doesn't affect
+   viewport-unit math at all. Fixed in all four live call sites; left
+   two dead, already-commented-out duplicate copies in
+   `advanced-account-settings.html` and `groups.html` untouched (verified
+   both are inside `/* ... */` blocks that never execute).
+5. **Verified**: booted the Hub, round-tripped the new toggle route twice
+   (add then remove the same source, confirming the flip both ways) plus
+   a missing-name/url 400 check, confirmed `styles.css` serves the new
+   `color-mix()` tokens and `.source-fav-btn` rule, `node --check` on
+   every modified backend file plus every touched page's extracted inline
+   script (all clean), and a full page-route sweep (all 200s).
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

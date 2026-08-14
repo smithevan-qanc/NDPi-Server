@@ -1950,6 +1950,31 @@ class NDPiCommandServer_Client extends EventEmitter {
             const updated = this.settings.setFavoritedSources(req.body);
             res.json({ success: true, message: 'Favorited sources updated', count: updated.length });
         });
+
+        // Single-source add/remove -- the star button on a source card
+        // (device.html/group.html), as opposed to the bulk-replace route
+        // above (settings.html's manual editor). Re-broadcasts the merged
+        // NDI source list immediately (same shape/type the periodic 10s
+        // interval already sends) so every connected browser's source
+        // grid re-sorts/updates right away instead of waiting up to 10s.
+        this.Routes
+        .route('/api/favorite-ndi-sources/toggle')
+        .post(async (req, res) => {
+            const { name, url } = req.body;
+            if (!name && !url)
+            { return res.status(400).json({ error: true, message: 'name or url required' }); }
+
+            const result = this.settings.toggleFavoritedSource({ name, url });
+            res.json({ success: true, favorite: result.favorited, favorites: result.list });
+
+            try
+            {
+                const sources = await this.getNDISources();
+                this.broadcastToGUI({ type: 'ndi-sources', origin: 'favorite-toggle', sources });
+            }
+            catch (error)
+            { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Broadcasting NDI sources after favorite toggle', error); }
+        });
     }
 
     /**

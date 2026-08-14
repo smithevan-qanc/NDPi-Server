@@ -1,6 +1,9 @@
 *, *::before, *::after {
     box-sizing: border-box;
 }
+*::-webkit-scrollbar {
+	display: none;
+}
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ DESIGN TOKENS ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 /**
@@ -14,6 +17,16 @@
  *  01-scripts/functions.js applyThemeColor()) from the Hub's persisted
  *  `ui_theme_color` setting -- the values below are just the default
  *  (matches the app's historical green) so the page never flashes unstyled.
+ *
+ *  --bg-* are themselves derived from --accent via color-mix() (a small
+ *  accent tint blended into each layer's base near-black/gray) rather than
+ *  fixed hex values, so every surface's hue follows whichever accent color
+ *  is currently selected instead of staying a fixed (and previously
+ *  slightly blue-leaning) neutral gray -- switching the accent swatch in
+ *  Settings re-tints the entire app instantly, with no extra JS needed
+ *  since custom properties recompute live. Layer-to-layer lightness steps
+ *  were also widened (vs. the original ~3-6% jumps) for more contrast
+ *  between the page background, cards, and nested surfaces like inputs.
  */
 :root {
 	--accent: #81c127;
@@ -21,18 +34,18 @@
 
 	--primary-color-green: rgba(129, 193, 39, 1); /* kept for any legacy reference */
 
-	--bg-0: #0a0b0d;   /* sidebar / outermost shell */
-	--bg-1: #101216;   /* main content background */
-	--bg-2: #16181d;   /* card / surface */
-	--bg-2-hover: #1b1e24;
-	--bg-3: #1f2229;   /* nested surface (inputs, stat chips) */
-	--bg-3-hover: #262a32;
+	--bg-0: color-mix(in srgb, var(--accent) 6%, #07080a);   /* sidebar / outermost shell */
+	--bg-1: color-mix(in srgb, var(--accent) 7%, #0a0c0f);   /* main content background */
+	--bg-2: color-mix(in srgb, var(--accent) 9%, #191c22);   /* card / surface */
+	--bg-2-hover: color-mix(in srgb, var(--accent) 11%, #20242d);
+	--bg-3: color-mix(in srgb, var(--accent) 10%, #262b34);  /* nested surface (inputs, stat chips) */
+	--bg-3-hover: color-mix(in srgb, var(--accent) 12%, #2f3540);
 
-	--border: rgba(255, 255, 255, 0.08);
-	--border-strong: rgba(255, 255, 255, 0.16);
+	--border: rgba(255, 255, 255, 0.11);
+	--border-strong: rgba(255, 255, 255, 0.22);
 
-	--text-0: #f3f4f6;
-	--text-1: #c7cad1;
+	--text-0: #ffffff;
+	--text-1: #d2d5db;
 	--text-2: #8b909c;
 	--text-3: #5b606b;
 
@@ -50,7 +63,7 @@
 	--mobile-navbar-height: 4rem;
 	--main-body-padding: 1.25rem;
 
-	--shadow-pop: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45);
+	--shadow-pop: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.55);
 }
 
 html, body {
@@ -987,14 +1000,55 @@ a {
 	font-family: monospace;
 }
 
-.source-info.favorite {
-	position: fixed;
-	height: 0.625rem;
-	width: 0.625rem;
-	bottom: 0.75rem;
-	right: 0.875rem;
+/**
+ *  Clickable star toggle on every source card (device.html/group.html),
+ *  replacing the old `.source-info.favorite` badge -- which only ever
+ *  rendered when a source was already favorited (no way to favorite one
+ *  from here) and, being `position: fixed` instead of `absolute`, was
+ *  actually positioned relative to the viewport rather than its own card.
+ *  Always visible so favoriting is discoverable; outlined when not
+ *  favorited, filled accent-colored when it is.
+ */
+.source-fav-btn {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.5rem;
+	width: 1.75rem;
+	height: 1.75rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.35);
+	border: 0.0625rem solid var(--border);
+	border-radius: 50%;
+	color: var(--text-3);
+	cursor: pointer;
+	padding: 0;
+	transition: all 0.15s ease;
+	z-index: 2;
+}
 
-	color: var(--accent);
+.source-fav-btn svg {
+	width: 0.9375rem;
+	height: 0.9375rem;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.75;
+}
+
+.source-fav-btn:hover {
+	color: var(--warning);
+	border-color: var(--warning);
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.source-fav-btn.favorited {
+	color: var(--warning);
+	border-color: rgba(245, 165, 36, 0.4);
+}
+
+.source-fav-btn.favorited svg {
+	fill: currentColor;
 }
 
 .source-selected-badge {

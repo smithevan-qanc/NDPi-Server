@@ -758,14 +758,11 @@
 			});
 		}
 
+		// Via root font-size, not body zoom/transform -- see
+		// 01-scripts/functions.js's setScale() for why (zoom/transform
+		// conflict with the 100dvh-based layout elsewhere in the app).
 		function applyScale(scale) {
-			const scaleDecimal = scale / 100;
-			document.body.style.zoom = scaleDecimal;
-			// Fallback for browsers that don't support zoom
-			if (!document.body.style.zoom) {
-				document.body.style.transform = `scale(${scaleDecimal})`;
-				document.body.style.transformOrigin = 'top left';
-			}
+			document.documentElement.style.fontSize = `${scale}%`;
 		}
 
 		function resetScale() {

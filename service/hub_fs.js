@@ -1034,6 +1034,34 @@ class FileSystemMonitor extends EventEmitter {
         return this.favoritedSources;
     }
 
+    /**
+     *  Adds/removes a single source from the favorites list in one call --
+     *  the star-button-on-a-source-card interaction (device.html/
+     *  group.html), as opposed to setFavoritedSources()'s bulk replace
+     *  (settings.html's "Favorite NDI Sources" editor). Matching mirrors
+     *  hub_api_server.js's getNDISources() merge logic (exact name+url
+     *  match, falling back to a name-or-url match) so a source that's
+     *  already flagged `favorite: true` there is recognized as the same
+     *  entry here and gets removed rather than duplicated.
+     */
+    toggleFavoritedSource(source = {}) {
+        const { name, url } = source;
+        if (!name && !url)
+        { return { favorited: false, list: this.favoritedSources }; }
+
+        const existingIndex = this.favoritedSources.findIndex((fav) =>
+            (fav.name === name && fav.url === url) || fav.name === name || fav.url === url
+        );
+
+        const favorited = existingIndex === -1;
+        const updated = favorited
+            ? [...this.favoritedSources, { name, url }]
+            : this.favoritedSources.filter((_, i) => i !== existingIndex);
+
+        this.setFavoritedSources(updated);
+        return { favorited, list: this.favoritedSources };
+    }
+
     /* =====================================================================
      *  DISCOVERED NDI SOURCES
      *  ------------------------

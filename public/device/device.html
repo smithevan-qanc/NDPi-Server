@@ -314,13 +314,7 @@
 				</div>
 			`;
 
-			const favSrcBadge = `
-				<div class="source-info favorite">
-					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-star-fill" viewBox="0 0 16 16">
-						<path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"></path>
-					</svg>
-				</div>
-			`;
+			const escAttr = (s) => String(s ?? '').replace(/'/g, "\\'");
 
 			const sourceCards = sources.length > 0 ? sources.map(src => {
 				const parsed = parseSourceName(src.name);
@@ -328,8 +322,10 @@
 				const isSelected = String(device.currentSource || '').toUpperCase() == String(src.name || '').toUpperCase();
 				return `
 					<div>
-						<div class="source-card ${isSelected ? 'selected' : ''}" onclick="selectSource('${src.name.replace(/'/g, "\\'")}')">
-							${src.favorite ? favSrcBadge : ''}
+						<div class="source-card ${isSelected ? 'selected' : ''}" onclick="selectSource('${escAttr(src.name)}')">
+							<button type="button" class="source-fav-btn ${src.favorite ? 'favorited' : ''}" onclick="event.stopPropagation(); toggleFavoriteSource(this, '${escAttr(src.name)}', '${escAttr(src.url)}')" title="${src.favorite ? 'Remove from favorites' : 'Add to favorites'}">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z"/></svg>
+							</button>
 							<div class="source-name">${parsed.sourceName}</div>
 							<div class="source-host">${parsed.hostname}</div>
 							<div class="source-info">
@@ -343,6 +339,38 @@
 			}).join('') : '<p style="color:#888;grid-column:1/-1;">No NDI sources found on network</p>';
 
 			sourceGrid.innerHTML = noneCard + sourceCards;
+		}
+
+		// Star-button toggle on a source card -- adds/removes it from the
+		// Hub-wide favorited-sources list (POST /api/favorite-ndi-sources/
+		// toggle). Updates this card's button immediately from the
+		// server's authoritative response rather than guessing locally,
+		// and patches the matching entry in `sources` so a later
+		// renderSources() (e.g. from the next ws.onNDISourceUpdate) stays
+		// consistent.
+		async function toggleFavoriteSource(btnEl, name, url) {
+			btnEl.disabled = true;
+			try {
+				const res = await fetch('/api/favorite-ndi-sources/toggle', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ name, url }),
+				});
+				if (res.ok) {
+					const data = await res.json();
+					const src = sources.find(s => s.name === name);
+					if (src) { src.favorite = data.favorite; }
+					btnEl.classList.toggle('favorited', data.favorite);
+					btnEl.title = data.favorite ? 'Remove from favorites' : 'Add to favorites';
+					toast.success(data.favorite ? 'Added to favorites' : 'Removed from favorites');
+				} else {
+					toast.error('Failed to update favorite');
+				}
+			} catch (e) {
+				toast.error('Error updating favorite');
+			} finally {
+				btnEl.disabled = false;
+			}
 		}
 
 		/**

@@ -87,14 +87,23 @@ function lockOrientation() {
 }
 lockOrientation();
 
+/**
+ *  Scales via the root <html> font-size, not body.style.zoom/transform.
+ *  Every dimension in this app is rem-based, so this alone rescales the
+ *  whole UI -- and unlike zoom/transform, it doesn't fight with the
+ *  viewport-relative units (.app's `height: 100dvh`, the mobile bottom
+ *  nav's breakpoint) those layouts depend on. zoom/transform scale the
+ *  *rendered* box after 100dvh has already been measured against the
+ *  real, unscaled viewport, so the two stop matching: at <100% the
+ *  scaled-down box no longer reaches the bottom of the screen (the
+ *  bottom nav bar "floats" above it with a gap below); at >100% the
+ *  scaled-up box overflows past the bottom edge (the bar renders
+ *  off-screen). Root font-size doesn't touch viewport-unit math at all,
+ *  so 100dvh keeps exactly filling the real screen at any scale.
+ */
 function setScale() {
     const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
-	const scaleDecimal = savedScale / 100;
-	document.body.style.zoom = scaleDecimal;
-	if (!document.body.style.zoom) {
-		document.body.style.transform = `scale(${scaleDecimal})`;
-		document.body.style.transformOrigin = 'top left';
-	}
+	document.documentElement.style.fontSize = `${savedScale}%`;
 }
 
 const NAV_ACCOUNT_ICON = `<span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a6 6 0 0 1 11 0"/></svg></span>`;

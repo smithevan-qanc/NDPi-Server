@@ -519,14 +519,22 @@ class Toast {
 				position: fixed;
 				left: 0;
 				right: 0;
+				bottom: 20px;
 				height: 0;
 				z-index: 9998;
 				pointer-events: none;
 			}
 
+			@media (max-width: 860px) {
+				.toast-container {
+					/* clears the collapsed bottom nav bar on narrow/kiosk-touch viewports */
+					bottom: calc(var(--mobile-navbar-height, 64px) + 20px);
+				}
+			}
+
 			.toast {
 				position: absolute;
-				top: 0;
+				bottom: 0;
 				left: 50%;
 				background: #2a2a2a;
 				color: #fff;
@@ -570,22 +578,22 @@ class Toast {
 
 			@keyframes toastIn {
 				from {
-					transform: translateX(-50%) translateY(-50%) translateY(-8px);
+					transform: translateX(-50%) translateY(8px);
 					opacity: 0;
 				}
 				to {
-					transform: translateX(-50%) translateY(-50%);
+					transform: translateX(-50%) translateY(0);
 					opacity: 1;
 				}
 			}
 
 			@keyframes toastOut {
 				from {
-					transform: translateX(-50%) translateY(-50%);
+					transform: translateX(-50%) translateY(0);
 					opacity: 1;
 				}
 				to {
-					transform: translateX(-50%) translateY(-50%) translateY(-8px);
+					transform: translateX(-50%) translateY(8px);
 					opacity: 0;
 				}
 			}
@@ -602,23 +610,8 @@ class Toast {
 		return this.container;
 	}
 
-	// Not a child of .topbar -- a sibling fixed overlay whose position is
-	// computed from the topbar's actual rendered vertical center each time
-	// a toast is shown (rather than once on load), so it stays correctly
-	// centered on the topbar even if the topbar's own height has since
-	// changed (text wrap, viewport resize, etc). Each .toast then centers
-	// itself on this anchor via translateY(-50%) in its own transform, so
-	// the toast's own height doesn't need to be known here.
-	positionContainer(container) {
-		const topbar = document.querySelector('.topbar');
-		const rect = topbar ? topbar.getBoundingClientRect() : null;
-		const top = rect ? rect.top + (rect.height / 2) : 15;
-		container.style.top = `${top}px`;
-	}
-
 	show(message, type = 'info', duration = 4000) {
 		const container = this.getContainer();
-		this.positionContainer(container);
 
 		// Only one toast at a time -- motion the previous one out instead of
 		// letting it sit alongside the new one.
