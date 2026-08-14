@@ -83,46 +83,14 @@
 
         resizeLogo(appendTo.clientHeight, appendTo.clientWidth);
 
-		const style = document.createElement('style');
-		style.id = 'screen-saver-styles';
-		style.textContent = `
-			#screen-saver-modal {
-				display: none;
-				position: fixed;
-				top: 0;
-				left: 0;
-				width: 100%;
-				height: 100%;
-				z-index: 9999;
-				transition: backdrop-filter ${transitionSettings.modal.duration}ms ${transitionSettings.modal.timingFunction},
-                    background-color ${transitionSettings.modal.duration}ms ${transitionSettings.modal.timingFunction};
-			}
-
-            @keyframes blurAnimation {
-				from { backdrop-filter: blur(4px); background-color: rgba(0,0,0,0.7); }
-				to   { backdrop-filter: blur(9px); background-color: rgba(0,0,0,1); }
-			}
-
-			#logo-container {
-                display: none;
-                position: fixed;
-				height: ${logoSquareSize}px;
-				width: ${logoSquareSize}px;
-				transition:
-                    top ${transitionSettings.logoContainer.duration}ms ${transitionSettings.logoContainer.timingFunction},
-                    left ${transitionSettings.logoContainer.duration}ms ${transitionSettings.logoContainer.timingFunction};
-			}
-
-			.logo-svg {
-				opacity: 0;
-				height: 100%;
-				width: 100%;
-				transition:
-                    transform ${transitionSettings.logoSvg.duration}ms ${transitionSettings.logoSvg.timingFunction},
-                    opacity ${transitionSettings.logoSvg.duration}ms ${transitionSettings.logoSvg.timingFunction};
-			}
-		`;
-		document.head.appendChild(style);
+		// #screen-saver-modal / #logo-container / .logo-svg styling (including
+		// @keyframes blurAnimation) now lives statically in styles.css instead
+		// of being injected here at runtime -- it was always effectively
+		// static (transitionSettings' durations never change after being
+		// defined above), aside from #logo-container's width/height, which
+		// were already redundant with the inline style set on it just below
+		// and in _initScreenSaver() (inline style wins regardless, so the
+		// injected stylesheet's copy of those two properties never mattered).
 
 		const screenSaverModal = document.createElement('div');
 		screenSaverModal.id = 'screen-saver-modal';
@@ -333,10 +301,8 @@
                 // Wait for transitions to complete, then remove elements completely
                 setTimeout(() => {
                     const screenSaverModal = document.getElementById('screen-saver-modal');
-                    const styleTag = document.getElementById('screen-saver-styles');
-                    
+
                     if (screenSaverModal) screenSaverModal.remove();
-                    if (styleTag) styleTag.remove();
                     useLogoA = true;
                     isInitialized = false; // Reset flag so elements are recreated fresh next time
                 }, clearDisplayDuration);

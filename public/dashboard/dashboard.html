@@ -377,13 +377,15 @@
 			}, { passive: true });
 
 			list.addEventListener('touchmove', (e) => {
-				if (!isTouching) return;
-				const currentY = e.touches[0].clientY;
-				const deltaY = startY - currentY;
-				list.scrollTop = scrollTop + deltaY;
+				document.body.style.cursor = 'none';
+				// if (!isTouching) return;
+				// const currentY = e.touches[0].clientY;
+				// const deltaY = startY - currentY;
+				// list.scrollTop = scrollTop + deltaY;
 			}, { passive: true });
 
 			list.addEventListener('touchend', () => {
+				document.body.style.removeProperty('cursor');
 				isTouching = false;
 			});
 		}

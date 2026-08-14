@@ -1044,6 +1044,88 @@ Four more user requests/fixes in one pass:
    every modified backend file plus every touched page's extracted inline
    script (all clean), and a full page-route sweep (all 200s).
 
+### Card contrast, modal/toast/screensaver consolidated into styles.css, and a real button-hover bug
+
+Four more from the user after living with the redesign a bit:
+
+1. **Device/group/user/source tiles were blending into their card
+   container** (user-reported) — `.device-card`, `.group-tile`,
+   `.user-tile`, `.source-card`, and `.source-card-none` all used
+   `var(--bg-2)`, the *exact same* token as the `.card` container each of
+   them sits inside, so they only read as separate via a faint 1px
+   border. Added a new, deliberately darker `--bg-tile`/`--bg-tile-hover`
+   token pair (same `color-mix(in srgb, var(--accent) N%, <base>)`
+   pattern as the rest of the palette, sitting between `--bg-0` and
+   `--bg-1` in darkness -- darker than the `.card` container per the
+   user's explicit ask, reading as a recessed "well" rather than a raised
+   panel) and switched all five to it.
+2. **Modal buttons weren't following theme changes, plus a real
+   dark-on-dark hover bug** (user-reported: "some buttons, when hovered,
+   show the dark background, and the text color is also dark/black") —
+   root cause confirmed by working out actual CSS specificity, not just
+   inspecting colors: the base `select:hover, button:hover { background:
+   var(--bg-3-hover); }` rule (specificity (0,1,1) -- one element + one
+   pseudo-class) was *silently beating* every single-class button variant
+   that changes its hover look via `filter:` instead of redeclaring
+   `background` (`.button-primary`, `.discovery-button`,
+   `.add-device-btn`, `.fab` -- all bare classes, specificity (0,1,0)).
+   On hover, their `background` actually resolved to the neutral dark
+   `--bg-3-hover` instead of their own bright accent color, while their
+   `color` (chosen dark, e.g. `#0a0b0d`, specifically for contrast against
+   that *bright* non-hover background, and with no competing hover rule
+   to change it) stayed dark -- dark text on a dark background. Fixed at
+   the root instead of patching each variant: changed the base rule to
+   `select:where(:hover), button:where(:hover)`, which keeps its
+   specificity at (0,0,1) -- exactly tied with the non-hover base
+   `select, button {...}` rule above it (so it still wins that tie by
+   source order for a plain unstyled button, preserving the intended
+   default hover feedback) but now correctly loses to *any* single-class
+   variant, fixing all four buggy buttons at once. Separately, and
+   because the underlying complaint was really "modal buttons don't
+   follow theme" -- see next item.
+3. **Consolidated every script-injected stylesheet into styles.css**
+   (user request: "add the modal styling, and the offline overlay
+   styling, and any other script injected or rogue styles to the main
+   style sheet for easier tracking") — audited every file under
+   `01-scripts/` for runtime `document.createElement('style')` injection;
+   found two (`.offline-overlay`/`.offline-modal`/etc. were already
+   static in `styles.css`, not injected — `ws-client.js` just applies
+   those existing classes to a DOM node it creates, nothing to move):
+   - `01-scripts/modal.js`'s `Modal` class (`.modal-overlay`,
+     `.modal-box`, `.modal-button*`, `.modal-option*`, etc.) and `Toast`
+     class (`.toast*`) each had an `initStyles()` that injected a
+     `<style>` full of hardcoded hex colors (`#2a2a2a`, `rgb(129, 193,
+     39)`, etc.) — this is *why* modal buttons didn't follow theme
+     changes: they were never wired to `--accent`/the `--bg-*` tokens at
+     all. Both `initStyles()` methods deleted outright; the same rules
+     now live in styles.css under new `MODAL`/`TOAST` sections, rewritten
+     onto the shared tokens (`.modal-button-primary` → `var(--accent)`,
+     `.toast-success`'s left border → `var(--online)`, etc.) — so both
+     now re-theme live along with everything else, and both also picked
+     up real (if minor) `:hover` states several sub-elements never had
+     before (`.modal-option` had no hover feedback at all previously,
+     only `:active`).
+   - `01-scripts/screen-saver.js`'s `_createScreenSaverElements()` had
+     the same pattern for `#screen-saver-modal`/`#logo-container`/
+     `.logo-svg`/`@keyframes blurAnimation`, built from
+     `transitionSettings.*.duration` JS constants that never actually
+     change at runtime — moved to styles.css as static CSS with those
+     durations (1000ms/0ms/1000ms) written out literally. Confirmed safe
+     to drop `#logo-container`'s injected `width`/`height` entirely
+     (rather than move them): they were already dead weight, immediately
+     overridden by the inline `logoBox.style.width/height` the same
+     function sets moments later — inline style always wins regardless.
+     Also removed the now-pointless `styleTag.remove()` cleanup in
+     `_hideScreenSaver()` (nothing left to remove).
+4. **Verified**: booted the Hub, confirmed `styles.css` now serves
+   `--bg-tile`, the `:where(:hover)` rule, and the moved-in
+   `.modal-overlay`/`.toast-container`/`#screen-saver-modal` rules,
+   confirmed neither `modal.js` nor `screen-saver.js` still contain a
+   `createElement('style')` call, grepped for leftover references to the
+   deleted `#modal-styles`/`#toast-styles`/`#screen-saver-styles` element
+   IDs (none), `node --check` on both modified files, a full brace-balance
+   check on `styles.css`, and a page-route sweep (all 200s).
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

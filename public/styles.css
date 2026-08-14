@@ -40,6 +40,8 @@
 	--bg-2-hover: color-mix(in srgb, var(--accent) 11%, #20242d);
 	--bg-3: color-mix(in srgb, var(--accent) 10%, #262b34);  /* nested surface (inputs, stat chips) */
 	--bg-3-hover: color-mix(in srgb, var(--accent) 12%, #2f3540);
+	--bg-tile: color-mix(in srgb, var(--accent) 7%, #090a0d);        /* device/group/source/user tiles -- deliberately darker than --bg-2 so they pop against the card container instead of blending into it */
+	--bg-tile-hover: color-mix(in srgb, var(--accent) 9%, #0f1114);
 
 	--border: rgba(255, 255, 255, 0.11);
 	--border-strong: rgba(255, 255, 255, 0.22);
@@ -564,7 +566,7 @@ a {
 	width: stretch;
 	width: -webkit-fill-available;
 	box-sizing: border-box;
-	background: var(--bg-2);
+	background: var(--bg-tile);
 	border: 0.0625rem solid var(--border);
 	border-left: 0.1875rem solid var(--offline);
 	border-radius: var(--radius-md);
@@ -578,7 +580,7 @@ a {
 }
 
 .device-card:hover {
-	background: var(--bg-2-hover);
+	background: var(--bg-tile-hover);
 	border-color: var(--border-strong);
 	transform: translateY(-0.0625rem);
 }
@@ -851,7 +853,7 @@ a {
 	border-radius: var(--radius-md);
     border: 0.0625rem solid var(--border);
     border-left: 0.1875rem solid var(--accent);
-    background: var(--bg-2);
+    background: var(--bg-tile);
     cursor: pointer;
 	flex: 1 1 25rem;
 	transition: all 0.2s ease;
@@ -873,7 +875,7 @@ a {
 }
 
 .group-tile:hover {
-    background: var(--bg-2-hover);
+    background: var(--bg-tile-hover);
     border-color: var(--border-strong);
 }
 
@@ -909,13 +911,13 @@ a {
     padding: 0.875rem 1rem;
     border-radius: var(--radius-md);
     border: 0.0625rem solid var(--border);
-    background: var(--bg-2);
+    background: var(--bg-tile);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
 .user-tile:hover {
-    background: var(--bg-2-hover);
+    background: var(--bg-tile-hover);
     border-color: var(--border-strong);
 }
 
@@ -961,7 +963,7 @@ a {
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ SOURCE-CARD ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
 .source-card {
-	background: var(--bg-2);
+	background: var(--bg-tile);
 	border: 0.0625rem solid var(--border);
 	border-radius: var(--radius-md);
 	padding: 0.75rem 0.875rem;
@@ -972,7 +974,7 @@ a {
 
 .source-card.selected:hover,
 .source-card:hover {
-	background: var(--bg-2-hover);
+	background: var(--bg-tile-hover);
 	border-color: rgba(var(--accent-rgb), 0.4);
 }
 
@@ -1064,7 +1066,7 @@ a {
 	font-weight: 700;
 }
 .source-card-none {
-	background: var(--bg-2);
+	background: var(--bg-tile);
 	border: 0.0625rem dashed var(--border-strong);
 }
 .source-card-none:hover {
@@ -1298,6 +1300,313 @@ label {
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF OFFLINE css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
+/* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ MODAL ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
+/**
+ *  01-scripts/modal.js's Modal class used to inject this as its own
+ *  <style id="modal-styles"> at runtime with hardcoded hex colors -- moved
+ *  here (and re-themed onto the shared tokens) for two reasons: it's
+ *  easier to track/maintain alongside every other rule instead of hiding
+ *  in a JS template string, and it means these buttons now actually
+ *  follow accent/theme changes instead of being frozen at the app's
+ *  original hardcoded green/gray palette.
+ */
+.modal-overlay {
+	display: none;
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.7);
+	backdrop-filter: blur(0.5rem);
+	-webkit-backdrop-filter: blur(0.5rem);
+	z-index: 10000;
+	align-items: center;
+	justify-content: center;
+	padding: 1.25rem;
+	animation: modalFadeIn 0.2s ease;
+}
+
+.modal-overlay.active {
+	display: flex;
+}
+
+@keyframes modalFadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+.modal-box {
+	background: var(--bg-2);
+	border: 0.0625rem solid var(--border-strong);
+	border-radius: var(--radius-lg);
+	padding: 1.5rem;
+	max-width: 31.25rem;
+	width: 100%;
+	box-shadow: var(--shadow-pop);
+	animation: modalSlideUp 0.3s ease;
+}
+
+@keyframes modalSlideUp {
+	from { transform: translateY(1.25rem); opacity: 0; }
+	to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-title {
+	font-size: 1.25rem;
+	font-weight: 600;
+	color: var(--text-0);
+	margin-bottom: 1rem;
+}
+
+.modal-message {
+	font-size: 1rem;
+	color: var(--text-1);
+	margin-bottom: 1rem;
+	padding-left: 0.5rem;
+	line-height: 1.5;
+}
+
+.modal-input {
+	width: 100%;
+	padding: 0.875rem;
+	font-size: 1rem;
+	background: var(--bg-3);
+	border: 0.125rem solid var(--border-strong);
+	border-radius: var(--radius-md);
+	color: var(--text-0);
+	margin-bottom: 1.25rem;
+	box-sizing: border-box;
+	font-family: inherit;
+}
+
+.modal-input:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+.modal-buttons {
+	display: flex;
+	gap: 0.75rem;
+	justify-content: flex-end;
+}
+
+.modal-button {
+	padding: 0.875rem 1.5rem;
+	font-size: 1rem;
+	font-weight: 500;
+	border: 0.0625rem solid transparent;
+	border-radius: var(--radius-md);
+	cursor: pointer;
+	font-family: inherit;
+	transition: all 0.2s ease;
+	min-width: 6.25rem;
+}
+
+.modal-button-primary {
+	background: var(--accent);
+	color: #0a0b0d;
+}
+
+.modal-button-primary:hover {
+	filter: brightness(1.08);
+}
+
+.modal-button-primary:active {
+	filter: brightness(0.92);
+}
+
+.modal-button-danger {
+	background: var(--danger);
+	color: #fff;
+}
+
+.modal-button-danger:hover {
+	filter: brightness(1.08);
+}
+
+.modal-button-danger:active {
+	filter: brightness(0.9);
+}
+
+.modal-button-secondary {
+	background: var(--bg-3);
+	color: var(--text-1);
+	border-color: var(--border-strong);
+}
+
+.modal-button-secondary:hover {
+	background: var(--bg-3-hover);
+	color: var(--text-0);
+}
+
+.modal-button-secondary:active {
+	filter: brightness(0.92);
+}
+
+.modal-options {
+	max-height: 18.75rem;
+	overflow-y: auto;
+	margin-bottom: 1.25rem;
+}
+
+.modal-option {
+	padding: 1rem;
+	background: var(--bg-3);
+	border: 0.125rem solid var(--border-strong);
+	border-radius: var(--radius-md);
+	margin-bottom: 0.5rem;
+	cursor: pointer;
+	color: var(--text-0);
+	font-size: 1rem;
+	transition: all 0.2s ease;
+}
+
+.modal-option:hover {
+	background: var(--bg-3-hover);
+	border-color: var(--text-3);
+}
+
+.modal-option:active,
+.modal-option.selected {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #0a0b0d;
+}
+
+/* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF MODAL css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
+
+/* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ TOAST ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
+/**
+ *  01-scripts/modal.js's Toast class -- same as the Modal styles above,
+ *  moved out of its runtime-injected <style id="toast-styles"> and onto
+ *  the shared tokens (status colors for the left accent bar instead of
+ *  hardcoded hex).
+ */
+.toast-container {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 1.25rem;
+	height: 0;
+	z-index: 9998;
+	pointer-events: none;
+}
+
+@media (max-width: 53.75rem) {
+	.toast-container {
+		/* clears the collapsed bottom nav bar on narrow/kiosk-touch viewports */
+		bottom: calc(var(--mobile-navbar-height) + 1.25rem);
+	}
+}
+
+.toast {
+	position: absolute;
+	bottom: 0;
+	left: 50%;
+	background: var(--bg-2);
+	border: 0.0625rem solid var(--border-strong);
+	color: var(--text-0);
+	padding: 0.875rem 1.5rem;
+	border-radius: var(--radius-md);
+	font-size: 0.9375rem;
+	box-shadow: var(--shadow-pop);
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+	pointer-events: auto;
+	max-width: 90vw;
+	min-width: max(18.75rem, 50vw);
+	animation: toastIn 0.3s ease forwards;
+}
+
+.toast.toast-exiting {
+	animation: toastOut 0.3s ease-in forwards;
+}
+
+.toast-success {
+	border-left: 0.5rem solid var(--online);
+}
+
+.toast-error {
+	border-left: 0.5rem solid var(--danger);
+}
+
+.toast-info {
+	border-left: 0.5rem solid var(--text-3);
+}
+
+.toast-warning {
+	border-left: 0.5rem solid var(--warning);
+}
+
+.toast-icon {
+	font-size: 1.125rem;
+	flex-shrink: 0;
+}
+
+@keyframes toastIn {
+	from {
+		transform: translateX(-50%) translateY(0.5rem);
+		opacity: 0;
+	}
+	to {
+		transform: translateX(-50%) translateY(0);
+		opacity: 1;
+	}
+}
+
+@keyframes toastOut {
+	from {
+		transform: translateX(-50%) translateY(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateX(-50%) translateY(0.5rem);
+		opacity: 0;
+	}
+}
+
+/* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF TOAST css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
+
+/* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ SCREEN SAVER ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
+/**
+ *  01-scripts/screen-saver.js used to inject this as its own
+ *  <style id="screen-saver-styles"> at runtime, rebuilt from JS constants
+ *  (transitionSettings.*.duration) that never actually change -- moved
+ *  here as static CSS with those same durations (1000ms/0ms/1000ms)
+ *  written out literally. #logo-container's width/height are NOT set
+ *  here (unlike the old injected version, which declared them but then
+ *  had them immediately overridden by the inline `logoBox.style.width/
+ *  height` JS already sets right after creating the element) -- those
+ *  stay genuinely dynamic (computed from the actual screen size) and
+ *  stay inline-styled from screen-saver.js.
+ */
+#screen-saver-modal {
+	display: none;
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	transition: backdrop-filter 1000ms ease, background-color 1000ms ease;
+}
+
+@keyframes blurAnimation {
+	from { backdrop-filter: blur(0.25rem); background-color: rgba(0, 0, 0, 0.7); }
+	to   { backdrop-filter: blur(0.5625rem); background-color: rgba(0, 0, 0, 1); }
+}
+
+#logo-container {
+	display: none;
+	position: fixed;
+	transition: top 0ms ease-in-out, left 0ms ease-in-out;
+}
+
+.logo-svg {
+	opacity: 0;
+	height: 100%;
+	width: 100%;
+	transition: transform 1000ms ease, opacity 1000ms ease;
+}
+
+/* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF SCREEN SAVER css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
+
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ SIGN IN / AUTH ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
 .auth-container {
@@ -1442,7 +1751,22 @@ select, button {
 	transition: all 0.18s ease-in-out;
 }
 
-select:hover, button:hover {
+/**
+ *  :where(:hover) instead of plain :hover -- keeps this rule's specificity
+ *  at (0,0,1) (tied with the base `select, button` rule above it, so it
+ *  still wins that tie by source order for a plain unstyled button/select)
+ *  instead of (0,1,1), which the "correct" `select:hover, button:hover`
+ *  form would have. That extra specificity was the actual bug: it beat
+ *  every single-class button variant below (.button-primary,
+ *  .discovery-button, .add-device-btn, .fab -- all (0,1,0)) that changes
+ *  its hover look via `filter:` rather than redeclaring `background`, so
+ *  this rule's --bg-3-hover silently won the `background` property on
+ *  hover instead of the variant's own accent color -- while the variant's
+ *  own (still-winning, since color has no competing hover rule) dark text
+ *  color, chosen for contrast against its *bright* non-hover background,
+ *  stayed dark on top of that now-dark hover background.
+ */
+select:where(:hover), button:where(:hover) {
 	background: var(--bg-3-hover);
 	border-color: var(--text-3);
 }
