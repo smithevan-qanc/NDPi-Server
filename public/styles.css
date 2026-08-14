@@ -52,7 +52,7 @@
 
 	--text-0: rgba(255,255,255,1);
 	--text-1: rgba(219,219,219,1);
-	--text-2: rgba(53,53,53,1);
+	--text-2: rgba(180,180,180,1);
 	--text-3: #8f8f8f;
 
 	--online: #3fca6a;
@@ -2240,7 +2240,7 @@ input[type="number"]::-webkit-outer-spin-button {
 	gap: 0.1875rem;
 	flex-direction: column;
     background-color: rgba(20,20,20,1);
-    border: 0.0625rem solid var(--border-strong), 0.0625rem solid var(--border);
+    border: 0.1rem solid var(--border);
 	border-radius: var(--radius-md);
     box-shadow: var(--shadow-pop);
     padding: 0.25rem;
