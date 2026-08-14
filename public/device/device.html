@@ -434,7 +434,7 @@
 			const syncLabel = sync.inSync ? 'In Sync' : `${absDiff.toFixed(1)}s ${sync.diffSeconds > 0 ? 'Ahead' : 'Behind'}`;
 
 			return `
-				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;" title="Browser vs. device clock (device's own reported systemTime)">
+				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;" title="Browser vs. device clock (device's own reported systemTime)">
 					<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Sync</span>
 					<span style="color:${syncColor};font-weight:600;font-size:16px;">${syncLabel}</span>
 				</div>
