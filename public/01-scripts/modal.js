@@ -353,7 +353,7 @@ class Toast {
 		return this.container;
 	}
 
-	show(message, type = 'info', duration = 4000) {
+	show(message, type = 'info', duration = 3000) {
 		const container = this.getContainer();
 
 		// Only one toast at a time -- motion the previous one out instead of
@@ -403,7 +403,7 @@ class Toast {
 		this.show(message, 'error', duration);
 	}
 
-	info(message, duration = 8000) {
+	info(message, duration = 3000) {
 		this.show(message, 'info', duration);
 	}
 
