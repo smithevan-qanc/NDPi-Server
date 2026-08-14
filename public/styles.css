@@ -2330,7 +2330,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .mono {
 	font-variant-numeric: tabular-nums;
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-	text-transform: uppercase;
+	/* text-transform: uppercase; */
 	font-size: 0.8125rem;
 	margin: 0rem 0rem 0rem 0rem;
 }

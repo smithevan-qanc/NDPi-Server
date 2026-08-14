@@ -121,13 +121,14 @@
 			const hours = Math.floor(seconds / 3600);
 			const minutes = Math.floor((seconds % 3600) / 60);
 			const secs = seconds % 60;
+			const padNum = (num) => { return String(num).padStart(2,'0'); };
 
 			if (hours > 0) {
-				return `${hours}h ${minutes}m ${secs}s`;
+				return `${padNum(hours)}:${padNum(minutes)}:${padNum(secs)}`;
 			} else if (minutes > 0) {
-				return `${minutes}m ${secs}s`;
+				return `${padNum(minutes)}:${padNum(secs)}`;
 			}
-			return `${secs}s`;
+			return `00:${padNum(secs)}`;
 		}
 
 		function parseNdiUrl(url) {
@@ -483,7 +484,7 @@
 					</div>
 					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:2;">
 						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Uptime</span>
-						<span style="color:#4ade80;font-weight:600;font-size:16px;text-overflow:ellipsis;word-wrap: break-word;white-space:nowrap;" title="${formatUptime(device.systemStats.uptime)}">${formatUptime(device.systemStats.uptime)}</span>
+						<span style="color:#4ade80;font-weight:600;font-size:16px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="${formatUptime(device.systemStats.uptime)}">${formatUptime(device.systemStats.uptime)}</span>
 					</div>
 					${syncPillHtml()}
 				<!--/div-->
@@ -541,7 +542,7 @@
 					</div>
 					<div class="info-item">
 						<span class="info-label">Stream Status</span>
-						<span class="info-value" style="text-transform: capitalize;color:${device.streamStatus === 'streaming' ? '#4ade80' : '#888'};">${device.streamStatus || 'idle'}</span>
+						<span class="info-value" style="text-transform: uppercase;color:${device.streamStatus === 'streaming' ? '#4ade80' : '#888'};">${device.streamStatus || 'idle'}</span>
 					</div>
 					${device.ndiInfo && device.ndiInfo.resolution ? `
 					<div class="info-item">
@@ -638,7 +639,7 @@
 					}
 					return `
 						<div class="info-item">
-							<span class="info-label" style="text-transform:capitalize;">${label}</span>
+							<span class="info-label">${label}</span>
 							<span class="info-value">${control}</span>
 						</div>
 					`;
