@@ -244,7 +244,7 @@ html.sidebar-collapsed .nav-btn {
 	   min-width is listed explicitly too since that floor changes the
 	   instant .sidebar-collapsed toggles (--sidebar-width gets swapped to
 	   --sidebar-width-collapsed) rather than easing in on its own. */
-	transition: width 0.2s ease-out, min-width 0.2s ease-in;
+	transition: width 0.2s ease-out, min-width 0.2s ease-out;
 }
 
 .sidebar-logo {
@@ -256,7 +256,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0 1.125rem;
 	border-bottom: 0.0625rem solid var(--border);
 	cursor: pointer;
-	transition: padding 0.2s ease-in-out, gap 0.2s ease-in-out;
+	transition: padding 0.2s ease-out, gap 0.2s ease-out;
 }
 
 .topbar-logo {
@@ -281,7 +281,7 @@ html.sidebar-collapsed .nav-btn {
 	text-overflow: ellipsis;
 	opacity: 1;
 	max-width: 12rem;
-	transition: opacity 0.25s ease, max-width 0.2s ease-in-out;
+	transition: opacity 0.25s ease, max-width 0.2s ease-out;
 }
 
 .sidebar-nav {
@@ -340,7 +340,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0.5625rem 0.75rem;
 	cursor: pointer;
 	transition: background 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out,
-		width 0.2s ease-in-out, padding 0.2s ease-in-out, gap 0.2s ease-in-out;
+		width 0.2s ease-out, padding 0.2s ease-out, gap 0.2s ease-out;
 	border-radius: var(--radius-sm);
 	text-align: left;
 }
@@ -370,7 +370,7 @@ html.sidebar-collapsed .nav-btn {
 	white-space: nowrap;
 	opacity: 1;
 	max-width: 12rem;
-	transition: opacity 0.2s ease, max-width 0.2s ease-in-out;
+	transition: opacity 0.2s ease, max-width 0.2s ease-out;
 }
 
 .nav-btn:hover {
@@ -412,7 +412,7 @@ html.sidebar-collapsed .nav-btn {
 	   gradually -- this is what actually eases that jump instead of
 	   .main's content snapping sideways out of step with .sidebar's own
 	   (child-driven) width animation. */
-	transition: margin-left 0.2s ease;
+	transition: margin-left 0.2s ease-out;
 }
 
 /*
@@ -434,7 +434,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0 1.5rem;
 	z-index: 90;
 	/* Same reasoning as .main's margin-left transition above. */
-	transition: left 0.2s ease;
+	transition: left 0.2s ease-out;
 }
 
 .topbar-title {
