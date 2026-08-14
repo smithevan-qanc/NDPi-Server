@@ -181,6 +181,45 @@ if (document.readyState === 'loading') {
 	initSidebarToggle();
 }
 
+/**
+ *  :hover only ever reflects the cursor's literal position -- CSS has no
+ *  way to time it out on its own. So when a click changes a button's
+ *  label/color/disabled state in place (Reboot -> "REBOOTING...", a
+ *  toggled star, a card gaining .selected) and the cursor happens to sit
+ *  still afterward, the element is left looking stuck in its bright
+ *  hover-highlighted look, since nothing ever told the browser the
+ *  cursor moved.
+ *
+ *  Fix: toggle `pointer-events: none` on the clicked element for one
+ *  frame. That removes it from hit-testing, which immediately clears
+ *  :hover on it (the browser hands hover to whatever's underneath).
+ *  Restoring pointer-events right after does NOT bring :hover back on
+ *  its own -- browsers only ever recompute hover targets on an actual
+ *  pointermove event, not merely because an element became hoverable
+ *  again -- so this reliably resets the hover look on click without
+ *  waiting for the user to move the mouse away and back. A single click
+ *  listener on `document` (delegated, not per-element) covers every
+ *  button/card/nav-item app-wide, present and future, with no per-page
+ *  wiring needed. Double requestAnimationFrame (rather than one, or an
+ *  arbitrary setTimeout) guarantees at least one full paint has actually
+ *  happened with pointer-events off before it's restored, which is the
+ *  reliable way to force this across browsers.
+ */
+function initHoverReset() {
+	document.addEventListener('click', (e) => {
+		const target = e.target.closest('button, a, select, .nav-btn, [class*="card"], [class*="tile"], [onclick]');
+		if (!target) return;
+		target.style.pointerEvents = 'none';
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				target.style.pointerEvents = '';
+			});
+		});
+	});
+}
+
+initHoverReset();
+
 (async () => {
 	setScale();
 

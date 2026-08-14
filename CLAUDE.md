@@ -1763,6 +1763,46 @@ markup; booted the Hub locally and confirmed `device.html`/
 `SYNC_ICON_*` constants present in `device.html`'s live response body.
 Not checked visually in a real browser.
 
+### Global fix for "stuck" hover state after a click
+
+User report: clicking a button and leaving the cursor sitting over it
+afterward leaves the button looking stuck in its bright hover-highlighted
+look. Root cause is a genuine CSS limitation, not a bug in any specific
+button: `:hover` only ever reflects the cursor's literal position, so
+when a click changes an element in place (a button's label swapping to
+"REBOOTING...", a star toggling favorited, a card gaining `.selected`)
+and the cursor doesn't move afterward, nothing ever tells the browser to
+re-evaluate hover — there's no way to "time it out" with CSS alone.
+
+**Fix**: added `initHoverReset()` to `01-scripts/functions.js` — one
+delegated `click` listener on `document` (covers every button/card/nav
+item app-wide, present and future, no per-page wiring) that toggles
+`pointer-events: none` on the clicked element for one frame. That removes
+it from hit-testing, which immediately clears `:hover` on it (the browser
+hands hover to whatever's underneath); restoring `pointer-events` right
+after does **not** bring `:hover` back on its own, since browsers only
+ever recompute hover targets on an actual pointer-move event — so this
+reliably resets the hover look on every click without waiting for the
+user to move the mouse away and back. Uses a double
+`requestAnimationFrame` (not a single one, or an arbitrary `setTimeout`)
+to guarantee at least one full paint has actually happened with
+`pointer-events` off before restoring it, which is the reliable way to
+force this across browsers. The click-target selector
+(`button, a, select, .nav-btn, [class*="card"], [class*="tile"],
+[onclick]`) deliberately casts a wide net matching this app's own
+conventions (most custom clickable elements are wired via inline
+`onclick="..."` attributes) rather than hand-listing every specific
+class, so new buttons/cards get this for free without needing to opt in.
+Doesn't conflict with genuinely `:disabled` buttons (`button:disabled`'s
+existing `pointer-events: none !important` still wins regardless of the
+inline style being toggled back to `''`).
+
+**Verified**: `node --check` on `functions.js`; booted the Hub locally
+and confirmed `01-scripts/functions.js` serves the new function. Not
+checked visually in a real browser — this is exactly the kind of
+interaction-timing behavior that's hardest to verify without one, so
+worth a quick real click-and-hold check before fully trusting it.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

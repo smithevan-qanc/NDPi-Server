@@ -2222,6 +2222,7 @@ input[type="number"],
 input[type="date"],
 input[type="time"],
 input[type="text"],
+input,
 select {
 	width: 100%;
     min-width: 3.125rem;
@@ -2233,6 +2234,10 @@ select {
 	font-size: 1rem;
 }
 
+input:disabled {
+	cursor: not-allowed;
+}
+
 input[type="date"],
 input[type="time"],
 input[type="number"] {
@@ -2240,11 +2245,22 @@ input[type="number"] {
     text-align: center;
 }
 
+input[type="password"]:hover,
+input[type="number"]:hover,
+input[type="date"]:hover,
+input[type="time"]:hover,
+input[type="text"]:hover,
+input:hover,
+select:hover {
+	background: var(--bg-3-hover);
+}
+
 input[type="password"]:focus,
 input[type="number"]:focus,
 input[type="date"]:focus,
 input[type="time"]:focus,
 input[type="text"]:focus,
+input:focus,
 select:focus {
 	outline: none;
 	border-style: ridge;
