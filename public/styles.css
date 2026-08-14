@@ -790,7 +790,7 @@ html.sidebar-collapsed .nav-btn {
 	width: -webkit-fill-available;
 	box-sizing: border-box;
 	background: var(--bg-tile);
-	border: 0.0625rem outset var(--border);
+	border: 0.0625rem ridge var(--border);
 	border-left: 0.1875rem solid var(--offline);
 	border-radius: var(--radius-md);
 	padding: 0.875rem 1rem;
@@ -1075,7 +1075,7 @@ html.sidebar-collapsed .nav-btn {
 .group-tile {
     padding: 1rem;
 	border-radius: var(--radius-md);
-    border: 0.0625rem outset var(--border);
+    border: 0.0625rem ridge var(--border);
     border-left: 0.1875rem solid var(--accent);
     background: var(--bg-tile);
     cursor: pointer;
@@ -1188,7 +1188,7 @@ html.sidebar-collapsed .nav-btn {
 
 .source-card {
 	background: var(--bg-tile);
-	border: 0.0625rem outset var(--border);
+	border: 0.0625rem ridge var(--border);
 	border-radius: var(--radius-md);
 	padding: 0.75rem 0.875rem;
 	cursor: pointer;
@@ -1300,7 +1300,7 @@ html.sidebar-collapsed .nav-btn {
 .source-card-none.selected {
 	background: var(--accent);
 	border-color: var(--text-2);
-	border-style: solid;
+	border-style: ridge;
 }
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF SOURCE-CARD css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
@@ -1859,7 +1859,7 @@ label {
 
 .auth-card {
     background: var(--bg-2);
-    border: 0.0625rem outset var(--border);
+    border: 0.0625rem ridge var(--border);
     border-radius: var(--radius-lg);
     padding: 2.5rem;
     max-width: 25rem;
@@ -2247,9 +2247,10 @@ input[type="time"]:focus,
 input[type="text"]:focus,
 select:focus {
 	outline: none;
+	border-style: ridge;
 	border-color: var(--accent);
 	background: var(--bg-3-hover);
-	box-shadow: 0 0 0 0.1875rem rgba(var(--accent-rgb), 0.18);
+	/* box-shadow: 0 0 0 0.1875rem rgba(var(--accent-rgb), 0.18); */
 }
 
 input[type="range"] {
