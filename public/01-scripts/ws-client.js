@@ -113,7 +113,7 @@ class NDPiWebSocket {
     /**
      *  Offline recovery: once the WebSocket is lost (or a heartbeat times
      *  out, or the server announces its own shutdown/reboot), poll the
-     *  Hub's own /api/ping once/sec rather than silently retrying the
+     *  Hub's own /api/v2/ping once/sec rather than silently retrying the
      *  WebSocket in place -- the Hub going down/coming back is exactly the
      *  kind of event where a lot of client-side state (settings, device
      *  lists, sockets) could otherwise drift out of sync, so once the Hub
@@ -125,7 +125,7 @@ class NDPiWebSocket {
 
         const tryPing = async () => {
             try {
-                const res = await fetch('/api/ping', { cache: 'no-store' });
+                const res = await fetch('/api/v2/ping', { cache: 'no-store' });
                 if (!res.ok) return;
                 const data = await res.json();
                 if (data && data.success) {

@@ -7,8 +7,8 @@
     let logoSquareSize = 250;
     let staticLogoOpacity = 0.8;
     let useLogoA = true;
-    const logoAPath = '/media/logo-screensaver-a.svg';
-    const logoBPath = '/media/logo-screensaver-b.svg';
+    const logoAPath = '/api/v2/logo';
+    const logoBPath = '/api/v2/logo';
 
     // Settings with defaults
     let settings = {

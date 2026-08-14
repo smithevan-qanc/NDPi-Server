@@ -1489,7 +1489,7 @@ class NDPiCommandServer_Client extends EventEmitter {
          *  specific /api/* route above — Express matches routes in
          *  registration order, and `/:page/:ext/` (two path segments) would
          *  otherwise shadow any two-segment API path (e.g. `/api/devices`,
-         *  `/api/groups`, `/api/account`, `/api/setting`) before it ever
+         *  `/api/groups`, `/api/account`, `/api/roku-tvs`) before it ever
          *  reaches its real handler.
          */
         this.Routes.route('/test-page').get((req, res) => {
@@ -1842,9 +1842,19 @@ class NDPiCommandServer_Client extends EventEmitter {
         // command here), but reboot/shutdown below pass false to match that
         // page's own deliberate choice for these two commands specifically
         // (see sendRestCommandToClient()'s comment for why).
-        const deviceCommandRoute = (subPath, buildCommand, viaWebSocket = true) => {
+        //
+        // basePath defaults to the original unversioned '/api/device/:deviceId'
+        // (every route already live before this repo's version-2 pass --
+        // shutdown/reboot/overlay/blank/rename/cec below -- keeps that path
+        // exactly as-is; changing it would be a breaking rename for no
+        // reason). The four routes added after those (setting, overlay-image,
+        // check-for-update, install-update) pass '/api/v2/device/:deviceId'
+        // explicitly -- they never shipped under the old path, so there's
+        // nothing to break by giving them a versioned one from the start.
+        // See the '/api/v2/*' note further down for why v2 exists at all.
+        const deviceCommandRoute = (subPath, buildCommand, viaWebSocket = true, basePath = '/api/device/:deviceId') => {
             this.Routes
-            .route(`/api/device/:deviceId/${subPath}`)
+            .route(`${basePath}/${subPath}`)
             .post(async (req, res) => {
                 const { deviceId } = req.params;
                 if (!this.settings.getClient(deviceId))
@@ -1880,7 +1890,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         // exposed by Client__v3_1_0/public/system.js (device_volume, output
         // resolution/framerate preference, NDI receiver bandwidth/color
         // format/scale method, AirPlay PIN, Hub hostname/port, etc).
-        deviceCommandRoute('setting', (req) => ({ type: 'set-setting', data: { name: req.body.name, value: req.body.value } }));
+        deviceCommandRoute('setting', (req) => ({ type: 'set-setting', data: { name: req.body.name, value: req.body.value } }), true, '/api/v2/device/:deviceId');
 
         // Overlay image upload (base64 image data URI + metadata), matching
         // the file-upload flow in Client__v3_1_0/public/system.js.
@@ -1894,11 +1904,11 @@ class NDPiCommandServer_Client extends EventEmitter {
                 dateUploaded: req.body.dateUploaded || Date.now(),
                 src: req.body.src || '',
             },
-        }));
+        }), true, '/api/v2/device/:deviceId');
 
         // Software update checks/installs.
-        deviceCommandRoute('check-for-update', () => ({ type: 'check-for-update' }));
-        deviceCommandRoute('install-update', () => ({ type: 'install-update' }));
+        deviceCommandRoute('check-for-update', () => ({ type: 'check-for-update' }), true, '/api/v2/device/:deviceId');
+        deviceCommandRoute('install-update', () => ({ type: 'install-update' }), true, '/api/v2/device/:deviceId');
 
         this.Routes
         .route('/api/device/:deviceId/network')
@@ -2119,8 +2129,9 @@ class NDPiCommandServer_Client extends EventEmitter {
         // NDI source list to every /ws/sources client immediately, so
         // every connected browser's source grid re-sorts/updates right
         // away instead of waiting on the discovery process's next output.
+        // Versioned '/api/v2/' -- see the note on '/api/v2/setting' below.
         this.Routes
-        .route('/api/favorite-ndi-sources/toggle')
+        .route('/api/v2/favorite-ndi-sources/toggle')
         .post((req, res) => {
             const { name, url } = req.body;
             if (!name && !url)
@@ -2139,6 +2150,32 @@ class NDPiCommandServer_Client extends EventEmitter {
     __RoutesSystem() {
         const CRLFArray = (string = '') => string.split(/\r?\n/);
 
+        /**
+         *  '/api/v2/*' -- every route in this file added since this Hub's
+         *  own API started diverging from the Client's (i.e. everything
+         *  that isn't a straight carry-over from the original Client
+         *  adaptation this file was cloned from) now lives under this
+         *  prefix, rather than a bare unversioned '/api/...' path. The
+         *  pre-existing routes this file already had (device/group/account/
+         *  roku/etc. management, the older '/api/v1/ndi-*' MJPEG-proxy
+         *  set) mixed unversioned and v1 paths inconsistently with no way
+         *  to tell, just from a URL, whether it was safe to change without
+         *  checking every caller by hand -- which is exactly what made
+         *  auditing "which endpoints did this pass add" require a manual
+         *  git-history dig instead of a glance at the route table. Every
+         *  '/api/v2/*' route below (and the four under
+         *  '/api/v2/device/:deviceId/*' in __RoutesDevices(), and
+         *  '/api/v2/favorite-ndi-sources/toggle' in __RoutesRoku()) is new
+         *  as of this pass and has no prior unversioned path to preserve
+         *  compatibility with -- nothing else in this codebase (Hub or
+         *  Client__v3_1_0) ever called them any other way, confirmed by
+         *  grepping every caller before renaming. Existing routes were
+         *  deliberately left exactly where they are rather than retrofitted
+         *  onto '/api/v2/' too -- renaming something already in active use
+         *  is the actual risky move; only never-before-shipped paths were
+         *  safe to place under the new prefix from day one.
+         */
+
         // Liveness check for the frontend's offline-recovery loop (see
         // 01-scripts/ws-client.js) -- polled once/sec after the GUI
         // WebSocket drops, to detect the moment the Hub is reachable again
@@ -2146,7 +2183,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         // Deliberately no dependency on any other subsystem: just confirms
         // the HTTP server itself is up and responding.
         this.Routes
-        .route('/api/ping')
+        .route('/api/v2/ping')
         .get((req, res) => {
             res.json({ success: true });
         });
@@ -2169,7 +2206,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         // apply a Hub-wide setting (e.g. ui_theme_color) on load with one
         // small GET instead of opening /ws/system just to read one value.
         this.Routes
-        .route('/api/setting/:name')
+        .route('/api/v2/setting/:name')
         .get((req, res) => {
             const value = this.settings.get(req.params.name);
             if (value === null)
@@ -2179,7 +2216,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         this.Routes
-        .route('/api/setting')
+        .route('/api/v2/setting')
         .post((req, res) => {
             const { name, value } = req.body;
             if (!name)
@@ -2199,7 +2236,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         // background-image, the auth-flow pages' <img>) without needing
         // any JS to pick between "custom" and "default".
         this.Routes
-        .route('/api/logo')
+        .route('/api/v2/logo')
         .get((req, res) => {
             const logo = this.settings.getCustomLogo();
             const match = logo && logo.dataUrl ? /^data:([^;]+);base64,(.+)$/s.exec(logo.dataUrl) : null;
@@ -2272,9 +2309,10 @@ class NDPiCommandServer_Client extends EventEmitter {
         // no "other machine" to relay to; the Hub is checking/updating its
         // own install). Result lands in the ndpi_version_update_available /
         // ndpi_version_update_version settings (hub_fs.js), which the
-        // already-existing /ws/system feed pushes to the browser.
+        // already-existing /ws/system feed pushes to the browser. Versioned
+        // '/api/v2/' -- see the note above at '/api/v2/ping'.
         this.Routes
-        .route('/api/system/check-for-update')
+        .route('/api/v2/system/check-for-update')
         .post((req, res) => {
             res.json({ success: true, message: 'Checking for update...' });
             func.checkForUpdate().catch((error) => {
@@ -2283,7 +2321,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         this.Routes
-        .route('/api/system/install-update')
+        .route('/api/v2/system/install-update')
         .post((req, res) => {
             res.json({ success: true, message: 'Installing update...' });
             func.updateInstall().catch((error) => {

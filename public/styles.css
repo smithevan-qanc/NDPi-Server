@@ -265,7 +265,7 @@ html.sidebar-collapsed .nav-btn {
 }
 
 .topbar-logo {
-	background-image: url('/api/logo');
+	background-image: url('/api/v2/logo');
   	background-repeat: no-repeat;
 	background-size: contain;
 	background-position: left center;

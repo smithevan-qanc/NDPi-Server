@@ -1103,7 +1103,7 @@ class FileSystemMonitor extends EventEmitter {
      *  Optional Hub-branding override for the sidebar/login logo, uploaded
      *  from settings.html. Stored as a data URL (same base64-in-a-JSON-file
      *  pattern Client__v3_1_0 used for its media_overlay_image setting) so
-     *  hub_api_server.js's GET /api/logo route can decode and serve it
+     *  hub_api_server.js's GET /api/v2/logo route can decode and serve it
      *  directly without a second file read.
      * ===================================================================== */
 

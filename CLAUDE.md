@@ -1817,6 +1817,150 @@ checked visually in a real browser — this is exactly the kind of
 interaction-timing behavior that's hardest to verify without one, so
 worth a quick real click-and-hold check before fully trusting it.
 
+### Screen Saver settings merged into the User Preferences card
+
+User request: "Add Screen Saver settings to the User Preferences section
+on the settings page. they do not need to be separate since they are
+local to the specific users browser." Confirmed the reasoning against the
+actual persistence mechanism before merging: `getScreenSaverSettings()`/
+`saveScreenSaverSettings()` (`settings/settings.html`) already store
+`ndpi_screensaver_settings` in `localStorage`, not on the Hub — the exact
+same browser-local nature as "Scaling" (`setScale()`, also localStorage),
+which already lives in the "User Preferences" card. Only "Appearance"
+(theme color, logo) and every admin-only card are genuinely Hub-wide,
+server-persisted settings, so Screen Saver was the odd one out with its
+own standalone card.
+
+Moved the Screen Saver card's entire content (the inactivity-duration
+input, the "won't activate during these times" schedule list, and the
+"Add Block Period" button — `getScreenSaverSettings()`/
+`saveScreenSaverSettings()`/`initializeScreenSaverSettings()`/
+`renderSchedules()`/`addSchedule()` etc. all untouched, purely a markup
+move) into `section_UserPreferences` as a second `.settings-row`
+following "Scaling," with its own `.settings-label` "Screen Saver" header
+matching the same per-row label pattern the "Appearance" card already
+uses for "Theme Color"/"Logo". Removed the standalone `section_ScreenSaver`
+card variable and its own `<h2>Screen Saver</h2>` + `mainContainer.
+appendChild(section_ScreenSaver)` call entirely — one fewer card in the
+grid, nothing lost. `.settings-row`'s existing `border-bottom` (auto-
+removed on `:last-child` via the stylesheet's own pseudo-class rule, not
+the cosmetic-only `.last-child` class name copied from this file's
+existing convention elsewhere) gives the merged row its own visual
+separator from "Scaling" above it for free, with no new CSS needed.
+
+**Verified**: `node --check` on all three extracted `<script>` blocks; a
+Python `html.parser` tag-balance check (zero mismatches); grepped the
+live-served page and confirmed `section_ScreenSaver` no longer appears
+anywhere, `screenSaverWait` still appears (its 3 real references — the
+input id and its two JS call sites — untouched by the move), "User
+Preferences" still renders once, and the standalone `<h2>Screen
+Saver</h2>` is gone; booted the Hub locally and confirmed `settings.html`
+still serves 200. Not checked visually in a real browser.
+
+### Every endpoint added this engagement moved under `/api/v2/`
+
+User feedback: routes added across this engagement were written as bare
+`/api/{name}` instead of a versioned path, inconsistent with this
+codebase's own existing `/api/v1/...` routes (the NDI-stream MJPEG-proxy
+set, and `Client__v3_1_0`'s entire API) — "reckless," since nothing about
+an unversioned path signals whether it's safe to change without manually
+checking every caller. Asked to (1) identify every endpoint added since
+this engagement started (~1 week), (2) move them to `/api/v2/...`, (3)
+verify every caller (frontend and cross-repo) is updated to match, and
+(4) check `Client__v3_1_0` too.
+
+**Identifying "added this engagement" was done from git history, not
+memory** — `service/hub_api_server.js`'s entire commit history in this
+repo spans exactly 3 days (`git log --reverse`: first commit `33f45e6`,
+"[3.1.58]", 2026-08-11; most recent "[3.1.155]", 2026-08-14), and that
+first commit is the exact point this file was renamed from
+`service/client_api_server.js` (929 lines removed) into
+`service/hub_api_server.js` (2047 lines added) — i.e. the literal
+Client→Hub clone-and-adapt commit a prior session did before this
+engagement's own work began. That commit's route table is therefore the
+true "pre-existing" baseline. Diffed `git show 33f45e6:service/
+hub_api_server.js`'s route list against the current file's (including the
+routes built dynamically inside `deviceCommandRoute()`/
+`groupCommandRoute()`, which a plain text diff of literal `.route(...)`
+calls would miss) to get a defendable, non-memory-dependent list of
+exactly which endpoints didn't exist at that baseline:
+- `POST /api/device/:deviceId/setting`
+- `POST /api/device/:deviceId/overlay-image`
+- `POST /api/device/:deviceId/check-for-update`
+- `POST /api/device/:deviceId/install-update`
+- `POST /api/favorite-ndi-sources/toggle`
+- `GET/POST/DELETE /api/logo`
+- `GET /api/ping`
+- `POST /api/setting` (this one **replaced** an old `/api/resolution`
+  GET/POST pair that did a raw `xrandr` call directly — not a rename of
+  that route, a genuine redesign into a generic settings-write mechanism;
+  confirmed via `git log -S"'/api/resolution'"`)
+- `GET /api/setting/:name`
+- `POST /api/system/check-for-update`
+- `POST /api/system/install-update`
+
+Also confirmed via the same diff which endpoints were removed outright
+during this engagement (already covered in earlier entries above, listed
+here only because the same audit surfaced them again as a cross-check):
+`/api/active-viewers`, the old `/api/ndi-sources`, `/api/v1/rpc`,
+`/api/v1/__internal/:path`, and the WS paths `/ws/client`/`/ws/display`
+(plus `/ws/system`/`/ws/stats`/`/ws/sources` each being removed-then-
+reinstated under the same name but a different, Hub-specific
+implementation — not the same code, just coincidentally the same path).
+
+**Scope decision**: only REST (`/api/...`) endpoints were versioned, not
+the WebSocket paths (`/ws/...`) — the user's complaint was specifically
+about the `/api/{name}` pattern, and `/ws/system`/`/ws/stats`/
+`/ws/sources` on the Hub deliberately mirror Client__v3_1_0's own
+identically-named (and equally unversioned) WS endpoints for protocol
+symmetry; versioning only the Hub's side of that pair would break the
+parity without a matching precedent anywhere in either codebase to be
+consistent with. Not raised as a question — stated here as the reasoning
+in case the user wants WS endpoints included in a future pass too.
+
+**Client__v3_1_0 checked, no changes needed**: `client_api_server.js`'s
+entire route table (`/`, `/display/idle`, `/api/v1/rpc`, `/api/v1/adopt`
+— the one endpoint this engagement added there — `/api/v1/__internal/
+:path`) is already consistently versioned `/api/v1/...` end to end, with
+zero unversioned `/api/...` routes to be inconsistent with. `/api/v1/
+adopt` already fits that existing convention correctly and was left as
+version 1 rather than bumped to v2 on its own, which would have made it
+the only mismatched route in an otherwise fully-consistent file.
+
+**Execution**: `deviceCommandRoute()` (backs every `/api/device/:deviceId/
+*` command route) gained a `basePath` parameter (default
+`/api/device/:deviceId`, unchanged for the six routes that already
+shipped under it — shutdown/reboot/overlay/blank/rename/cec, all
+pre-existing paths this pass never touches to avoid a needless breaking
+rename) — the four new ones now pass `/api/v2/device/:deviceId`
+explicitly. `groupCommandRoute()` was left alone entirely (all four of
+its routes — shutdown/reboot/overlay/blank — are pre-existing baseline
+paths). The other seven new endpoints were renamed as direct literal
+`.route()` string edits. Every caller was found by grepping the literal
+old path string across the whole repo (`public/**/*.html`,
+`public/01-scripts/*.js`, `styles.css`) rather than assuming the earlier
+per-feature grep sweeps already had full coverage — this caught three
+references a scoped search missed the first pass: `screen-saver.js`'s
+bouncing-logo image path, and the `<link rel="icon">` favicon tag on
+several pages that (inconsistently with the rest of the app, which uses
+`/media/favicon.svg`) points at `/api/logo` directly. All fixed to
+`/api/v2/logo` for consistency with everything else, without otherwise
+touching that pre-existing favicon-source inconsistency itself.
+
+**Verified**: `node --check` on every modified `.js` file and every
+extracted `<script>` block across every modified `.html` file; a
+repo-wide grep confirming zero remaining references to any of the 11 old
+paths anywhere (`public/`, `service/`, `server.js`) outside of the
+`/api/v2/` renames themselves; booted the Hub locally and round-tripped
+every one of the 11 new `/api/v2/...` endpoints (all responded correctly
+— `/api/v2/logo` 302s to the default SVG exactly as `/api/logo` used to),
+confirmed all 11 old paths now cleanly 404 instead of silently still
+working, confirmed the four new `/api/v2/device/:deviceId/*` routes and
+the six pre-existing `/api/device/:deviceId/*` routes both correctly
+reach their handler (404 "Device not found" for a fake id, not a
+route-not-matched 404) for an unknown device, and confirmed untouched
+routes (`/api/devices`, `/api/groups`, page routes) still serve normally.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

@@ -1,6 +1,6 @@
 /**
  *  Theme accent color -- Hub-wide setting (`ui_theme_color`, hub_fs.js),
- *  read/written through the existing generic `/api/setting` GET/POST
+ *  read/written through the existing generic `/api/v2/setting` GET/POST
  *  routes so the chosen color is persisted on the Hub itself, not just in
  *  this one browser's localStorage. localStorage is still used as a
  *  same-device cache so the very first paint on a page load already has
@@ -30,7 +30,7 @@ function applyThemeColor(hex) {
 
 async function fetchAndApplyThemeColor() {
 	try {
-		const res = await fetch('/api/setting/ui_theme_color');
+		const res = await fetch('/api/v2/setting/ui_theme_color');
 		if (!res.ok) return;
 		const data = await res.json();
 		if (data && data.value) { applyThemeColor(data.value); }
@@ -40,7 +40,7 @@ async function fetchAndApplyThemeColor() {
 async function saveThemeColor(hex) {
 	applyThemeColor(hex);
 	try {
-		await fetch('/api/setting', {
+		await fetch('/api/v2/setting', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ name: 'ui_theme_color', value: hex }),

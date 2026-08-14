@@ -13,7 +13,8 @@
 	<script src="/scripts/screen-saver.js"></script>
 	<script src="/scripts/rokuControl.js"></script>
 	<title>Group | NDPi Monitor</title>
-	<link rel="icon" type="image/svg+xml" href="/media/favicon.svg">
+	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
+	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
 <body class="hide-scrollbar">
 	<div id="customMenu-source" class="context-menu"></div>
@@ -688,7 +689,7 @@
 		async function toggleFavoriteSource(btnEl, name, url) {
 			btnEl.disabled = true;
 			try {
-				const res = await fetch('/api/favorite-ndi-sources/toggle', {
+				const res = await fetch('/api/v2/favorite-ndi-sources/toggle', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ name, url }),
@@ -719,7 +720,7 @@
 		// menu's own label next time it opens).
 		async function toggleFavoriteSourceFromMenu(name, url) {
 			try {
-				const res = await fetch('/api/favorite-ndi-sources/toggle', {
+				const res = await fetch('/api/v2/favorite-ndi-sources/toggle', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ name, url }),

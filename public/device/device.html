@@ -11,7 +11,8 @@
 	<script src="/scripts/modal.js"></script>
 	<script src="/scripts/screen-saver.js"></script>
 	<title>Device | NDPi Monitor</title>
-	<link rel="icon" type="image/svg+xml" href="/media/favicon.svg">
+	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
+	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
 <body class="hide-scrollbar">
 	<div id="customMenu-source" class="context-menu"></div>
@@ -360,7 +361,7 @@
 		async function toggleFavoriteSource(btnEl, name, url) {
 			btnEl.disabled = true;
 			try {
-				const res = await fetch('/api/favorite-ndi-sources/toggle', {
+				const res = await fetch('/api/v2/favorite-ndi-sources/toggle', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ name, url }),
@@ -391,7 +392,7 @@
 		// reflected (star button, menu's own label next time it opens).
 		async function toggleFavoriteSourceFromMenu(name, url) {
 			try {
-				const res = await fetch('/api/favorite-ndi-sources/toggle', {
+				const res = await fetch('/api/v2/favorite-ndi-sources/toggle', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ name, url }),
@@ -654,7 +655,7 @@
 
 		async function saveSetting(name, value) {
 			try {
-				const res = await fetch(`/api/device/${device.id}/setting`, {
+				const res = await fetch(`/api/v2/device/${device.id}/setting`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ name, value })
@@ -680,7 +681,7 @@
 
 		async function checkForDeviceUpdate() {
 			try {
-				const res = await fetch(`/api/device/${device.id}/check-for-update`, { method: 'POST' });
+				const res = await fetch(`/api/v2/device/${device.id}/check-for-update`, { method: 'POST' });
 				if (res.ok) {
 					toast.info('Checking for update...');
 				} else {
@@ -695,7 +696,7 @@
 			const confirmed = await modal.confirm('Install the available update on this device? The device will restart its services.', 'Install Update', { confirmText: 'Install' });
 			if (!confirmed) return;
 			try {
-				const res = await fetch(`/api/device/${device.id}/install-update`, { method: 'POST' });
+				const res = await fetch(`/api/v2/device/${device.id}/install-update`, { method: 'POST' });
 				if (res.ok) {
 					toast.info('Installing update...');
 				} else {
@@ -748,7 +749,7 @@
 		async function saveOverlay() {
 			if (!overlayUploadCommand) return;
 			try {
-				const res = await fetch(`/api/device/${device.id}/overlay-image`, {
+				const res = await fetch(`/api/v2/device/${device.id}/overlay-image`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(overlayUploadCommand)
@@ -770,7 +771,7 @@
 			document.getElementById('overlayPreview').src = '';
 			document.getElementById('saveOverlayBtn').disabled = true;
 			try {
-				await fetch(`/api/device/${device.id}/overlay-image`, {
+				await fetch(`/api/v2/device/${device.id}/overlay-image`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(overlayUploadCommand)

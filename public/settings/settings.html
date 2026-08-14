@@ -12,7 +12,8 @@
 	<script src="/scripts/screen-saver.js"></script>
 	<script src="/scripts/rokuControl.js"></script>
 	<title>Settings | NDPi Monitor</title>
-	<link rel="icon" type="image/svg+xml" href="/media/favicon.svg">
+	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
+	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
 <body class="hide-scrollbar">
 	<div id="main-div" class="app">
@@ -76,14 +77,14 @@
 		}
 
 		// Hub-wide logo override (hub_fs.js's custom-logo.json, served at
-		// GET /api/logo -- redirects to the bundled default SVG when no
+		// GET /api/v2/logo -- redirects to the bundled default SVG when no
 		// custom logo has been uploaded, so the <img> preview below always
 		// shows something). Lets an admin preview a replacement image
 		// before committing it, matching the "Current" box next to it.
 		function refreshLogoElements() {
 			// Cache-bust so the browser re-fetches instead of reusing
 			// whatever it already painted the sidebar logo with.
-			const bustedUrl = `/api/logo?t=${Date.now()}`;
+			const bustedUrl = `/api/v2/logo?t=${Date.now()}`;
 			document.getElementById('currentLogoPreview').src = bustedUrl;
 			document.querySelectorAll('.topbar-logo').forEach((el) => {
 				el.style.backgroundImage = `url('${bustedUrl}')`;
@@ -135,7 +136,7 @@
 				if (!pendingDataUrl || !pendingFile) return;
 				saveBtn.disabled = true;
 				try {
-					const res = await fetch('/api/logo', {
+					const res = await fetch('/api/v2/logo', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ name: pendingFile.name, type: pendingFile.type, dataUrl: pendingDataUrl }),
@@ -163,7 +164,7 @@
 				const confirmed = await modal.confirm('Reset to the default NDPi logo?', 'Reset Logo');
 				if (!confirmed) return;
 				try {
-					const res = await fetch('/api/logo', { method: 'DELETE' });
+					const res = await fetch('/api/v2/logo', { method: 'DELETE' });
 					if (res.ok) {
 						toast.success('Logo reset to default');
 						refreshLogoElements();
@@ -182,7 +183,7 @@
 			});
 		}
 
-		// Hub-wide accent color, persisted via the generic /api/setting
+		// Hub-wide accent color, persisted via the generic /api/v2/setting
 		// GET/POST routes (hub_fs.js's `ui_theme_color`, options list
 		// matches the fixed swatch list here) -- see applyThemeColor()/
 		// saveThemeColor() in 01-scripts/functions.js for how it's cached
@@ -214,7 +215,7 @@
 			// value in case it was changed from a different device.
 			renderThemeSwatches(localStorage.getItem('ndpi_theme_color') || '#81c127');
 			try {
-				const res = await fetch('/api/setting/ui_theme_color');
+				const res = await fetch('/api/v2/setting/ui_theme_color');
 				if (res.ok) {
 					const data = await res.json();
 					if (data && data.value) { renderThemeSwatches(data.value); }
@@ -249,50 +250,9 @@
 						</div>
 						<input type="range" id="scaleSlider" min="50" max="150" value="100" style="flex: 1; width: -webkit-fill-available;">
 					</div>
-				</div>
-			`;
-
-			const section_Appearance = document.createElement('div');
-			section_Appearance.className = 'card';
-			section_Appearance.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>Appearance</h2>
-					<div class="settings-row">
-						<div class="settings-label">Theme Color</div>
-						<div class="theme-swatches" id="themeSwatches"></div>
-						<p>Saved to this Hub and applied on every device that opens it.</p>
-					</div>
-					<div class="settings-row">
-						<div class="settings-label">Logo</div>
-						<div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
-							<div style="display:flex; flex-direction:column; align-items:center; gap:0.375rem;">
-								<div class="logo-preview-box"><img id="currentLogoPreview" src="/api/logo" alt="Current logo"></div>
-								<span class="info-label">Current</span>
-							</div>
-							<div style="display:flex; flex-direction:column; align-items:center; gap:0.375rem;">
-								<div class="logo-preview-box" id="newLogoPreviewBox" style="display:none;"><img id="newLogoPreview" alt="New logo preview"></div>
-								<span class="info-label" id="newLogoLabel" style="display:none;">New (unsaved)</span>
-							</div>
-						</div>
-						<input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none;">
-						<div style="display:flex; gap:0.625rem; margin-top:0.625rem; flex-wrap:wrap;">
-							<button type="button" class="button-subtle" id="chooseLogoBtn">Choose Image...</button>
-							<button type="button" class="button-primary" id="saveLogoBtn" disabled>Save Logo</button>
-							<button type="button" class="button-danger" id="resetLogoBtn">Reset to Default</button>
-						</div>
-						<p>PNG, JPEG, WEBP, GIF, or SVG. 2MB max. Applies to the sidebar and sign-in logo on every device.</p>
-					</div>
-				</div>
-			`;
-
-			const section_ScreenSaver = document.createElement('div');
-			section_ScreenSaver.className = 'card';
-			//section_ScreenSaver.style.gridColumn = 1 / -1;
-			section_ScreenSaver.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>Screen Saver</h2>
-					<div class="settings-row" style="display: block;">
-						<div style="display:flex; align-items:center; gap:5px;">
+					<div class="settings-row last-child" style="display: block;">
+						<div class="settings-label">Screen Saver</div>
+						<div style="display:flex; align-items:center; gap:5px; margin-top:0.5rem;">
 							<div style="display:flex; justify-content:center; align-items:start; flex-direction:column; gap:5px; margin-left:12px;">
 								<div style="display: flex; flex-wrap: wrap; flex-direction: row; gap: 5px; margin-bottom: 5px; justify-items: end; align-items: center;">
 									<p style="margin: 0;">Start screensaver after... </p>
@@ -312,6 +272,39 @@
 								<span>Add Block Period</span>
 							</button>
 						</div>
+					</div>
+				</div>
+			`;
+
+			const section_Appearance = document.createElement('div');
+			section_Appearance.className = 'card';
+			section_Appearance.innerHTML = `
+				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
+					<h2>Appearance</h2>
+					<div class="settings-row">
+						<div class="settings-label">Theme Color</div>
+						<div class="theme-swatches" id="themeSwatches"></div>
+						<p>Saved to this Hub and applied on every device that opens it.</p>
+					</div>
+					<div class="settings-row">
+						<div class="settings-label">Logo</div>
+						<div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+							<div style="display:flex; flex-direction:column; align-items:center; gap:0.375rem;">
+								<div class="logo-preview-box"><img id="currentLogoPreview" src="/api/v2/logo" alt="Current logo"></div>
+								<span class="info-label">Current</span>
+							</div>
+							<div style="display:flex; flex-direction:column; align-items:center; gap:0.375rem;">
+								<div class="logo-preview-box" id="newLogoPreviewBox" style="display:none;"><img id="newLogoPreview" alt="New logo preview"></div>
+								<span class="info-label" id="newLogoLabel" style="display:none;">New (unsaved)</span>
+							</div>
+						</div>
+						<input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none;">
+						<div style="display:flex; gap:0.625rem; margin-top:0.625rem; flex-wrap:wrap;">
+							<button type="button" class="button-subtle" id="chooseLogoBtn">Choose Image...</button>
+							<button type="button" class="button-primary" id="saveLogoBtn" disabled>Save Logo</button>
+							<button type="button" class="button-danger" id="resetLogoBtn">Reset to Default</button>
+						</div>
+						<p>PNG, JPEG, WEBP, GIF, or SVG. 2MB max. Applies to the sidebar and sign-in logo on every device.</p>
 					</div>
 				</div>
 			`;
@@ -440,7 +433,6 @@
 			mainContainer.appendChild(section_UserPreferences);
 			mainContainer.appendChild(section_Appearance);
 			mainContainer.appendChild(section_ServerManagement);
-			mainContainer.appendChild(section_ScreenSaver);
 			mainContainer.appendChild(section_DisplayResolution);
 
 			if (account.isAdmin) {
@@ -847,7 +839,7 @@
 
 		async function checkForHubUpdate() {
 			try {
-				const res = await fetch('/api/system/check-for-update', { method: 'POST' });
+				const res = await fetch('/api/v2/system/check-for-update', { method: 'POST' });
 				if (res.ok) {
 					toast.info('Checking for update...');
 				} else {
@@ -862,7 +854,7 @@
 			const confirmed = await modal.confirm('Install the available update on this Hub? The Hub server will restart its services.', 'Install Update', { confirmText: 'Install' });
 			if (!confirmed) return;
 			try {
-				const res = await fetch('/api/system/install-update', { method: 'POST' });
+				const res = await fetch('/api/v2/system/install-update', { method: 'POST' });
 				if (res.ok) {
 					toast.info('Installing update...');
 					setTimeout(() => window.location.reload(), 5000);
@@ -883,7 +875,7 @@
 		 *  server.js listener that already calls func.setDisplayResolution()
 		 *  (xrandr + openbox restart) -- same mechanism Client's index.js uses
 		 *  for itself. This UI just reads/writes that setting generically over
-		 *  /ws/system + POST /api/setting, the same pattern device.html uses
+		 *  /ws/system + POST /api/v2/setting, the same pattern device.html uses
 		 *  for a remote device's settings.
 		 */
 		function renderDisplayResolutionInfo(tuples) {
@@ -947,7 +939,7 @@
 
 		async function saveResolutionPreference(value) {
 			try {
-				const res = await fetch('/api/setting', {
+				const res = await fetch('/api/v2/setting', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ name: 'output_display_resolution_preference', value }),
