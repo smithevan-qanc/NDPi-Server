@@ -955,6 +955,64 @@ class NDPiCommandServer_Client extends EventEmitter {
     }
 
     /**
+     * Send a command directly over REST to the device's own /api/v1/rpc,
+     * bypassing the persistent /ws/system relay entirely. Used only for
+     * 'reboot-device'/'shutdown-device' (see the reboot/shutdown
+     * deviceCommandRoute() calls below) -- Client__v3_1_0/public/
+     * system.js's own local UI deliberately calls its equivalent
+     * sendCommand(cmd, /* viaWebSocket *\/ false) for these exact same two
+     * commands, never over the WS socket, which is the Client author's
+     * own prior evidence that triggering them via a WS message doesn't
+     * reliably work. The likely reason: client_api_server.js's __ws_System()
+     * message handler calls processCommand() without awaiting it or
+     * attaching .catch() -- so if anything in that async chain rejects
+     * outside its own inner try/catch, it becomes an unhandled promise
+     * rejection, and Client__v3_1_0/index.js's global handler for that
+     * (process.on('unhandledRejection', ...)) calls exit(1) immediately,
+     * killing the Node process before 'reboot-command'/exec('sudo reboot')
+     * ever runs -- which reads as exactly what was observed from the Hub:
+     * the service (and its child processes -- Chromium, the NDI receiver)
+     * restarting almost instantly with new PIDs, while the physical
+     * device never actually reboots. The REST route (/api/v1/rpc), by
+     * contrast, does properly `await` processCommand() and reports a real
+     * success/failure. Matching the Client's own already-working code
+     * path here avoids needing to touch Client__v3_1_0 at all.
+     */
+    sendRestCommandToClient(deviceId, command = {}) {
+        const client = this.settings.getClient(deviceId);
+        if (!client || !client.ip || !client.apiPort)
+        { return Promise.reject(new Error('Device ip/apiPort not known')); }
+
+        return new Promise((resolve, reject) => {
+            const postData = JSON.stringify(command);
+
+            const req = http.request({
+                hostname: client.ip,
+                port: client.apiPort,
+                path: '/api/v1/rpc',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+                timeout: 5000,
+            }, (res) => {
+                let body = '';
+                res.on('data', (chunk) => { body += chunk; });
+                res.on('end', () => {
+                    if (res.statusCode && res.statusCode < 400)
+                    { resolve({ success: true, message: 'Command sent', body }); }
+                    else
+                    { reject(new Error(`Device responded with status ${res.statusCode}: ${body}`)); }
+                });
+            });
+
+            req.on('error', (error) => reject(error));
+            req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+
+            req.write(postData);
+            req.end();
+        });
+    }
+
+    /**
      *      mDNS Discovery of NDPi Client devices on the network
      */
     /**
@@ -1778,7 +1836,13 @@ class NDPiCommandServer_Client extends EventEmitter {
             res.json({ success: true, message: `Forgot device ${name}` });
         });
 
-        const deviceCommandRoute = (subPath, buildCommand) => {
+        // viaWebSocket mirrors the same-named flag on Client__v3_1_0/public/
+        // system.js's own sendCommand(command, viaWebSocket) -- default true
+        // (fire over the persistent /ws/system relay, matching every other
+        // command here), but reboot/shutdown below pass false to match that
+        // page's own deliberate choice for these two commands specifically
+        // (see sendRestCommandToClient()'s comment for why).
+        const deviceCommandRoute = (subPath, buildCommand, viaWebSocket = true) => {
             this.Routes
             .route(`/api/device/:deviceId/${subPath}`)
             .post(async (req, res) => {
@@ -1788,7 +1852,11 @@ class NDPiCommandServer_Client extends EventEmitter {
 
                 try
                 {
-                    await this.sendCommandToClient(deviceId, buildCommand(req));
+                    const command = buildCommand(req);
+                    if (viaWebSocket)
+                    { await this.sendCommandToClient(deviceId, command); }
+                    else
+                    { await this.sendRestCommandToClient(deviceId, command); }
                     res.json({ success: true, message: `${subPath} command sent` });
                 }
                 catch (error)
@@ -1796,8 +1864,8 @@ class NDPiCommandServer_Client extends EventEmitter {
             });
         };
 
-        deviceCommandRoute('shutdown', () => ({ type: 'shutdown-device' }));
-        deviceCommandRoute('reboot', () => ({ type: 'reboot-device' }));
+        deviceCommandRoute('shutdown', () => ({ type: 'shutdown-device' }), false);
+        deviceCommandRoute('reboot', () => ({ type: 'reboot-device' }), false);
         // NOTE: Client's 'show-overlay'/'show-blank' command types also
         // re-apply `data` as the NDI source target (and reset it to 'none'
         // when `data` is omitted). Client's own local UI toggles this mode
@@ -1915,7 +1983,8 @@ class NDPiCommandServer_Client extends EventEmitter {
             res.json({ success: true, message: `Source "${sourceName}" assigned to group "${group.name}"` });
         });
 
-        const groupCommandRoute = (subPath, buildCommand) => {
+        // Same viaWebSocket reasoning as deviceCommandRoute() above.
+        const groupCommandRoute = (subPath, buildCommand, viaWebSocket = true) => {
             this.Routes
             .route(`/api/group/:groupId/${subPath}`)
             .post(async (req, res) => {
@@ -1924,13 +1993,17 @@ class NDPiCommandServer_Client extends EventEmitter {
                 if (!group)
                 { return res.status(404).json({ error: 'Group not found' }); }
 
-                await Promise.allSettled((group.devices || []).map((d) => this.sendCommandToClient(d.id || d.deviceId, buildCommand(req)).catch(() => {})));
+                const command = buildCommand(req);
+                const sendFn = viaWebSocket
+                    ? (deviceId) => this.sendCommandToClient(deviceId, command)
+                    : (deviceId) => this.sendRestCommandToClient(deviceId, command);
+                await Promise.allSettled((group.devices || []).map((d) => sendFn(d.id || d.deviceId).catch(() => {})));
                 res.json({ success: true, message: `${subPath} command sent to ${group.devices.length} devices` });
             });
         };
 
-        groupCommandRoute('shutdown', () => ({ type: 'shutdown-device' }));
-        groupCommandRoute('reboot', () => ({ type: 'reboot-device' }));
+        groupCommandRoute('shutdown', () => ({ type: 'shutdown-device' }), false);
+        groupCommandRoute('reboot', () => ({ type: 'reboot-device' }), false);
         groupCommandRoute('overlay', () => ({ type: 'set-setting', data: { name: 'ndpi_status_no_source_display_mode', value: 'overlay' } }));
         groupCommandRoute('blank', () => ({ type: 'set-setting', data: { name: 'ndpi_status_no_source_display_mode', value: 'blank' } }));
 

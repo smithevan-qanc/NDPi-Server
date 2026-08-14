@@ -31,7 +31,7 @@
 				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5M2 16l10 5 10-5"/></svg></span><span class="nav-btn-label"></span></button>
 				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2"/><path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7"/></svg></span><span class="nav-btn-label"></span></button>
 				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m6 9 3 3-3 3M12 15h6"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="16" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="10" cy="18" r="2"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-btn-label"></span></button>
 			</div>
 			<div class="sidebar-spacer"></div>
 			<div class="sidebar-footer">
@@ -54,7 +54,7 @@
 			<div class="card-content">
 				<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
 					<div style="display:flex;align-items:center;gap:0.75rem;">
-						<h2 id="deviceName" style="font-size:2rem;margin:0;">Loading...</h2>
+						<h2 id="deviceName" style="font-size:1.7rem;margin:0;">Loading...</h2>
 						<div id="changeName"></div>
 					</div>
 					<div id="systemStatsHeader" class="stats-page-header"></div>
@@ -418,25 +418,42 @@
 		 *  least one message (the Hub-relayed client-status path doesn't
 		 *  carry systemTime at all) — shows a neutral placeholder until then.
 		 */
+		// One icon per sync state instead of a text label -- shape carries
+		// the meaning (not just color), so it stays legible without relying
+		// on colorblind-unsafe green/yellow/red alone.
+		const SYNC_ICON_UNKNOWN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg>';
+		const SYNC_ICON_OK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.3l2.4 2.4L15.8 9"/></svg>';
+		const SYNC_ICON_MILD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>';
+		const SYNC_ICON_SEVERE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 21.5 20H2.5L12 3.2Z"/><line x1="12" y1="9.5" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg>';
+
 		function syncPillHtml() {
 			const sync = device && device.clockSync;
-			if (!sync) {
-				return `
-					<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;">
-						<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Sync</span>
-						<span style="color:#888;font-weight:600;font-size:16px;">—</span>
-					</div>
-				`;
+
+			let icon = SYNC_ICON_UNKNOWN;
+			let color = '#888';
+			let tooltip = 'Clock sync status unknown -- waiting for the device\'s own reported time.';
+
+			if (sync) {
+				const absDiff = Math.abs(sync.diffSeconds);
+				if (sync.inSync) {
+					icon = SYNC_ICON_OK;
+					color = '#4ade80';
+					tooltip = 'Browser and device clocks are in sync.';
+				} else if (absDiff <= 10) {
+					icon = SYNC_ICON_MILD;
+					color = '#fbbf24';
+					tooltip = `Device clock is ${absDiff.toFixed(1)}s ${sync.diffSeconds > 0 ? 'ahead' : 'behind'} the browser's.`;
+				} else {
+					icon = SYNC_ICON_SEVERE;
+					color = '#f87171';
+					tooltip = `Device clock is ${absDiff.toFixed(1)}s ${sync.diffSeconds > 0 ? 'ahead' : 'behind'} the browser's.`;
+				}
 			}
 
-			const absDiff = Math.abs(sync.diffSeconds);
-			const syncColor = sync.inSync ? '#4ade80' : absDiff <= 10 ? '#fbbf24' : '#f87171';
-			const syncLabel = sync.inSync ? 'In Sync' : `${absDiff.toFixed(1)}s ${sync.diffSeconds > 0 ? 'Ahead' : 'Behind'}`;
-
 			return `
-				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;" title="Browser vs. device clock (device's own reported systemTime)">
+				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;" title="${tooltip}">
 					<span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Sync</span>
-					<span style="color:${syncColor};font-weight:600;font-size:16px;">${syncLabel}</span>
+					<span style="color:${color};width:20px;height:20px;display:flex;">${icon}</span>
 				</div>
 			`;
 		}

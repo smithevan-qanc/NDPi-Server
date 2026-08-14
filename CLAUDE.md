@@ -1661,6 +1661,108 @@ locally and confirmed `styles.css` serves the new rule live. Not checked
 visually in a real browser — same standing caveat as the rest of this
 session's CSS-only changes.
 
+### Reboot/shutdown device commands only killed the Node service, never actually rebooted the hardware
+
+User report: "I don't think the device reboot command is working properly."
+Confirmed via the user's own live testing: pressing the Hub's Reboot
+button on `device.html` caused the device's relay connection to drop and
+reconnect with new reported child-process PIDs (`pid_chromium`,
+`pid_ndi_player`, etc.) within only a few seconds — far too fast for an
+actual Raspberry Pi boot cycle (kernel + systemd + X11/kiosk autostart
+normally takes 15-60+ seconds) — meaning only the Node service (and the
+child processes it spawns on startup) was being killed and relaunched;
+`sudo reboot` itself was never actually taking effect. Pressing the same
+logical command from the Client's own local UI (`system.html`, on the
+device itself) does work correctly.
+
+**Root cause, per the user's own key observation**: `Client__v3_1_0/
+public/system.js`'s reboot/shutdown button handlers already call their
+own `sendCommand({type:'reboot-device'}, /* viaWebSocket */ false)` —
+explicitly opting OUT of that page's own WebSocket transport for these
+two commands specifically (every other command on that page defaults to
+`viaWebSocket: true`). That's direct evidence, in the Client's own
+existing code, that whoever wrote it already knew/found that triggering
+`reboot-device`/`shutdown-device` over a WS message doesn't reliably
+work — yet the Hub's `sendCommandToClient()` (used for every device
+command, including these two) always sends over the persistent
+`/ws/system` relay socket, ignoring that precedent entirely.
+
+Read all the way through to confirm *why* the Client's own author needed
+that workaround: `client_api_server.js`'s `__ws_System()` message handler
+calls `func.processCommand(JSON.parse(event.data))` without ever
+`await`-ing it or attaching `.catch()`. `processCommand()`'s
+`'reboot-device'` case does an internal self-fetch to
+`http://localhost:3080/api/v1/__internal/reboot`, which — on success —
+`emit`s `'reboot-command'`, which `index.js` picks up 1s later to run the
+real `quitNDPi()` → `exec('sudo reboot')` sequence. If anything in that
+async chain throws outside its own inner try/catch, it becomes an
+unhandled promise rejection (since nothing is awaiting the outer call),
+and `index.js`'s global `process.on('unhandledRejection', ...)` handler
+calls `exit(1)` immediately — no graceful shutdown, no `exec('sudo
+reboot')` ever reached, just an instant crash-and-respawn under whatever
+process supervisor restarts the service. That matches the observed
+symptom exactly (near-instant restart, new child PIDs). The REST route
+(`/api/v1/rpc`), by contrast, properly `await`s `processCommand()` and
+reports a real success/failure — which is presumably why the Client's own
+author routed these two specific commands through it instead.
+
+**Fix, entirely on the Hub side** (no `Client__v3_1_0` changes needed —
+matching its own already-working code path instead of touching it): added
+`sendRestCommandToClient(deviceId, command)` to `hub_api_server.js` —
+POSTs directly to the device's own `http://<ip>:<apiPort>/api/v1/rpc`
+(the device's `ip`/`apiPort` are already tracked per-client for the relay
+connections), bypassing the WS relay entirely, using the same raw `http`
+module + timeout/error-handling pattern `configureDeviceHubConnection()`
+already established. `deviceCommandRoute()`/`groupCommandRoute()` (the
+helpers backing every `/api/device/:id/*` and `/api/group/:id/*` command
+route) gained a `viaWebSocket` parameter (default `true`, matching every
+other command's existing behavior) — named to directly mirror
+`system.js`'s own `sendCommand(command, viaWebSocket)` flag. Only the
+`reboot`/`shutdown` routes (both the per-device and per-group versions)
+now pass `false`; every other command (`set-source`, `set-setting`,
+`send-cec`, overlay, rename, etc.) is untouched and still fire-and-forget
+over the WS relay as before.
+
+**Verified**: `node --check` on `hub_api_server.js`; booted the Hub
+locally, confirmed real mDNS discovery of the user's actual network
+devices still works, and confirmed the reboot route still correctly 404s
+for an unknown device id. **Not** tested against a real device's actual
+reboot behavior — deliberately not exercised live, since that's
+disruptive to whatever the device is currently displaying and wasn't
+explicitly authorized for this specific destructive action; the user
+should confirm on their next real reboot attempt that it now takes the
+normal full boot-cycle duration instead of a few seconds.
+
+### Sync status as an icon instead of text, settings nav icon changed to a cog wheel
+
+Two small user-requested UI tweaks:
+1. **`device.html`'s "Sync" stat pill** (next to Uptime in the stats
+   header) previously showed a text label ("In Sync" / "Xs Ahead/Behind" /
+   "—"), color-coded. Replaced with one of four small SVG icons instead —
+   shape carries the meaning, not just color, so it stays legible without
+   depending on colorblind-unsafe green/yellow/red alone: a dash-in-circle
+   for "unknown" (no `/ws/stats` data yet), a check-in-circle for in-sync,
+   a clock face for a mild (≤10s) drift, and an alert triangle for a
+   severe (>10s) drift — still colored the same green/yellow/red/gray as
+   before, and the exact numeric diff moved into the `title` tooltip
+   instead of being the visible label.
+2. **The Settings sidebar nav icon** (`#navSettings`, identical markup
+   duplicated across all 11 shell pages) was previously a 3-row slider
+   icon — changed to a standard cog/gear icon (the well-known Feather
+   Icons "settings" glyph) on all 11 pages via a mechanical exact-string
+   find/replace, matching this app's existing convention of stroke-based
+   nav icons (`.nav-btn-icon svg` supplies `fill:none; stroke:currentColor`
+   globally, so the new `<path>`/`<circle>` needed no per-icon style
+   attributes, same as every other nav icon).
+
+**Verified**: `node --check` on `device.html`'s extracted scripts; a
+Python `html.parser` tag-balance check across all 11 edited pages (zero
+mismatches); confirmed via grep that all 11 pages picked up the new cog
+markup; booted the Hub locally and confirmed `device.html`/
+`settings.html`/`devices.html` all still serve 200, with the new
+`SYNC_ICON_*` constants present in `device.html`'s live response body.
+Not checked visually in a real browser.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via
