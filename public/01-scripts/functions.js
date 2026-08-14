@@ -89,6 +89,16 @@ function syncFixedBarMetrics() {
 
 	const isBottomBar = window.matchMedia(MOBILE_BAR_QUERY).matches;
 	root.setProperty('--live-bottombar-height', isBottomBar ? `${sidebarEl.offsetHeight}px` : '0px');
+
+	// .sidebar is `width: fit-content` with --sidebar-width only as a
+	// floor (min-width) now, not a fixed size -- it grows to fit whatever
+	// its widest child (a nav label, the logo title, ...) actually needs.
+	// .main/.topbar can't just read --sidebar-width for their own
+	// left offset any more, since the real rendered width may be wider;
+	// this publishes the true measured value for them to use instead.
+	// Not meaningful in bottom-bar mode (mobile hardcodes .main/.topbar's
+	// offset to 0 regardless), but harmless to keep measuring there too.
+	root.setProperty('--live-sidebar-width', `${sidebarEl.offsetWidth}px`);
 }
 
 function initFixedBarMetrics() {
@@ -143,6 +153,12 @@ function applySidebarCollapsed(collapsed) {
 		const label = toggleBtn.querySelector('.nav-btn-label');
 		if (label) { label.textContent = collapsed ? 'Expand' : 'Collapse'; }
 	}
+
+	// Collapsing/expanding changes .sidebar's real width immediately --
+	// ResizeObserver (see syncFixedBarMetrics()) picks this up on its own
+	// shortly after, but re-syncing here too avoids even a single-frame
+	// lag where .main/.topbar are still offset by the old width.
+	if (typeof syncFixedBarMetrics === 'function') { syncFixedBarMetrics(); }
 }
 
 function initSidebarToggle() {

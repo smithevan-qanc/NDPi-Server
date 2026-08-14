@@ -64,7 +64,11 @@
 	--radius-md: 0.625rem;
 	--radius-lg: 0.875rem;
 
-	--sidebar-width: 14.75rem;
+	/* MIN-width now, not a fixed width -- .sidebar sizes itself to fit its
+	   widest child (width: fit-content) and only falls back to this as a
+	   floor. See --live-sidebar-width below for how .main/.topbar stay in
+	   sync with whatever the sidebar's real width ends up being. */
+	--sidebar-width: 10rem;
 	--sidebar-width-collapsed: 4.25rem;
 	--header-height: 3.5rem;
 	--mobile-navbar-height: 4rem;
@@ -73,17 +77,21 @@
 	/**
 	 *  Live-measured actual rendered size of the fixed .topbar/.sidebar
 	 *  (see 01-scripts/functions.js's syncFixedBarMetrics()) -- .content's
-	 *  padding, .floating-actions, and .toast-container key off these
-	 *  instead of the nominal --header-height/--mobile-navbar-height
-	 *  constants above, since either bar's real rendered size can exceed
-	 *  its nominal estimate (a long page title, a long device name
-	 *  wrapping in the mobile bottom-bar nav, a larger UI-scale setting).
-	 *  These two values are just the pre-JS fallback for the very first
-	 *  paint; JS overwrites them (as inline styles on <html>, so they
-	 *  always win over these) within one frame of load.
+	 *  padding, .floating-actions, .toast-container, .main's margin-left,
+	 *  and .topbar's left offset all key off these instead of the nominal
+	 *  --header-height/--mobile-navbar-height/--sidebar-width constants
+	 *  above, since each bar's real rendered size can exceed its nominal
+	 *  estimate (a long page title, a long device/nav label, a larger
+	 *  UI-scale setting -- and now, by design, --live-sidebar-width is
+	 *  *expected* to differ from --sidebar-width whenever some sidebar
+	 *  item is wider than the 10rem floor). These are just the pre-JS
+	 *  fallback for the very first paint; JS overwrites them (as inline
+	 *  styles on <html>, so they always win over these) within one frame
+	 *  of load, and again on every resize/collapse-toggle.
 	 */
 	--live-topbar-height: var(--header-height);
 	--live-bottombar-height: 0px;
+	--live-sidebar-width: var(--sidebar-width);
 
 	--shadow-pop: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.55);
 }
@@ -197,7 +205,13 @@ a {
 	top: 0;
 	left: 0;
 	bottom: 0;
-	width: var(--sidebar-width);
+	/* Shrink-to-fit its widest child (a `left` with no `right` on a fixed
+	   box already sizes this way with plain `width: auto`; `fit-content`
+	   makes that explicit) with --sidebar-width as a floor, not a fixed
+	   size -- 01-scripts/functions.js measures the real result and
+	   publishes it as --live-sidebar-width for .main/.topbar to offset by. */
+	width: fit-content;
+	min-width: var(--sidebar-width);
 	display: flex;
 	flex-direction: column;
 	background: var(--bg-0);
@@ -347,9 +361,12 @@ a {
 	/* width intentionally unset -- a block box with margin-left and
 	   width:auto (the default) automatically fills exactly the remaining
 	   space in its containing block; setting an explicit width:100% here
-	   would instead push .main's right edge var(--sidebar-width) past the
-	   viewport's edge, since 100% + that margin overflows the container. */
-	margin-left: var(--sidebar-width);
+	   would instead push .main's right edge var(--live-sidebar-width) past
+	   the viewport's edge, since 100% + that margin overflows the
+	   container. --live-sidebar-width (not --sidebar-width) because
+	   .sidebar's real width can exceed the --sidebar-width floor -- see
+	   its comment above. */
+	margin-left: var(--live-sidebar-width);
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
@@ -362,7 +379,7 @@ a {
 .topbar {
 	position: fixed;
 	top: 0;
-	left: var(--sidebar-width);
+	left: var(--live-sidebar-width);
 	right: 0;
 	height: var(--header-height);
 	display: flex;
@@ -480,6 +497,7 @@ a {
 		right: 0;
 		bottom: 0;
 		width: 100%;
+		min-width: 0;
 		height: auto;
 		min-height: var(--mobile-navbar-height);
 		flex-direction: row;

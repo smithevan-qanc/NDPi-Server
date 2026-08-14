@@ -1359,6 +1359,149 @@ counted message types over a 10s window: exactly one `devices-update`
 `heartbeat`/`system-stats`/`ndi-sources` — no flood. `node --check` on
 `hub_api_server.js`, and a page-route sweep (all 200s).
 
+### `/ws` flood investigated against the REAL Hub — found the actual remaining cause, then removed `client-status`/`clientServer_websocket.js` entirely (user-directed, cross-repo)
+
+The mDNS fix above was real but incomplete: the user connected me to the
+**actual production Hub** (`ws://ndpi-server.localdomain:3080/ws`, 2 real
+adopted devices) rather than a fresh local test instance, correctly
+pointing out that a fresh datastore with no adopted devices can't
+reproduce this. Captured 30s of real traffic with a raw `ws` client and
+found the flood was still very real (~62 `devices-update` in 30s) with a
+suspiciously *regular*, near-identically-repeating pattern every ~10s —
+not consistent with "2 devices reporting every 5s," which pointed at the
+`client-status` message pipeline itself rather than mDNS.
+
+**Root cause, traced to `Client__v3_1_0/index.js`**: `connectToNDPiServer()`
+registered a `.on('connected', ...)` listener on the persistent
+`/ws/client` connection (`clientServer_websocket.js`) that started a new
+5-second `setInterval` (`sendStatusToNDPiServer()`) *every time* that
+connection reconnected — and the `ndpi_hub_hostname`/`ndpi_hub_port`
+settings-change handlers nearby called `.close()` + `.connect()` on that
+same connection directly, re-firing `'connected'` without ever clearing
+the *previous* interval first. A genuine, unbounded `setInterval` leak:
+every reconnect over a device's uptime added another 5s timer that ran
+forever, on top of `clientServer_websocket.js`'s own internal 5s status
+interval (started fresh and correctly stopped/restarted on each
+reconnect — not itself leaking, just duplicated by the outer one). This
+fully explains both the volume and the oddly regular repeating pattern
+observed against the real Hub.
+
+**User's decision, given this**: rather than patch the leak, delete
+`clientServer_websocket.js` and the whole `client-status`/`/ws/client`
+push mechanism outright — reasoning that everything it sent is already
+obtainable from the Client's other two sockets (`/ws/system`, `/ws/stats`),
+which the Hub already relays independently. Verified this was correct by
+reading `clientServer_websocket.js`'s `buildStatusMessage()` field by
+field: every single field (`currentSource`, `displayMode`, `streamStatus`,
+`ndiInfo.*`, `deviceName`, `ip`, plus `systemStats` — fully redundant with
+`/ws/stats`, and the full `settings` array, which literally *is* what
+`/ws/system` already sends) is derivable from data the Hub already
+receives over its existing outbound relay connections
+(`connectDeviceSystemRelay()`/`connectDeviceStatsRelay()`,
+`service/hub_api_server.js`). The one non-obvious dependency, found before
+it could cause a real outage: `sendCommandToClient()` (the Hub's *only*
+way to send commands like set-source/reboot/rename down to a device) also
+used `/ws/client` exclusively — confirmed `Client__v3_1_0/service/
+client_api_server.js`'s `/ws/system` handler already runs every inbound
+message through the exact same `processCommand()` `/ws/client` used, so
+commands were rerouted onto the already-open system-relay socket instead,
+a drop-in replacement needing no Client-side change.
+
+**Client__v3_1_0 changes** (explicitly authorized by the user):
+- Deleted `service/clientServer_websocket.js`.
+- `index.js`: removed the `wsConnection_ndpiHub`/`ndpiHubStatusUpdate`
+  fields, the `ndpi_hub_hostname`/`ndpi_hub_port` reconnect listeners (the
+  actual leak site), `connectToNDPiServer()`, and `sendStatusToNDPiServer()`
+  (the duplicate/leaked status sender).
+- `service/client_api_server.js`: `/api/v1/adopt`'s doc comment updated —
+  the route itself is **unchanged** (still writes `ndpi_hub_hostname`/
+  `ndpi_hub_port`), now purely informational bookkeeping since nothing
+  reads those settings to open a connection anymore.
+
+**Server__v3_1_0 (this repo) changes**:
+- Removed `__ws_Devices()` (the `/ws/client` server-side handler
+  entirely), its registration, the `deviceConnections` Map, and the
+  `/ws/client` case in the HTTP upgrade router — replaced with nothing
+  (falls through to the existing `socket.destroy()` default), so a
+  not-yet-updated device still trying to reach `/ws/client` degrades
+  gracefully instead of crashing the Hub (`this.ws_serv_devices` would
+  otherwise be `undefined`).
+- Added two module-level derivation helpers mirroring the deleted file's
+  own logic exactly: `deriveStatusFieldsFromSettings(tuples)` (same keys/
+  fallbacks as `buildStatusMessage()`, reading from a relayed
+  settings-tuple array instead of the Client's direct fileMap access) and
+  `deriveSystemStatsFromRaw(raw)` (mirrors `01-scripts/ws-devices.js`'s
+  frontend `deriveDeviceStats()` and the deleted file's `getSystemStats()`).
+- `connectDeviceSystemRelay()`'s message handler now also derives and
+  `upsertClient()`s the summarized status fields on every settings-array
+  push (same cadence class as before -- change-driven, not fixed-interval;
+  the debounce on `clients-update` already added above absorbs any burst
+  before it reaches browsers), and calls `removeDiscoveredClient()` (moved
+  here from the deleted `/ws/client` handler).
+- `connectDeviceStatsRelay()`'s message handler syncs `systemStats`/
+  `status`/`lastSeen` into `this.clients` too, but throttled to once per
+  10s per device (`lastStatsSyncAt` Map) -- this channel pushes every ~1s
+  while connected, far more often than `devices-update`'s `systemStats`
+  copy needs (live per-device stats already come from this same relay
+  directly via `/ws/devices/stats`); skips writing `systemStats` entirely
+  when derivation fails rather than overwriting a known-good value with
+  `null` (upsertClient() is a shallow merge, so omitting a key leaves it
+  alone).
+- New `isDeviceRelayConnected(deviceId)` (true if either relay socket is
+  currently `OPEN`) replaces the old `deviceConnections.has()` check in
+  both mDNS handlers. New `markDeviceOfflineIfBothRelaysDown(deviceId)`,
+  called from both relay sockets' `close` handlers, gives prompt offline
+  detection (only when *both* channels are down, so one reconnecting
+  while the other's still open doesn't cause a spurious flip) instead of
+  waiting up to a minute for `startDeviceTimeoutMonitor()`'s sweep.
+- mDNS's `up` handler now also calls `ensureDeviceRelayConnections()` for
+  already-adopted devices (previously only the adopt route and Hub
+  startup did) -- since `client-status` no longer bootstraps/refreshes
+  relay connections on its own, mDNS is now the mechanism that keeps them
+  self-healing if a device's IP changes.
+- `sendCommandToClient()` now sends over `deviceSystemSockets.get(deviceId).ws`
+  instead of the removed `deviceConnections`.
+- Updated several now-stale comments referencing `/ws/client`/
+  `clientServer_websocket.js` (`configureDeviceHubConnection()`, the
+  adopt route, the design-tokens header) to describe the new reality.
+- **`--live-topbar-height`/`--live-bottombar-height` mechanism this
+  session already built (see the fixed-position-sidebar entry above) was
+  a prerequisite for trusting this refactor's timing** — unrelated code
+  path, noted only because both were touched in the same session.
+- Followed by three CSS-only sidebar requests in the same pass:
+  neutral-gray/less-transparent `--bg-2`/`--bg-3` tuned from
+  `rgba(255,255,255,0.05)` to `rgba(100,100,100,0.25)`-class values, an
+  opaque-ish `rgba(80,80,80,0.9)` + light backdrop-blur toast background
+  (previously inherited the now-translucent `--bg-2` and read as "see
+  through"), and `--sidebar-width` changed from a fixed `14.75rem` to a
+  `10rem` **floor**: `.sidebar` is now `width: fit-content; min-width:
+  var(--sidebar-width)`, sized to its widest child instead of a constant.
+  Since `.main`'s `margin-left` and `.topbar`'s `left` can no longer just
+  read the static `--sidebar-width`, `syncFixedBarMetrics()`
+  (`01-scripts/functions.js`) now also measures `.sidebar.offsetWidth`
+  and publishes `--live-sidebar-width` the same way it already did for
+  the two bar-height variables; `applySidebarCollapsed()` calls it again
+  immediately on toggle so the width offset updates in the same frame
+  instead of waiting on ResizeObserver. `#sidebarToggle` moved from
+  `.sidebar-footer` to the top of `.sidebar-nav` (above `#navDashboard`)
+  on all 11 shell pages via the same mechanical find/replace pattern used
+  earlier this session.
+- **Verified**: booted the Hub locally (mDNS still discovers the two real
+  devices on the network without incident against an empty test
+  datastore -- no `upsertClient` side effects triggered, since neither is
+  adopted there), confirmed the dead `/ws/client` upgrade path degrades
+  via the existing `socket.destroy()` fallback rather than crashing,
+  `node --check` on `hub_api_server.js` and `Client__v3_1_0/index.js`,
+  confirmed `upsertClient()`'s shallow-merge semantics before relying on
+  partial-update calls, a full HTML tag-balance check across every page
+  after the mechanical button-move, a full brace-balance check on
+  `styles.css`, and a page-route + `/ws` 10s traffic sweep (one
+  `devices-update`, no flood). **Not** deployed or tested against the
+  real Hub/Client devices — this repo isn't wired to actually push
+  changes there, so the real fix still needs a manual deploy (git pull +
+  service restart on the Hub and both Client devices) before the
+  original real-traffic flood can be directly re-confirmed gone.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

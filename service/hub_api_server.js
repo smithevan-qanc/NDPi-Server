@@ -23,6 +23,78 @@ const NDI_SERVER_URL = `http://${NDI_SERVER_HOST}:${NDI_SERVER_PORT}`;
 // reconnect loop, not worth logging as an error every retry.
 const DEVICE_OFFLINE_ERROR_CODES = new Set(['ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT', 'ECONNRESET']);
 
+/**
+ *  Client__v3_1_0 no longer has a clientServer_websocket.js pushing
+ *  client-status messages over a persistent /ws/client connection (removed
+ *  -- it was both unnecessary, since every field it sent is already
+ *  derivable from the device's own /ws/system + /ws/stats, which the Hub
+ *  already relays independently, AND the source of a real bug: a leaked
+ *  setInterval in Client__v3_1_0/index.js's ndpi_hub_hostname/
+ *  ndpi_hub_port reconnect handling that added a new 5s status-send timer
+ *  on every reconnect without ever clearing the previous one, compounding
+ *  without bound over a device's uptime). These two helpers replace what
+ *  that message used to carry, reading from the same relayed data
+ *  connectDeviceSystemRelay()/connectDeviceStatsRelay() already receive.
+ */
+function getSettingValue(tuples, key, fallback = '') {
+    if (!Array.isArray(tuples)) return fallback;
+    const entry = tuples.find(([k]) => k === key);
+    const value = entry && entry[1] ? entry[1].value : undefined;
+    return (value === undefined || value === null || value === '') ? fallback : value;
+}
+
+// Mirrors the deleted clientServer_websocket.js's buildStatusMessage() --
+// same keys, same fallbacks, just reading from a relayed settings-tuple
+// array (Array.from(client_fs.js's fileMap), the exact shape /ws/system
+// already sends) instead of that file's own direct fileMap access.
+function deriveStatusFieldsFromSettings(tuples) {
+    const connectedTime = getSettingValue(tuples, 'ndpi_status_ndi_source_connected_time', '');
+    const uptime = connectedTime ? Math.max(0, Math.floor((Date.now() - new Date(connectedTime).getTime()) / 1000)) : 0;
+
+    return {
+        deviceName: getSettingValue(tuples, 'device_name', ''),
+        ip: getSettingValue(tuples, 'device_ip', ''),
+        // Not exposed over REST, only used internally to (re)connect the
+        // system/stats relay -- same role this played when it arrived via
+        // client-status.
+        apiPort: getSettingValue(tuples, 'local_port_number_api', ''),
+        currentSource: getSettingValue(tuples, 'ndpi_status_ndi_source_target', 'None'),
+        displayMode: getSettingValue(tuples, 'ndpi_status_no_source_display_mode', 'overlay'),
+        streamStatus: getSettingValue(tuples, 'ndpi_status_ndi_status', 'idle'),
+        ndiInfo: {
+            resolution: getSettingValue(tuples, 'ndpi_status_ndi_source_resolution', ''),
+            framerate: parseFloat(getSettingValue(tuples, 'ndpi_status_ndi_source_framerate', '0')) || 0,
+            displayName: getSettingValue(tuples, 'output_display_model', '') || getSettingValue(tuples, 'output_display_manufacturer', ''),
+            displayResolution: getSettingValue(tuples, 'output_display_resolution_current', ''),
+            uptime,
+        },
+    };
+}
+
+// Mirrors 01-scripts/ws-devices.js's deriveDeviceStats() (the frontend's
+// own twin of this, used for the live per-device stats relay) and the
+// deleted clientServer_websocket.js's getSystemStats() -- same summarized
+// {cpu, memory, temperature, uptime} shape, derived from a device's raw
+// /ws/stats payload, so this.clients[deviceId].systemStats (used by
+// devices-update / deviceOut() / the REST device list) stays populated.
+function deriveSystemStatsFromRaw(raw) {
+    if (!raw || !Array.isArray(raw.loadavg) || !Array.isArray(raw.cpus) || !raw.totalmem) return null;
+
+    const totalMem = raw.totalmem;
+    const usedMem = totalMem - raw.freemem;
+
+    return {
+        cpu: Math.round(Math.min(raw.loadavg[0] / raw.cpus.length, 1) * 1000) / 10,
+        memory: {
+            percent: Math.round((usedMem / totalMem) * 100),
+            used: Math.round((usedMem / 1024 / 1024 / 1024) * 10) / 10,
+            total: Math.round((totalMem / 1024 / 1024 / 1024) * 10) / 10,
+        },
+        temperature: (raw.thermal && raw.thermal.thermal_zone0) || 0,
+        uptime: raw.osUptime || 0,
+    };
+}
+
 
 class NDPiCommandServer_Client extends EventEmitter {
     constructor(fsData) {
@@ -69,17 +141,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_conn_gui = new Set();
 
         /**
-         *  NDPi Client Device WebSocket ( /ws/client )
-         *  --------------------------------------------
-         *  NDPi Client devices connect OUT to the Hub on this endpoint
-         *  (see Client__v3_1_0/service/clientServer_websocket.js). The Hub
-         *  uses the same persistent connection to push commands back down
-         *  to the device (set-source, show-overlay, shutdown-device, etc).
-         */
-        this.ws_serv_devices = null;
-        this.deviceConnections = new Map(); // deviceId -> ws
-
-        /**
          *  Hub's own live feeds ( /ws/system, /ws/stats )
          *  ------------------------------------------------
          *  Mirrors Client__v3_1_0/service/client_api_server.js's local
@@ -115,6 +176,14 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.deviceSystemCache = new Map();   // deviceId -> latest raw /ws/system message
         this.deviceStatsSockets = new Map();  // deviceId -> { ws, ip, port, reconnectTimer }
         this.deviceStatsCache = new Map();    // deviceId -> latest raw /ws/stats message
+        // Throttles how often a /ws/stats message (arrives ~1/sec while
+        // connected) syncs into this.clients (systemStats/status/lastSeen)
+        // -- the relay itself still broadcasts every single message via
+        // broadcastDeviceStatsRelay for live per-device UI regardless; this
+        // only governs the separate, less latency-sensitive this.clients
+        // record used by devices-update/deviceOut(), so it doesn't trigger
+        // a full upsertClient()+disk-write+broadcast every second per device.
+        this.lastStatsSyncAt = new Map(); // deviceId -> timestamp (ms)
 
         this.ws_serv_devices_system = null;
         this.ws_conn_devices_system = new Set();
@@ -199,7 +268,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.__ws_NDIStreams();
         this.__ws_Sources();
         this.__ws_Gui();
-        this.__ws_Devices();
         this.__ws_HubSystem();
         this.__ws_HubStats();
         this.__ws_DevicesSystemRelay();
@@ -443,92 +511,6 @@ class NDPiCommandServer_Client extends EventEmitter {
     }
 
     /**
-     *      NDPi Client Devices - WebSocket Connection Handler ( /ws/client )
-     *      Client__v3_1_0/service/clientServer_websocket.js connects here.
-     *      The Client pushes periodic 'client-status' messages, and the Hub
-     *      uses the same open connection to push commands back down.
-     */
-    __ws_Devices() {
-        this.ws_serv_devices = new WebSocket.Server({ noServer: true });
-
-        this.ws_serv_devices.on('connection', (ws) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'NDPi Client device connection ADDED.');
-
-            let deviceId = null;
-
-            ws.onmessage = (event) => {
-                let message;
-                try { message = JSON.parse(event.data); }
-                catch (error) { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Device WebSocket message', error); return; }
-
-                if (message.type === 'client-status')
-                {
-                    deviceId = message.deviceId;
-                    if (!deviceId) return;
-
-                    this.deviceConnections.set(deviceId, ws);
-
-                    const existingClient = this.settings.getClient(deviceId);
-                    const settingsArray = Array.isArray(message.settings) ? message.settings : (existingClient?.settings || null);
-                    const apiPortSetting = Array.isArray(settingsArray) ? settingsArray.find(([key]) => key === 'local_port_number_api') : null;
-                    const apiPort = (apiPortSetting && apiPortSetting[1] && apiPortSetting[1].value) || existingClient?.apiPort || 3080;
-                    const ip = message.ip || existingClient?.ip;
-
-                    this.settings.upsertClient(deviceId, {
-                        deviceName: message.deviceName || existingClient?.deviceName || deviceId,
-                        ip,
-                        // The device's own API port — not exposed over REST, only
-                        // used internally to (re)connect the system/stats relay.
-                        apiPort,
-                        status: 'online',
-                        currentSource: message.currentSource || 'None',
-                        displayMode: message.displayMode || 'overlay',
-                        streamStatus: message.streamStatus || 'unknown',
-                        ndiInfo: message.ndiInfo || null,
-                        systemStats: message.systemStats || null,
-                        // Full remote-settings snapshot (mirrors what Client__v3_1_0's
-                        // own local `/ws/system` UI receives) so the Hub dashboard can
-                        // offer the same per-device controls (settings editor, overlay
-                        // upload, update checks, etc).
-                        settings: settingsArray,
-                        lastSeen: new Date().toISOString(),
-                        lastStatusUpdate: new Date().toISOString(),
-                    });
-
-                    // The device is no longer merely "discovered" once it starts reporting status.
-                    this.settings.removeDiscoveredClient(deviceId);
-
-                    if (ip)
-                    { this.ensureDeviceRelayConnections(deviceId, ip, apiPort); }
-                }
-                else if (message.type === 'ping')
-                {
-                    try { ws.send(JSON.stringify({ type: 'pong' })); }
-                    catch {}
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'NDPi Client device connection', error);
-            };
-
-            ws.onclose = () => {
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDPi Client device connection REMOVED. ${deviceId ? `(${deviceId})` : ''}`);
-                if (deviceId)
-                {
-                    this.deviceConnections.delete(deviceId);
-                    const client = this.settings.getClient(deviceId);
-                    if (client)
-                    {
-                        client.status = 'offline';
-                        this.settings.upsertClient(deviceId, client);
-                    }
-                }
-            };
-        });
-    }
-
-    /**
      *      Hub's own System Settings - WebSocket Connection Handler ( /ws/system )
      *      Mirrors Client__v3_1_0/service/client_api_server.js's local
      *      __ws_System(): sends this Hub's own fileMap on connect, then
@@ -746,6 +728,35 @@ class NDPiCommandServer_Client extends EventEmitter {
         { this.connectDeviceStatsRelay(deviceId, ip, port); }
     }
 
+    /**
+     *  True while the Hub has a live outbound relay connection (either
+     *  channel) to this device -- the liveness signal that used to come
+     *  from `/ws/client` staying open (deviceConnections, removed along
+     *  with clientServer_websocket.js). Used to keep mDNS presence (a much
+     *  flakier signal -- multicast loss, TTL timing, periodic republish
+     *  regardless of any real change) from overriding `status` while a
+     *  real connection already says otherwise.
+     */
+    isDeviceRelayConnected(deviceId) {
+        const system = this.deviceSystemSockets.get(deviceId);
+        const stats = this.deviceStatsSockets.get(deviceId);
+        return (!!system && system.ws.readyState === WebSocket.OPEN) || (!!stats && stats.ws.readyState === WebSocket.OPEN);
+    }
+
+    // Called when either relay socket for a device closes. Only actually
+    // marks the device offline once BOTH channels are down -- one channel
+    // reconnecting while the other's still open shouldn't read as a real
+    // outage. (Coming back online is handled by the normal derive+upsert
+    // path in each connectDevice*Relay()'s 'message' handler, once
+    // whichever channel reconnects first receives its next message.)
+    markDeviceOfflineIfBothRelaysDown(deviceId) {
+        if (this.isDeviceRelayConnected(deviceId)) return;
+
+        const client = this.settings.getClient(deviceId);
+        if (client && client.status !== 'offline')
+        { this.settings.upsertClient(deviceId, { status: 'offline' }); }
+    }
+
     connectDeviceSystemRelay(deviceId, ip, port) {
         const previous = this.deviceSystemSockets.get(deviceId);
         if (previous)
@@ -764,6 +775,31 @@ class NDPiCommandServer_Client extends EventEmitter {
             catch { return; }
             this.deviceSystemCache.set(deviceId, parsed);
             this.broadcastDeviceSystemRelay(deviceId, parsed);
+
+            // parsed is the device's full settings-tuple array -- the same
+            // shape client-status used to carry directly (Client__v3_1_0's
+            // /ws/system and the old /ws/client both ultimately read from
+            // the same fileMap). Derive the same summarized status fields
+            // that message used to provide and keep this.clients (and
+            // therefore devices-update/deviceOut()) current now that
+            // nothing pushes client-status anymore. This fires on every
+            // settings change on the device (not just a fixed interval),
+            // same cadence class as before -- the debounce on
+            // hub_fs.js's 'clients-update' -> broadcastDevices() (see the
+            // constructor) absorbs any burst before it reaches browsers.
+            if (!Array.isArray(parsed)) return;
+
+            const derived = deriveStatusFieldsFromSettings(parsed);
+            this.settings.upsertClient(deviceId, {
+                ...derived,
+                settings: parsed,
+                status: 'online',
+                lastSeen: new Date().toISOString(),
+                lastStatusUpdate: new Date().toISOString(),
+            });
+
+            // The device is no longer merely "discovered" once it's actively reporting.
+            this.settings.removeDiscoveredClient(deviceId);
         });
 
         ws.on('error', (error) => {
@@ -773,6 +809,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         ws.on('close', () => {
             if (this.closing) return;
+            this.markDeviceOfflineIfBothRelaysDown(deviceId);
             // Only reconnect if this is still the current entry for this
             // device — a newer call to connectDeviceSystemRelay() (e.g. a
             // fresh client-status with a changed ip/port) may have already
@@ -800,6 +837,27 @@ class NDPiCommandServer_Client extends EventEmitter {
             catch { return; }
             this.deviceStatsCache.set(deviceId, parsed);
             this.broadcastDeviceStatsRelay(deviceId, parsed);
+
+            // Throttled sync into this.clients (see lastStatsSyncAt's
+            // declaration in the constructor) -- this channel pushes every
+            // ~1s while connected, far more often than devices-update's
+            // systemStats copy needs to be (live per-device stats already
+            // come from this same relay directly via /ws/devices/stats).
+            const now = Date.now();
+            const lastSync = this.lastStatsSyncAt.get(deviceId) || 0;
+            if (now - lastSync < 10000) return;
+            this.lastStatsSyncAt.set(deviceId, now);
+
+            // upsertClient() does a shallow merge, so only include
+            // systemStats when it actually parsed -- passing `null` here
+            // would explicitly overwrite the last known-good value instead
+            // of just leaving it alone.
+            const derivedStats = deriveSystemStatsFromRaw(parsed);
+            this.settings.upsertClient(deviceId, {
+                ...(derivedStats ? { systemStats: derivedStats } : {}),
+                status: 'online',
+                lastSeen: new Date().toISOString(),
+            });
         });
 
         ws.on('error', (error) => {
@@ -809,6 +867,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         ws.on('close', () => {
             if (this.closing) return;
+            this.markDeviceOfflineIfBothRelaysDown(deviceId);
             if (this.deviceStatsSockets.get(deviceId) === entry)
             { entry.reconnectTimer = setTimeout(() => { this.connectDeviceStatsRelay(deviceId, ip, port); }, 5000); }
         });
@@ -837,6 +896,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             this.deviceStatsSockets.delete(deviceId);
         }
         this.deviceStatsCache.delete(deviceId);
+        this.lastStatsSyncAt.delete(deviceId);
     }
 
     /**
@@ -852,15 +912,27 @@ class NDPiCommandServer_Client extends EventEmitter {
     }
 
     /**
-     * Send a command to a connected NDPi Client device over its persistent
-     * `/ws/client` connection. Command 'type' values must match what
-     * Client__v3_1_0/service/functions.js `processCommand()` understands
-     * (e.g. 'set-source', 'show-overlay', 'show-blank', 'shutdown-device',
-     * 'reboot-device', 'rename-device', 'send-cec', 'set-setting').
+     * Send a command to a connected NDPi Client device. Command 'type'
+     * values must match what Client__v3_1_0/service/functions.js
+     * `processCommand()` understands (e.g. 'set-source', 'show-overlay',
+     * 'show-blank', 'shutdown-device', 'reboot-device', 'rename-device',
+     * 'send-cec', 'set-setting').
+     *
+     * Previously sent over a dedicated persistent `/ws/client` connection
+     * the device pushed status over (Client__v3_1_0/service/
+     * clientServer_websocket.js, removed). That connection's only other
+     * job was carrying commands the other direction, so this now reuses
+     * the Hub's own outbound `/ws/system` relay connection instead
+     * (connectDeviceSystemRelay()) -- Client__v3_1_0/service/
+     * client_api_server.js's __ws_System() already runs every inbound
+     * message through the exact same processCommand() function
+     * regardless of which socket it arrives on, so this is a drop-in
+     * replacement requiring no Client-side changes.
      */
     sendCommandToClient(deviceId, command = {}) {
         return new Promise((resolve, reject) => {
-            const ws = this.deviceConnections.get(deviceId);
+            const entry = this.deviceSystemSockets.get(deviceId);
+            const ws = entry && entry.ws;
 
             if (!ws || ws.readyState !== WebSocket.OPEN)
             { return reject(new Error('Device not connected')); }
@@ -933,11 +1005,11 @@ class NDPiCommandServer_Client extends EventEmitter {
             });
 
             // Update IP/status of already-saved devices too -- but only when
-            // there's no live /ws/client connection already telling us the
+            // there's no live relay connection already telling us the
             // truth. mDNS presence is a much flakier signal (multicast loss,
             // TTL timing, plus the TXT-record decode corruption
-            // _extractMdnsTxtField works around) than the persistent
-            // /ws/client heartbeat, and the Client's own mDNS advertisement
+            // _extractMdnsTxtField works around) than an actual open
+            // connection, and the Client's own mDNS advertisement
             // re-publishes periodically regardless of any real connectivity
             // change (Client__v3_1_0/service/client_bonjour.js's 60s
             // republish cycle does a stop-then-publish, which this browser
@@ -950,7 +1022,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             // devices-update" reports -- the offline flash and the flood
             // were the same underlying bug, not two separate ones).
             const existingClient = this.settings.getClient(deviceId);
-            if (existingClient && !this.deviceConnections.has(deviceId))
+            if (existingClient && !this.isDeviceRelayConnected(deviceId))
             {
                 this.settings.upsertClient(deviceId, {
                     ip,
@@ -958,20 +1030,32 @@ class NDPiCommandServer_Client extends EventEmitter {
                     lastSeen: new Date().toISOString(),
                 });
             }
+
+            // mDNS is now the only per-device signal that can tell the Hub
+            // "this device exists, here's its current ip/port" without
+            // waiting for a Hub restart or a manual re-adopt (previously
+            // every client-status message did this too). (Re)establishing
+            // relay connections is already a no-op when the current ones
+            // are healthy and unchanged (see ensureDeviceRelayConnections()),
+            // so this is safe to call on every mDNS re-announce, including
+            // the routine ~60s republish cycle mentioned above.
+            if (existingClient && ip && commandPort)
+            { this.ensureDeviceRelayConnections(deviceId, ip, commandPort); }
         });
 
         this.bonjourBrowser.on('down', (service) => {
             const deviceId = service.txt?.deviceId || service.txt?.deviceid || this._extractMdnsTxtField(service, 'deviceid');
             if (!deviceId) return;
 
-            // Same reasoning as the 'up' handler above: a live /ws/client
+            // Same reasoning as the 'up' handler above: a live relay
             // connection is definitive and already has its own onclose
-            // handler to mark the device offline the moment it actually
-            // drops -- a transient mDNS "down" (e.g. the Client's periodic
-            // republish briefly withdrawing its old advertisement before
-            // publishing a new one) doesn't mean the connection is gone.
+            // handler (markDeviceOfflineIfBothRelaysDown()) to mark the
+            // device offline the moment it actually drops -- a transient
+            // mDNS "down" (e.g. the Client's periodic republish briefly
+            // withdrawing its old advertisement before publishing a new
+            // one) doesn't mean the connection is gone.
             const existingClient = this.settings.getClient(deviceId);
-            if (existingClient && !this.deviceConnections.has(deviceId))
+            if (existingClient && !this.isDeviceRelayConnected(deviceId))
             {
                 this.settings.upsertClient(deviceId, {
                     status: 'offline',
@@ -1134,14 +1218,16 @@ class NDPiCommandServer_Client extends EventEmitter {
     }
 
     /**
-     *  Point a just-adopted device at this Hub, so it starts reporting
-     *  over /ws/client on its own. Client__v3_1_0's clientServer_websocket.js
-     *  only opens that connection once BOTH 'ndpi_hub_hostname' and
-     *  'ndpi_hub_port' are set — until then a device can be fully visible
-     *  via mDNS (name/ip/port) but never actually deliver its settings/
-     *  status. Calls the device's own 'POST /api/v1/adopt' endpoint
+     *  Records this Hub as the one that adopted a just-adopted device, by
+     *  calling the device's own 'POST /api/v1/adopt' endpoint
      *  (Client__v3_1_0/service/client_api_server.js), via the
      *  ip/commandPort this Hub already learned from its mDNS TXT record.
+     *  Purely informational bookkeeping on the device now (it used to also
+     *  be what unblocked a persistent /ws/client connection back to this
+     *  Hub, before that mechanism was removed) -- the Hub establishes its
+     *  own /ws/system + /ws/stats relay connections to the device
+     *  independently (see ensureDeviceRelayConnections(), called
+     *  separately at the adopt route below using this same ip/commandPort).
      */
     async configureDeviceHubConnection(ip, commandPort) {
         if (!ip || !commandPort)
@@ -1649,10 +1735,11 @@ class NDPiCommandServer_Client extends EventEmitter {
                 lastSeen: new Date().toISOString(),
             });
 
-            // Adopting a device it only knows about via mDNS: point it at
-            // this Hub so it starts reporting over /ws/client on its own.
-            // Best-effort — the device may be briefly unreachable, and the
-            // admin can already fix this by hand on the device's own page.
+            // Adopting a device it only knows about via mDNS: record this
+            // Hub as its adopter (informational bookkeeping on the device,
+            // see configureDeviceHubConnection()'s comment). Best-effort —
+            // the device may be briefly unreachable, and the admin can
+            // already fix this by hand on the device's own page.
             let hubConfigured = false;
             if (resolvedIp && discovered?.commandPort)
             {
@@ -1662,9 +1749,10 @@ class NDPiCommandServer_Client extends EventEmitter {
                 { console.warn(`⚠️   [ ${path.basename(__filename).split('.')[0]} ] Could not configure Hub connection on device ${deviceId} (${resolvedIp}:${discovered.commandPort}) — it may need 'ndpi_hub_hostname'/'ndpi_hub_port' set manually on the device.`, result); }
 
                 // Start relaying this device's /ws/system + /ws/stats right
-                // away using the ip/port mDNS already gave us — its own
-                // next client-status report will correct the port if the
-                // device's real API port differs from the mDNS commandPort.
+                // away using the ip/port mDNS already gave us -- the next
+                // mDNS re-announce (or that relay's own message handler,
+                // once connected) will correct the port if the device's
+                // real API port differs from the mDNS commandPort.
                 this.ensureDeviceRelayConnections(deviceId, resolvedIp, discovered.commandPort);
             }
 
@@ -2274,12 +2362,6 @@ class NDPiCommandServer_Client extends EventEmitter {
                     this.ws_serv_sources.emit('connection', ws, request);
                 });
             }
-            else if (pathname === '/ws/client')
-            {
-                this.ws_serv_devices.handleUpgrade(request, socket, head, (ws) => {
-                    this.ws_serv_devices.emit('connection', ws, request);
-                });
-            }
             else if (pathname === '/ws/system')
             {
                 this.ws_serv_hub_system.handleUpgrade(request, socket, head, (ws) => {
@@ -2331,7 +2413,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.stopMdnsDiscovery();
 
         try { this.ws_serv_gui?.close(); } catch {}
-        try { this.ws_serv_devices?.close(); } catch {}
         try { this.ws_serv_sources?.close(); } catch {}
         try { this.ws_serv_hub_system?.close(); } catch {}
         try { this.ws_serv_hub_stats?.close(); } catch {}
@@ -2361,14 +2442,12 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_conn_devices_system.forEach(terminate);
         this.ws_conn_devices_stats.forEach(terminate);
         this.ws_conn_sources.forEach(terminate);
-        this.deviceConnections.forEach(terminate);
         this.ws_conn_gui.clear();
         this.ws_conn_hub_system.clear();
         this.ws_conn_hub_stats.clear();
         this.ws_conn_devices_system.clear();
         this.ws_conn_devices_stats.clear();
         this.ws_conn_sources.clear();
-        this.deviceConnections.clear();
 
         if (this.hubStatsSendInterval)
         {
