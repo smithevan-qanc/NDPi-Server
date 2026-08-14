@@ -1202,6 +1202,83 @@ current class names/rem sizing:
   that's the one part of this that can't be exercised outside real
   touch/rubber-band scrolling.
 
+### Mobile padding-clobber bug, tamed-down background tint, and a collapsible desktop sidebar
+
+Four more from the user after trying the fixed-bar change on a real phone:
+
+1. **Mobile still hid content under both bars** (user-reported, despite
+   the fixed-bar work above) — root cause found by re-reading, not
+   guessing: a pre-existing `@media (max-width: 31.25rem) { .content {
+   padding: 0.75rem; gap: 0.75rem; } }` rule (≈500px, i.e. effectively
+   every phone) used the `padding` *shorthand*, which resets all four
+   sides — including `padding-top`/`padding-bottom`, the two properties
+   the new `--live-topbar-height`/`--live-bottombar-height` mechanism
+   depends on. Same selector specificity as the base `.content` rule,
+   declared later in the file, so per cascade order it silently won and
+   wiped the fixed-bar compensation back to a flat `0.75rem` on every
+   phone-width screen. Fixed by splitting it to `padding-left`/
+   `padding-right` only, leaving `padding-top`/`padding-bottom`
+   untouched so the live values keep applying.
+2. **Backgrounds tamed down** (user: "make the lighter contrasted
+   background colors more gray and transparent, and only make the
+   darker background colors match the theme") — `--bg-2`/`--bg-2-hover`
+   (card surfaces) and `--bg-3`/`--bg-3-hover` (nested surfaces: inputs,
+   stat chips, buttons) were `color-mix()`-tinted the same way as every
+   other layer; switched to plain neutral `rgba(255,255,255,α)`
+   overlays (no accent hue at all) at α 0.05/0.075/0.09/0.12
+   respectively, so they read as gray glass over whatever's beneath
+   rather than a solid tinted block. `--bg-0` (sidebar), `--bg-1` (page
+   background), and `--bg-tile`/`--bg-tile-hover` (device/group/source/
+   user tile backdrops, added earlier this session) keep their
+   `color-mix()` accent tint exactly as before — those are the "darker"
+   layers the user meant.
+3. **Desktop sidebar nav buttons: left-aligned, fit-content width, plus
+   a collapse/expand toggle** (user request, explicitly scoped to the
+   non-mobile configuration) — `.nav-btn` was `width: 100%`, and
+   `.sidebar-nav`/`.sidebar-footer` had no explicit `align-items` (so
+   defaulted to `stretch`), together forcing every nav button to fill
+   the full sidebar width regardless of its short label. Changed the
+   desktop default to `align-items: flex-start` on both containers and
+   `max-width: 100%` (not a forced `width`) on `.nav-btn`, so each
+   button now sizes to its icon+label content. Preserved mobile's
+   existing equal-width bottom-bar look by explicitly restoring
+   `align-items: stretch` / `flex: 1` inside the ≤860px media query
+   (mobile's `.sidebar-nav` already had `align-items: stretch`
+   explicitly; `.sidebar-footer` didn't, so needed adding). Added a new
+   `#sidebarToggle` button (styled as another `.nav-btn`, a
+   panel-with-divider icon) to `.sidebar-footer` on all 11 shell pages,
+   wired in `01-scripts/functions.js` (`initSidebarToggle()`/
+   `applySidebarCollapsed()`, persisted to `localStorage` as
+   `ndpi_sidebar_collapsed`) to toggle a `.sidebar-collapsed` class on
+   `.app`. That one class redefines `--sidebar-width` to a new
+   `--sidebar-width-collapsed` (4.25rem) via `.app.sidebar-collapsed {
+   --sidebar-width: ...; }` — since `.sidebar`/`.main`/`.topbar` already
+   all key off that single variable (from the fixed-position work
+   above), redefining it in one place resizes/repositions all three at
+   once; collapsed-state rules then hide every `.nav-btn-label`/
+   `.sidebar-logo-title`/`.sidebar-section-label` and center the
+   now-icon-only buttons. Confirmed inert on mobile by construction
+   (the ≤860px media query hardcodes `.sidebar`/`.main`/`.topbar`'s
+   left/width/margin instead of reading `--sidebar-width` at all, so
+   redefining it there has no effect) rather than needing an extra
+   guard — `#sidebarToggle` is still explicitly hidden there via CSS
+   for clarity, since collapsing a bottom bar isn't a meaningful action
+   regardless.
+4. **Verified**: booted the Hub, confirmed `styles.css` serves the new
+   `.sidebar-collapsed`/`--sidebar-width-collapsed`/neutral-`rgba` rules
+   and the corrected (split, not shorthand) mobile `.content` padding,
+   confirmed `functions.js` serves the toggle functions, confirmed
+   `#sidebarToggle` renders on a live page fetch, a full HTML
+   tag-balance check across every page (via Python's `html.parser`,
+   zero mismatches) after the mechanical 11-file button insertion, a
+   full brace-balance check on `styles.css`, `node --check` on
+   `functions.js`, and a page-route sweep (all 200s). **Not** verified
+   visually — the mobile padding-clobber diagnosis is a confident read
+   of the cascade rules (confirmed by grepping the actual rule text
+   and its position in the file, not assumed), but should still be
+   checked on a real phone alongside the still-outstanding overscroll
+   verification from the previous pass.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

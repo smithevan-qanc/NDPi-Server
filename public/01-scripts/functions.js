@@ -119,6 +119,52 @@ if (document.readyState === 'loading') {
 	initFixedBarMetrics();
 }
 
+/**
+ *  Desktop-only sidebar collapse/expand (icons-only vs. icons+labels),
+ *  toggled by #sidebarToggle -- hidden on mobile via CSS (see styles.css),
+ *  where the sidebar is a bottom bar and collapsing it isn't meaningful.
+ *  Toggling is a pure CSS-variable swap (.app.sidebar-collapsed
+ *  redefines --sidebar-width), so unlike syncFixedBarMetrics() above,
+ *  this never needs to re-measure anything: collapsing/expanding changes
+ *  .sidebar's *width*, not either fixed bar's *height*, so
+ *  --live-topbar-height/--live-bottombar-height stay valid either way.
+ */
+const SIDEBAR_COLLAPSED_KEY = 'ndpi_sidebar_collapsed';
+
+function applySidebarCollapsed(collapsed) {
+	const appEl = document.querySelector('.app');
+	const toggleBtn = document.getElementById('sidebarToggle');
+	if (!appEl) return;
+
+	appEl.classList.toggle('sidebar-collapsed', collapsed);
+
+	if (toggleBtn) {
+		toggleBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+		const label = toggleBtn.querySelector('.nav-btn-label');
+		if (label) { label.textContent = collapsed ? 'Expand' : 'Collapse'; }
+	}
+}
+
+function initSidebarToggle() {
+	const toggleBtn = document.getElementById('sidebarToggle');
+	if (!toggleBtn) return;
+
+	applySidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
+
+	toggleBtn.addEventListener('click', () => {
+		const appEl = document.querySelector('.app');
+		const collapsed = !appEl.classList.contains('sidebar-collapsed');
+		applySidebarCollapsed(collapsed);
+		localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+	});
+}
+
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', initSidebarToggle);
+} else {
+	initSidebarToggle();
+}
+
 (async () => {
 	setScale();
 
