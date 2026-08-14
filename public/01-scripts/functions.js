@@ -48,6 +48,77 @@ async function saveThemeColor(hex) {
 	} catch (e) { console.error('Failed to save theme color:', e); }
 }
 
+/**
+ *  .topbar and .sidebar are `position: fixed` (see styles.css) so they
+ *  stay put through page-level overscroll/rubber-band instead of
+ *  drifting with it -- but that takes them out of normal flow, so
+ *  .content needs compensating padding equal to their actual rendered
+ *  size, or the fixed bars would just sit on top of (and hide) the first/
+ *  last bit of content. --live-topbar-height / --live-bottombar-height
+ *  (consumed by .content's padding, plus .floating-actions and
+ *  .toast-container's bottom offset) exist because that size isn't a
+ *  reliable constant: nominal `--header-height`/`--mobile-navbar-height`
+ *  cover the common case, but a long page title, a long device name in
+ *  the mobile bottom-bar nav, or a larger UI-scale setting can all make
+ *  either bar's *real* height exceed its nominal estimate. Re-measured
+ *  on load and whenever either bar's own box actually changes size, via
+ *  ResizeObserver rather than a plain window 'resize' listener (only
+ *  fires on real size changes, so it doesn't do wasted work on e.g. a
+ *  width-only resize that leaves both bars' heights untouched) --
+ *  runs independently of the account-loading IIFE below so layout is
+ *  correct immediately, not after that async work resolves.
+ *
+ *  --live-bottombar-height is only ever the *bottom* bar's height, i.e.
+ *  .sidebar's own size only counts on the <=860px breakpoint where it
+ *  collapses into a horizontal bar docked to the bottom edge -- above
+ *  that breakpoint .sidebar is a full-height left-hand column (.content
+ *  already clears it horizontally via a static `margin-left:
+ *  var(--sidebar-width)`, a value that's never subject to text-wrapping
+ *  the way a height is), and using its (full viewport) height as bottom
+ *  padding there would be wildly wrong.
+ */
+const MOBILE_BAR_QUERY = '(max-width: 860px)';
+
+function syncFixedBarMetrics() {
+	const topbarEl = document.querySelector('.topbar');
+	const sidebarEl = document.querySelector('.sidebar');
+	if (!topbarEl || !sidebarEl) return;
+
+	const root = document.documentElement.style;
+	root.setProperty('--live-topbar-height', `${topbarEl.offsetHeight}px`);
+
+	const isBottomBar = window.matchMedia(MOBILE_BAR_QUERY).matches;
+	root.setProperty('--live-bottombar-height', isBottomBar ? `${sidebarEl.offsetHeight}px` : '0px');
+}
+
+function initFixedBarMetrics() {
+	const topbarEl = document.querySelector('.topbar');
+	const sidebarEl = document.querySelector('.sidebar');
+	if (!topbarEl || !sidebarEl) return;
+
+	syncFixedBarMetrics();
+
+	if (typeof ResizeObserver === 'function') {
+		const observer = new ResizeObserver(syncFixedBarMetrics);
+		observer.observe(topbarEl);
+		observer.observe(sidebarEl);
+	} else {
+		window.addEventListener('resize', syncFixedBarMetrics);
+	}
+
+	// Crossing the responsive breakpoint changes which measurement
+	// applies to --live-bottombar-height (see above) even on a tick
+	// where neither element's own box size changes enough to fire
+	// ResizeObserver on its own.
+	window.matchMedia(MOBILE_BAR_QUERY).addEventListener('change', syncFixedBarMetrics);
+}
+
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', initFixedBarMetrics);
+} else {
+	initFixedBarMetrics();
+}
+
 (async () => {
 	setScale();
 
@@ -151,11 +222,11 @@ function addTouchScrollEventListener() {
 	if (!list) return;
 
 	list.addEventListener('touchstart', (e) => {
-		document.body.style.cursor = 'grab';
+		document.body.style.cursor = 'none';
 	});
 
 	list.addEventListener('touchmove', (e) => {
-		document.body.style.cursor = 'grabbing';
+		document.body.style.cursor = 'none';
 	});
 
 	list.addEventListener('touchend', () => {

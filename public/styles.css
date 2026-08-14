@@ -49,7 +49,7 @@
 	--text-0: #ffffff;
 	--text-1: #d2d5db;
 	--text-2: #8b909c;
-	--text-3: #5b606b;
+	--text-3: #8f8f8f;
 
 	--online: #3fca6a;
 	--offline: #6b7280;
@@ -64,6 +64,21 @@
 	--header-height: 3.5rem;
 	--mobile-navbar-height: 4rem;
 	--main-body-padding: 1.25rem;
+
+	/**
+	 *  Live-measured actual rendered size of the fixed .topbar/.sidebar
+	 *  (see 01-scripts/functions.js's syncFixedBarMetrics()) -- .content's
+	 *  padding, .floating-actions, and .toast-container key off these
+	 *  instead of the nominal --header-height/--mobile-navbar-height
+	 *  constants above, since either bar's real rendered size can exceed
+	 *  its nominal estimate (a long page title, a long device name
+	 *  wrapping in the mobile bottom-bar nav, a larger UI-scale setting).
+	 *  These two values are just the pre-JS fallback for the very first
+	 *  paint; JS overwrites them (as inline styles on <html>, so they
+	 *  always win over these) within one frame of load.
+	 */
+	--live-topbar-height: var(--header-height);
+	--live-bottombar-height: 0px;
 
 	--shadow-pop: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.55);
 }
@@ -107,32 +122,46 @@ a {
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ SHELL LAYOUT ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 /*
-    .app  (flex row)
-      |-- .sidebar   (fixed-width nav column)
-      |-- .main      (flex column: .topbar header + .content)
+    .app  (positioning context, not a flex container -- .sidebar and
+           .topbar are both `position: fixed`, viewport-anchored so they
+           stay put through page-level overscroll)
+      |-- .sidebar   (fixed-width nav column, pinned left/full-height;
+      |               collapses to a bottom bar below the mobile breakpoint)
+      |-- .main      (normal flow, offset right by margin-left: var(--sidebar-width))
+            |-- .topbar    (fixed header, offset the same way via left: var(--sidebar-width))
+            |-- .content   (the one scrollable region; padding compensates
+                             for both fixed bars via --live-topbar-height /
+                             --live-bottombar-height, kept in sync by
+                             01-scripts/functions.js's syncFixedBarMetrics())
 */
 .app {
 	height: 100dvh;
 	width: 100%;
-	display: flex;
-	align-items: stretch;
+	position: relative;
 	background: var(--bg-1);
 	overflow: hidden;
 }
 
 /*
-    SIDEBAR
+    SIDEBAR -- `position: fixed` (viewport-anchored) rather than a
+    scrolling flex sibling, so it stays visually locked in place through
+    any page-level overscroll/rubber-band instead of drifting with it.
+    .main/.content compensate with a margin/padding equal to its size
+    (see --live-bottombar-height above).
 */
 .sidebar {
-	flex: none;
+	position: fixed;
+	top: 0;
+	left: 0;
+	bottom: 0;
 	width: var(--sidebar-width);
-	height: 100%;
 	display: flex;
 	flex-direction: column;
 	background: var(--bg-0);
 	border-right: 0.0625rem solid var(--border);
 	overflow-y: auto;
 	overflow-x: hidden;
+	z-index: 100;
 }
 
 .sidebar-logo {
@@ -260,22 +289,32 @@ a {
 }
 
 /*
-    MAIN COLUMN
+    MAIN COLUMN -- offset from the fixed .sidebar by a static margin
+    (--sidebar-width never changes size due to wrapping, so this doesn't
+    need the live-measured treatment .topbar/.sidebar's *heights* do).
 */
 .main {
-	flex: 1;
-	min-width: 0;
 	height: 100%;
+	/* width intentionally unset -- a block box with margin-left and
+	   width:auto (the default) automatically fills exactly the remaining
+	   space in its containing block; setting an explicit width:100% here
+	   would instead push .main's right edge var(--sidebar-width) past the
+	   viewport's edge, since 100% + that margin overflows the container. */
+	margin-left: var(--sidebar-width);
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
 }
 
 /*
-    TOP HEADER (page title / breadcrumb bar)
+    TOP HEADER (page title / breadcrumb bar) -- `position: fixed`, same
+    reasoning as .sidebar above.
 */
 .topbar {
-	flex: none;
+	position: fixed;
+	top: 0;
+	left: var(--sidebar-width);
+	right: 0;
 	height: var(--header-height);
 	display: flex;
 	align-items: center;
@@ -284,6 +323,7 @@ a {
 	background: var(--bg-1);
 	border-bottom: 0.0625rem solid var(--border);
 	padding: 0 1.5rem;
+	z-index: 90;
 }
 
 .topbar-title {
@@ -358,6 +398,8 @@ a {
 	overflow-y: auto;
 	overflow-x: hidden;
 	padding: var(--main-body-padding);
+	padding-top: calc(var(--live-topbar-height) + var(--main-body-padding));
+	padding-bottom: calc(var(--live-bottombar-height) + var(--main-body-padding));
 	display: flex;
 	flex-direction: column;
 	gap: var(--main-body-padding);
@@ -383,12 +425,11 @@ a {
  *  hamburger-hidden sidebar.
  */
 @media (max-width: 53.75rem) {
-	.app {
-		flex-direction: column;
-	}
-
 	.sidebar {
-		order: 2;
+		top: auto;
+		left: 0;
+		right: 0;
+		bottom: 0;
 		width: 100%;
 		height: auto;
 		min-height: var(--mobile-navbar-height);
@@ -436,8 +477,11 @@ a {
 	}
 
 	.main {
-		order: 1;
-		flex: 1;
+		margin-left: 0;
+	}
+
+	.topbar {
+		left: 0;
 	}
 }
 
@@ -1484,17 +1528,11 @@ label {
 	position: fixed;
 	left: 0;
 	right: 0;
-	bottom: 1.25rem;
+	/* clears the collapsed bottom nav bar on narrow/kiosk-touch viewports; 0 on wider ones */
+	bottom: calc(var(--live-bottombar-height) + 1.25rem);
 	height: 0;
 	z-index: 9998;
 	pointer-events: none;
-}
-
-@media (max-width: 53.75rem) {
-	.toast-container {
-		/* clears the collapsed bottom nav bar on narrow/kiosk-touch viewports */
-		bottom: calc(var(--mobile-navbar-height) + 1.25rem);
-	}
 }
 
 .toast {
@@ -1914,18 +1952,12 @@ select option {
 
 .floating-actions {
 	position: fixed;
-	bottom: calc(var(--main-body-padding) * 2);
+	bottom: calc(var(--live-bottombar-height) + var(--main-body-padding) * 2);
 	right: calc(var(--main-body-padding) * 2);
 	display: flex;
 	flex-direction: column;
 	gap: 0.75rem;
 	z-index: 999;
-}
-
-@media (max-width: 53.75rem) {
-	.floating-actions {
-		bottom: calc(var(--mobile-navbar-height) + var(--main-body-padding));
-	}
 }
 
 .fab {

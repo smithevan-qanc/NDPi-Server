@@ -1126,6 +1126,82 @@ Four more from the user after living with the redesign a bit:
    IDs (none), `node --check` on both modified files, a full brace-balance
    check on `styles.css`, and a page-route sweep (all 200s).
 
+### Fixed-position sidebar/topbar (overscroll bounce) + a live padding-sync mechanism
+
+User request: `.topbar`/`.sidebar` should be `position: fixed` so they
+stay visually locked in place through page-level overscroll/rubber-band
+on phones (even though `.content` was already the only *scrolling*
+region, iOS/Android can still bounce the whole page around fixed-height
+flex layouts) -- user explicitly named the needed follow-up too: "this
+will require a variable padding adjustment mechanism for the content of
+the page," since a fixed-position bar is taken out of normal document
+flow and no longer reserves space for itself.
+
+This is exactly the mechanism an earlier pass in this file removed
+(`syncAppPaddingToBars()`/`initAppPaddingSync()`, deleted when the shell
+was first rewritten around a flexbox `.sidebar`+`.main` layout, on the
+reasoning that a non-fixed flex sibling didn't need runtime height
+measurement) — rebuilt here for the new fixed-position bars, adapted to
+current class names/rem sizing:
+
+- **`styles.css`**: `.app` is no longer `display: flex` — it's just a
+  `position: relative` sizing/stacking context now, since its two former
+  flex children behave completely differently: `.sidebar` is `position:
+  fixed; top/left/bottom: 0` (full-height left column on desktop; the
+  existing ≤860px media query now additionally repoints it to `left:0;
+  right:0; bottom:0` — a bar docked to the bottom edge — instead of the
+  old flex `order: 2`), and `.topbar` is `position: fixed; top: 0; left:
+  var(--sidebar-width); right: 0` (`left: 0` on mobile, matching the
+  collapsed sidebar). `.main` is a normal-flow block offset by a *static*
+  `margin-left: var(--sidebar-width)` (`0` on mobile) — deliberately
+  left this one non-dynamic, since a fixed column width never grows from
+  text wrapping the way a bar's *height* can. **Caught and fixed one bug
+  before it shipped**: initially also gave `.main` an explicit `width:
+  100%`, which — combined with `margin-left` — overflowed `.main`'s
+  right edge exactly `--sidebar-width` past the viewport (100% of the
+  containing block *plus* a left margin overruns it; the fix is to leave
+  `width` unset, since a block box with `width: auto` and a margin
+  correctly auto-solves to fill just the remaining space). Two new
+  tokens, `--live-topbar-height`/`--live-bottombar-height`, feed
+  `.content`'s `padding-top`/`padding-bottom` (`:root` defaults to
+  `var(--header-height)`/`0px` as the pre-JS first-paint fallback) —
+  `.floating-actions` and `.toast-container`'s bottom offsets were also
+  switched onto `--live-bottombar-height`, which *removed* their
+  separate `@media (max-width: 860px)` overrides entirely (the token is
+  `0px` on desktop and the real measured height on mobile, so one rule
+  now covers both cases these two previously needed a media query for).
+- **`01-scripts/functions.js`**: new `syncFixedBarMetrics()` reads
+  `.topbar`/`.sidebar`'s real `offsetHeight` and writes both custom
+  properties onto `<html>` (inline style, so they always win over the
+  `:root` stylesheet fallback) — `--live-bottombar-height` is only ever
+  set from `.sidebar`'s height when `window.matchMedia('(max-width:
+  860px)')` currently matches (i.e. only while it's actually acting as a
+  bottom bar; on desktop it's a full-viewport-height left column, and
+  using that height as bottom padding would be wildly wrong), otherwise
+  `0px`. `initFixedBarMetrics()` wires this to a `ResizeObserver` on both
+  elements (only fires on genuine size changes, e.g. long text wrapping)
+  plus a `matchMedia(...).addEventListener('change', ...)` (covers
+  crossing the breakpoint on a tick where neither element's own box
+  necessarily resizes enough to trigger the observer on its own), and
+  runs immediately on script load/`DOMContentLoaded` — independent of
+  the account-loading IIFE, so layout is correct before that async work
+  resolves. No-ops via early return on the standalone auth pages
+  (sign-in/set-pin/create-account/not-found), which have no
+  `.topbar`/`.sidebar` at all.
+- **Verified**: booted the Hub, confirmed `styles.css` serves the new
+  `position: fixed` rules and both live-height tokens, confirmed
+  `functions.js` serves `syncFixedBarMetrics`/`initFixedBarMetrics`, a
+  full brace-balance check on `styles.css`, `node --check` on
+  `functions.js`, cross-checked that every `--live-*` custom property
+  name written by the JS has an exact matching consumer in the CSS (and
+  vice versa), and a page-route sweep (all 200s). **Not** verified
+  visually in an actual browser/on a real phone (no browser tooling in
+  this environment) — the box-model reasoning above (particularly the
+  `.main` width fix) should be sound but is worth a real-device check
+  before fully trusting the overscroll behavior specifically, since
+  that's the one part of this that can't be exercised outside real
+  touch/rubber-band scrolling.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via
