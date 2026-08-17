@@ -1,0 +1,26 @@
+[Unit]
+Description=Virtual X11 display for AirPlay-to-NDI bridge
+Documentation=file:///home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/BUILD_AND_SETUP.md
+After=network.target
+
+[Service]
+Type=simple
+User=ndpi-server
+Group=ndpi-server
+
+# :1 is deliberately a different display number than the Hub's own kiosk
+# session (DISPLAY=:0, see ../kiosk.service) so uxplay's fullscreen video
+# sink never competes with the dashboard for the same screen. This display
+# has no monitor attached to it -- it exists purely so uxplay has an X11
+# surface to render to and this repo's uxplay_ndi_sender has something to
+# capture via ximagesrc.
+#
+# Resolution must match --width/--height passed to uxplay_ndi_sender in
+# uxplay-ndi-sender.service (both default to 1920x1080).
+ExecStart=/usr/bin/Xvfb :1 -screen 0 1920x1080x24 -nolisten tcp
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

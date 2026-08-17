@@ -1,0 +1,39 @@
+[Unit]
+Description=uxplay AirPlay receiver (renders to virtual display :1 for NDI capture)
+Documentation=file:///home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/BUILD_AND_SETUP.md
+After=uxplay-xvfb.service uxplay-audio-setup.service network-online.target
+Wants=network-online.target
+Requires=uxplay-xvfb.service uxplay-audio-setup.service
+BindsTo=uxplay-xvfb.service
+
+[Service]
+Type=simple
+User=ndpi-server
+Group=ndpi-server
+Environment="DISPLAY=:1"
+
+# -fs           : fullscreen on :1, so the video sink fills the entire
+#                 virtual display and uxplay_ndi_sender can capture the
+#                 whole screen with no window-hunting logic needed.
+# -vs ximagesink: explicit X11 videosink (rather than autovideosink) so the
+#                 rendered output is always something ximagesrc can read.
+# -as autoaudiosink : default GStreamer audiosink -> pulsesink on Linux ->
+#                 routed to the null-sink uxplay-audio-setup.service just
+#                 made the default Pulse/PipeWire sink.
+# -nc           : don't force-close the video window when a client
+#                 disconnects, so reconnecting doesn't tear down/recreate
+#                 the render surface uxplay_ndi_sender is capturing.
+#
+# NOTE: verify these flags against your installed uxplay version with
+# `uxplay -h` -- CLI options have changed across releases.
+ExecStart=/usr/bin/uxplay -n "NDPi AirPlay" -fs -vs ximagesink -as autoaudiosink -nc
+
+Restart=on-failure
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=uxplay-airplay
+
+[Install]
+WantedBy=multi-user.target

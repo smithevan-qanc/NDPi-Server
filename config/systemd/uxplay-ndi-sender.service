@@ -1,25 +1,29 @@
 [Unit]
-Description=UXPlay to NDI Sender - AirPlay to NDI Stream Converter
-Documentation=https://github.com/yourusername/NDPi_Monitor
-After=network-online.target
+Description=AirPlay to NDI Bridge - captures virtual display :1 (+ audio) and re-broadcasts as NDI
+Documentation=file:///home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/BUILD_AND_SETUP.md
+After=uxplay-xvfb.service uxplay-audio-setup.service uxplay-airplay.service network-online.target
 Wants=network-online.target
+# Only Xvfb is a hard dependency -- this keeps broadcasting (a black frame)
+# even if uxplay itself isn't currently running/mirroring anything.
+Requires=uxplay-xvfb.service
+BindsTo=uxplay-xvfb.service
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/home/pi/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6
+User=ndpi-server
+Group=ndpi-server
+WorkingDirectory=/home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6
 
-# Set DISPLAY if using X11
-Environment="DISPLAY=:0"
-Environment="XAUTHORITY=/home/pi/.Xauthority"
+# Edit --width/--height here to match uxplay-xvfb.service's Xvfb screen size
+# if you change it. --audio-device must match the sink_name used by
+# uxplay-audio-setup.sh (default "uxplay_ndi_audio" -> ".monitor").
+ExecStart=/home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6/uxplay_ndi_sender \
+    --name "NDPi AirPlay" --display :1 --width 1920 --height 1080 --fps 30 \
+    --audio-device uxplay_ndi_audio.monitor
 
-# Main executable
-ExecStart=/home/pi/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6/uxplay_ndi_sender --name "uxplay-airplay" --bitrate 5000 --fps 30
-
-# Auto-restart on failure
+# Auto-restart on failure (crash, lost X connection, pipeline error, etc.)
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 
 # Memory and CPU limits (optional, for Raspberry Pi resource protection)
 MemoryLimit=512M

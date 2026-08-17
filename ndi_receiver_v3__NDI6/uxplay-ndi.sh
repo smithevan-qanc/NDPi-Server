@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# UXPlay NDI Sender - CLI Management Script
-# Usage: ./uxplay-ndi.sh {start|stop|restart|status|build}
+# AirPlay to NDI Bridge - CLI Management Script
+# Manages the 3-service stack: uxplay-xvfb -> uxplay-audio-setup ->
+# uxplay-airplay -> uxplay-ndi-sender.
+#
+# Usage: ./uxplay-ndi.sh {build|start|stop|restart|status|logs|install-service}
 
 set -e
 
@@ -9,8 +12,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_NAME="uxplay_ndi_sender"
 APP_PATH="$SCRIPT_DIR/$APP_NAME"
 LOG_FILE="/var/log/uxplay-ndi.log"
-SERVICE_NAME="uxplay-ndi-sender"
 PID_FILE="/tmp/uxplay-ndi.pid"
+
+# Services in dependency order (start order; stop uses this reversed).
+SERVICES=(uxplay-xvfb uxplay-audio-setup uxplay-airplay uxplay-ndi-sender)
 
 # Colors for output
 RED='\033[0;31m'
@@ -30,18 +35,21 @@ print_warning() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
+services_installed() {
+    systemctl list-unit-files 2>/dev/null | grep -q "uxplay-ndi-sender.service"
+}
+
 # Build the application
 build() {
-    print_info "Building UXPlay NDI Sender..."
-    
+    print_info "Building AirPlay to NDI Bridge..."
+
     cd "$SCRIPT_DIR"
-    
+
     if ! command -v pkg-config &> /dev/null; then
         print_error "pkg-config not found. Install with: sudo apt install pkg-config"
         return 1
     fi
-    
-    # Check for required packages
+
     for pkg in gstreamer-1.0 gstreamer-app-1.0; do
         if ! pkg-config --exists "$pkg"; then
             print_error "Missing package: $pkg"
@@ -49,17 +57,17 @@ build() {
             return 1
         fi
     done
-    
-    # Compile
+
     echo "Compiling with:"
-    echo "  g++ -o $APP_NAME $APP_NAME.cpp $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-app-1.0) -I\"include\" -ldl -std=c++11"
-    
+    echo "  g++ -o $APP_NAME $APP_NAME.cpp $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-app-1.0) -I\"include\" -ldl -pthread -std=c++11"
+
     g++ -o "$APP_NAME" "$APP_NAME.cpp" \
         $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-app-1.0) \
         -I"include" \
         -ldl \
+        -pthread \
         -std=c++11
-    
+
     if [ -f "$APP_PATH" ]; then
         chmod +x "$APP_PATH"
         print_info "Build successful: $APP_PATH"
@@ -70,47 +78,50 @@ build() {
     fi
 }
 
-# Start the service
+# Start the full stack
 start() {
-    print_info "Starting UXPlay NDI Sender..."
-    
+    if services_installed; then
+        print_info "Starting AirPlay to NDI Bridge (systemd)..."
+        for svc in "${SERVICES[@]}"; do
+            sudo systemctl start "$svc"
+            print_info "  started $svc"
+        done
+        return 0
+    fi
+
+    print_warning "systemd services not installed -- run './uxplay-ndi.sh install-service' for the full stack (Xvfb + audio + uxplay + NDI)."
+    print_warning "Falling back to running $APP_NAME directly. This assumes DISPLAY=:1 already has"
+    print_warning "an X server running and, for audio, a PulseAudio null-sink already set up manually."
+
     if [ ! -f "$APP_PATH" ]; then
         print_error "Application not found: $APP_PATH"
         print_info "Run './uxplay-ndi.sh build' first"
         return 1
     fi
-    
-    # Try systemd service first
-    if systemctl list-units --all | grep -q "$SERVICE_NAME"; then
-        sudo systemctl start "$SERVICE_NAME"
-        print_info "Service started via systemd"
-        return 0
-    fi
-    
-    # Fallback: run directly
-    nohup "$APP_PATH" --name "uxplay-airplay" --bitrate 5000 --fps 30 >> "$LOG_FILE" 2>&1 &
+
+    nohup "$APP_PATH" --name "uxplay-airplay" --display :1 --width 1920 --height 1080 --fps 30 >> "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
-    print_info "Service started directly (PID: $(cat $PID_FILE))"
+    print_info "Started directly (PID: $(cat "$PID_FILE"))"
 }
 
-# Stop the service
+# Stop the full stack
 stop() {
-    print_info "Stopping UXPlay NDI Sender..."
-    
-    # Try systemd service first
-    if systemctl list-units --all | grep -q "$SERVICE_NAME"; then
-        sudo systemctl stop "$SERVICE_NAME"
-        print_info "Service stopped via systemd"
+    if services_installed; then
+        print_info "Stopping AirPlay to NDI Bridge (systemd)..."
+        for (( idx=${#SERVICES[@]}-1 ; idx>=0 ; idx-- )); do
+            svc="${SERVICES[$idx]}"
+            sudo systemctl stop "$svc" || true
+            print_info "  stopped $svc"
+        done
         return 0
     fi
-    
-    # Fallback: kill directly
+
     if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
         if kill -0 "$PID" 2>/dev/null; then
             kill "$PID"
             rm "$PID_FILE"
-            print_info "Service stopped (PID: $PID)"
+            print_info "Stopped (PID: $PID)"
         else
             print_warning "Process not running (stale PID file)"
             rm "$PID_FILE"
@@ -120,71 +131,78 @@ stop() {
     fi
 }
 
-# Restart the service
+# Restart the full stack
 restart() {
     stop
     sleep 2
     start
 }
 
-# Check service status
+# Check status of every service in the stack
 status() {
-    # Try systemd service first
-    if systemctl list-units --all | grep -q "$SERVICE_NAME"; then
-        print_info "Service status (systemd):"
-        sudo systemctl status "$SERVICE_NAME" || true
+    if services_installed; then
+        for svc in "${SERVICES[@]}"; do
+            print_info "--- $svc ---"
+            sudo systemctl status "$svc" --no-pager || true
+        done
         return 0
     fi
-    
-    # Fallback: check PID file
+
     if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
         if kill -0 "$PID" 2>/dev/null; then
-            print_info "Service running (PID: $PID)"
+            print_info "Running (PID: $PID)"
             return 0
         else
-            print_error "Service not running (stale PID file)"
+            print_error "Not running (stale PID file)"
             return 1
         fi
     else
-        print_error "Service not running"
+        print_error "Not running"
         return 1
     fi
 }
 
-# Install systemd service
+# Install all 4 systemd service files and enable them
 install_service() {
-    print_info "Installing systemd service..."
-    
-    SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
-    CONFIG_FILE="$SCRIPT_DIR/../config/systemd/$SERVICE_NAME.service"
-    
-    if [ ! -f "$CONFIG_FILE" ]; then
-        print_error "Service file not found: $CONFIG_FILE"
-        return 1
-    fi
-    
-    sudo cp "$CONFIG_FILE" "$SERVICE_FILE"
+    print_info "Installing systemd services..."
+
+    CONFIG_DIR="$SCRIPT_DIR/../config/systemd"
+
+    for svc in "${SERVICES[@]}"; do
+        CONFIG_FILE="$CONFIG_DIR/$svc.service"
+        if [ ! -f "$CONFIG_FILE" ]; then
+            print_error "Service file not found: $CONFIG_FILE"
+            return 1
+        fi
+        sudo cp "$CONFIG_FILE" "/etc/systemd/system/$svc.service"
+    done
+
     sudo systemctl daemon-reload
-    sudo systemctl enable "$SERVICE_NAME"
-    print_info "Service installed and enabled"
+
+    for svc in "${SERVICES[@]}"; do
+        sudo systemctl enable "$svc"
+    done
+
+    print_info "All 4 services installed and enabled: ${SERVICES[*]}"
+    print_info "Start with: ./uxplay-ndi.sh start"
 }
 
 # Show help
 show_help() {
     cat << EOF
-UXPlay NDI Sender - CLI Management Script
+AirPlay to NDI Bridge - CLI Management Script
 
 Usage: $0 {command} [options]
 
 Commands:
-  build              Compile the application
-  start              Start the service
-  stop               Stop the service
-  restart            Restart the service
-  status             Check service status
-  install-service    Install systemd service (requires sudo)
-  logs               Show recent logs
+  build              Compile uxplay_ndi_sender
+  start              Start the full stack (Xvfb, audio setup, uxplay, NDI sender)
+  stop               Stop the full stack
+  restart            Restart the full stack
+  status             Check status of every service in the stack
+  install-service    Install and enable all 4 systemd services (requires sudo)
+  logs               Show recent logs from every service
   help               Show this help message
 
 Examples:
@@ -200,17 +218,21 @@ Examples:
   # Check logs:
   $0 logs
 
-For more information, see: NDI_NDI_UXPLAY_INTEGRATION.md
+For more information, see: BUILD_AND_SETUP.md
 EOF
 }
 
-# Show logs
+# Show logs from every service
 show_logs() {
-    print_info "Recent logs from UXPlay NDI Sender:"
-    
-    if systemctl list-units --all | grep -q "$SERVICE_NAME"; then
-        sudo journalctl -u "$SERVICE_NAME" -n 50 --no-pager
-    elif [ -f "$LOG_FILE" ]; then
+    if services_installed; then
+        for svc in "${SERVICES[@]}"; do
+            print_info "--- $svc (last 30 lines) ---"
+            sudo journalctl -u "$svc" -n 30 --no-pager
+        done
+        return 0
+    fi
+
+    if [ -f "$LOG_FILE" ]; then
         tail -50 "$LOG_FILE"
     else
         print_warning "No logs found"

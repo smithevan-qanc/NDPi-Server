@@ -1,0 +1,22 @@
+[Unit]
+Description=PulseAudio null-sink setup for AirPlay-to-NDI audio capture
+Documentation=file:///home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/BUILD_AND_SETUP.md
+After=sound.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=ndpi-server
+Group=ndpi-server
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+WorkingDirectory=/home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6
+ExecStart=/home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6/uxplay-audio-setup.sh
+
+# The null sink lives in the Pulse/PipeWire server's own process, not this
+# script -- if uxplay-airplay.service or pulseaudio itself gets restarted,
+# re-run this on demand (systemctl restart uxplay-audio-setup) rather than
+# relying on it firing again automatically.
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

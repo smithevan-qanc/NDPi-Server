@@ -2041,6 +2041,82 @@ above, which affects all of them equally): `account-settings`,
 `devices`, `groups`, `group`, `device`, `device-discovery`, `settings`,
 `console`, `not-found`.
 
+### AirPlay-to-NDI bridge (`ndi_receiver_v3__NDI6/uxplay_ndi_sender.cpp`) — fixed
+
+Separate, self-contained feature: uxplay runs an AirPlay receiver on the
+Hub; the goal is to re-broadcast whatever gets AirPlay-mirrored to it as a
+discoverable NDI source. This existed in the repo already but had never
+worked. Root cause: it encoded the capture to H.264 and handed the
+compressed bytes to `NDIlib_send_send_video_v2` with `FourCC` cast to
+`NDI_LIB_FOURCC('H','2','6','4')` — that value does not exist in
+`NDIlib_FourCC_video_type_e` (confirmed by reading
+`include/Processing.NDI.structs.h`; the enum only lists uncompressed pixel
+formats, since NDI does its own compression internally). Every frame it
+ever sent was structurally invalid — this could never have worked
+regardless of bitrate/FPS tuning, on any hardware.
+
+Rebuilt as **4 independent, independently-restarting systemd services**
+instead of one process that forks/monitors `uxplay` and hunts for its X11
+window via `xdotool`: `uxplay-xvfb` (a virtual `:1` display, deliberately
+separate from the Hub's real kiosk display on `:0` — this Hub runs its own
+kiosk chromium dashboard full-screen there per `config/kiosk.service`, so
+uxplay can't share it), `uxplay-audio-setup` (oneshot, creates+defaults a
+PulseAudio/PipeWire-pulse null-sink so uxplay's audio output is
+capturable), `uxplay-airplay` (uxplay itself, `-fs` fullscreen on `:1`),
+and `uxplay-ndi-sender` (the rewritten bridge). Capturing the *whole*
+virtual display instead of hunting for uxplay's specific window removed
+the need for `xdotool`/pipeline-teardown-and-rebuild entirely — the bridge
+now just always captures `:1` (black when nothing's mirroring) and
+restarts independently of uxplay's own lifecycle.
+
+`uxplay_ndi_sender.cpp` now sends raw UYVY video (real, documented NDI
+FourCC) instead of H.264, plus NDI audio — added per explicit user request,
+not present in v1 at all. NDI's audio API only accepts planar float32
+(`FLTP` is the only member of `NDIlib_FourCC_audio_type_e`, confirmed from
+the same header), so the GStreamer audio branch requests
+`format=F32LE,layout=non-interleaved` specifically to match, with
+`channel_stride_in_bytes` computed as one channel's sample count — an easy
+place to silently get wrong (interleaved vs. planar) that would have
+produced the same class of "looks like it's sending something, receiver
+can't make sense of it" failure as the original FourCC bug. Also added: a
+GStreamer bus watchdog thread (the original had no bus error handling at
+all, so a pipeline ERROR/EOS would go unnoticed and the process would just
+sit there sending nothing) that exits the process on pipeline failure and
+lets systemd's `Restart=on-failure` recover it; a video-only fallback if
+the audio branch fails to parse/start (broken Pulse setup shouldn't take
+down video monitoring); and a startup retry loop (Xvfb is a separate
+service and may not be up yet on a cold boot race). Confirmed
+`send_send_video_v2`/`send_send_audio_v3` (the non-`_async` variants) are
+synchronous per the SDK header's own doc comment on the async variant, so
+freeing frame memory immediately after the send call — which both this
+file and the untouched sibling `window_to_ndi.cpp` already did — is
+correct, not a bug.
+
+Fixed a real shutdown race introduced while adding the bus watchdog: the
+watchdog thread blocks indefinitely inside `gst_bus_timed_pop_filtered` on
+the pipeline's bus; naively tearing down (unreffing) that bus/pipeline from
+the main thread while the watchdog might still be parked in that call would
+race. Fixed with a `gst_bus_set_flushing(bus, TRUE)` call (unblocks the
+pop, returning NULL) followed by joining the watchdog thread, and only
+*then* tearing down the pipeline — done in that order in `main()`.
+
+**Not tested against real hardware** — no `uxplay`/GStreamer/NDI toolchain
+on this macOS dev machine (consistent with every other ARM64-only piece of
+this repo). Verified instead by: reading the actual NDI SDK headers in
+this repo to confirm every FourCC/struct-field usage against their real
+definitions (not assumed from memory), brace/paren balance check on the
+`.cpp`, `bash -n` on both shell scripts, and a structural read-through of
+all 4 systemd unit files (backslash line-continuation on
+`uxplay-ndi-sender.service`'s multi-line `ExecStart=` is valid systemd
+syntax, not a typo). The exact `uxplay` CLI flags in
+`uxplay-airplay.service` (`-fs -vs ximagesink -as autoaudiosink -nc`) are
+noted in that file as needing verification against `uxplay -h` on the
+actual installed version, since flags have changed across uxplay releases
+and this couldn't be checked locally. The systemd units also hardcode
+`User=ndpi-server` and UID `1000` (for `XDG_RUNTIME_DIR`) — both flagged in
+`BUILD_AND_SETUP.md` as needing to match the real deploy account before
+installing.
+
 ## Priority order for remaining work
 
 1. Fix routing bug (#1 above) — nothing else matters until navigation works.

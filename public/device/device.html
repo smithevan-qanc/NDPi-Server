@@ -4,8 +4,19 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" href="/styles.css">
-	<script>(function(){var c=localStorage.getItem('ndpi_theme_color');if(c){document.documentElement.style.setProperty('--accent',c);}})();</script>
-	<script>(function(){if(localStorage.getItem('ndpi_sidebar_collapsed')==='true'){document.documentElement.classList.add('sidebar-collapsed');}})();</script>
+	<script>
+		(function() {
+			var c = localStorage.getItem('ndpi_theme_color');
+			if (c)
+			{ document.documentElement.style.setProperty('--accent',c); }
+		})();
+	</script>
+	<script>
+		(function() {
+			if(localStorage.getItem('ndpi_sidebar_collapsed')==='true')
+			{ document.documentElement.classList.add('sidebar-collapsed'); }
+		})();
+	</script>
 	<script src="/scripts/auth.js"></script>
 	<script src="/scripts/ws-client.js"></script>
 	<script src="/scripts/modal.js"></script>
@@ -50,21 +61,20 @@
 				<div class="topbar-spacer"></div>
 			</div>
 			<div class="content">
-
-		<div class="card" style="max-width:75rem;margin:0 auto;width:100%;">
-			<div class="card-content">
-				<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
-					<div style="display:flex;align-items:center;gap:0.75rem;">
-						<h2 id="deviceName" style="font-size:1.7rem;margin:0;">Loading...</h2>
-						<div id="changeName"></div>
+				<div class="card">
+					<div class="card-content">
+						<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
+							<div style="display:flex;align-items:center;gap:0.75rem;">
+								<h2 id="deviceName" style="font-size:1.7rem;margin:0;">Loading...</h2>
+								<div id="changeName"></div>
+							</div>
+							<div id="systemStatsHeader" class="stats-page-header"></div>
+						</div>
+						<div id="deviceContent">
+							<p style="color: #888; padding: 1.25rem;">Loading device information...</p>
+						</div>
 					</div>
-					<div id="systemStatsHeader" class="stats-page-header"></div>
 				</div>
-				<div id="deviceContent">
-					<p style="color: #888; padding: 1.25rem;">Loading device information...</p>
-				</div>
-			</div>
-		</div>
 			</div>
 		</div>
 	</div>
