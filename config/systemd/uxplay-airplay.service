@@ -1,6 +1,6 @@
 [Unit]
 Description=uxplay AirPlay receiver (renders to virtual display :1 for NDI capture)
-Documentation=file:///home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/BUILD_AND_SETUP.md
+Documentation=file:///home/ndpi-server/ndpi/BUILD_AND_SETUP.md
 After=uxplay-xvfb.service uxplay-audio-setup.service network-online.target
 Wants=network-online.target
 Requires=uxplay-xvfb.service uxplay-audio-setup.service
@@ -10,6 +10,9 @@ BindsTo=uxplay-xvfb.service
 Type=simple
 User=ndpi-server
 Group=ndpi-server
+EnvironmentFile=/etc/ndpi/.env
+# Overrides the shared .env's DISPLAY=:0 (the Hub's own kiosk display) --
+# must come after EnvironmentFile= above so this wins.
 Environment="DISPLAY=:1"
 
 # -fs           : fullscreen on :1, so the video sink fills the entire

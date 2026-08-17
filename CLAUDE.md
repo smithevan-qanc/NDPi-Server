@@ -2117,6 +2117,116 @@ and this couldn't be checked locally. The systemd units also hardcode
 `BUILD_AND_SETUP.md` as needing to match the real deploy account before
 installing.
 
+**Follow-up fix, found during real deployment**: the 4 systemd unit files
+above hardcoded the repo checkout path as `/home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0`
+— guessed from this repo's own directory name, without checking how it's
+actually deployed. Reading `git-hub-deploy-server` (the real deploy script)
+showed the actual clone target is `~/ndpi` (`REMOTE_DIR_PGM="${REMOTE_DIR_HOME}/ndpi"`,
+populated via `git clone` into `REMOTE_DIR_TMP` then `rsync`'d into
+`REMOTE_DIR_PGM`) — so every `WorkingDirectory=`/`ExecStart=`/`Documentation=`
+path in the 4 unit files, plus both docs, was wrong and would have made
+`systemctl start` fail with a path-not-found even after a successful
+`install-service`. Fixed by replacing every occurrence with `/home/ndpi-server/ndpi`.
+**Lesson: when a repo has its own deploy tooling, read it before writing
+paths into anything meant to run on the deployed device — don't infer the
+deploy layout from the local dev checkout's directory name.**
+
+**Also wired into `git-hub-deploy-server` itself** (user request — "the
+point of the deploy script is so I don't need to remember to do all these
+steps"): new `install_uxplay_ndi_bridge()` step, called from
+`deploy_install()` right after `create_gui_service_file`, plus a standalone
+`--install-uxplay-ndi` flag for re-running just this step on an
+already-deployed device. It SSHes in and runs `uxplay-ndi.sh build` then
+`install-service` then `start` directly — deliberately *not*
+reimplementing that logic as a second copy in the deploy script (the
+existing `create_node_service_file`/`create_gui_service_file` do generate
+unit files inline via heredoc, but those need a script-level variable
+(`PORT_API`) interpolated; the uxplay/NDI units don't, so reusing the
+already-reviewed static files + script avoids two sources of truth for the
+same content). The one genuinely device-specific value, the UID baked into
+`uxplay-audio-setup.service`'s `XDG_RUNTIME_DIR`, is patched automatically
+via a remote `id -u` + `sed`, so the manual "check `id -u`, hand-edit the
+file" step from earlier in this session is no longer needed for a device
+deployed this way. Matches `config_eeprom`'s existing non-fatal-on-failure
+pattern (this is an optional add-on feature; a broken build shouldn't
+block the rest of the deploy). Also added the 3 new apt packages
+(`xvfb`, `gstreamer1.0-pulseaudio`, `pulseaudio-utils`) to
+`update_install_system_dependencies()`'s existing install list.
+**Not tested against a real device** — same standing limitation as the
+rest of this feature; verified with `bash -n` only.
+
+**Follow-up: locked NDI library loading to the bundled copy only** (user
+request — worried the deploy script's `/opt/NDI SDK for Linux` variables
+implied a dependency on a system-wide NDI install). `loadLibrary()`
+previously tried a relative path (`lib/<arch>/libndi.so.6`, correct only
+because `WorkingDirectory=` happens to be set right in the systemd unit),
+then `/opt/NDI SDK for Linux/...` (a path `git-hub-deploy-server` never
+actually populates — its `download_ndi_sdk` step is commented out and
+never called), then generic `/usr/local/lib`/`/usr/lib`/bare `libndi.so.6`.
+Rewrote it to resolve strictly relative to the running executable's own
+path (via `readlink("/proc/self/exe", ...)`, correct regardless of
+whatever the working directory happens to be) and removed every other
+fallback entirely — if the bundled file for the running architecture isn't
+there, it now fails immediately and names the exact path(s) it expected,
+instead of silently trying to load a possibly-different NDI SDK version
+from somewhere else on the system. `window_to_ndi.cpp` and
+`ndi_receiver_v4.cpp` (pre-existing, unmodified this session) still use
+their own older loading patterns — left as-is since they weren't part of
+what was asked to be fixed here.
+
+**Follow-up: global `.env` file for every Hub systemd service** (user
+request). New `config/env/` folder, matching the existing architecture of
+every other `config/*` subfolder exactly (a `00path` file whose 2 lines are
+the source filename and destination directory, consumed by a `config_*()`
+function in `git-hub-deploy-server`) — `config/env/00path` points at
+`.env` → `/etc/ndpi`, and `config/env/.env` holds the actual default
+key/value pairs. Both new files are picked up by this repo's existing
+`*00path` and `.env` `.gitignore` rules automatically (confirmed via
+`git ls-files` that every pre-existing `00path` and `git-hub-deploy-server`
+itself are *already* untracked by design, not accidentally — this repo
+deliberately keeps its real deploy tooling and per-folder path manifests
+out of git; the new files match that convention with zero `.gitignore`
+changes needed).
+
+New `config_env()` in `git-hub-deploy-server`, added as sub-step `(6).07`
+inside `relocate_config_files()` (i.e. STEP 5 — runs before STEP 6-8.5, so
+`/etc/ndpi/.env` always exists before any service that reads it is
+created/started), mirrors `config_unclutter()`/`config_autologin()`'s
+existing pattern exactly (absolute destination, `sudo mkdir -p` if
+missing, `sudo rsync`). Redeploys overwrite `/etc/ndpi/.env` from the repo
+copy every time, same as every other file under `config/` already does —
+not a special case.
+
+`create_node_service_file()`/`create_gui_service_file()` (generate
+`ndpi.service`/`ndpi-gui.service`) had their individual `Environment=`
+lines (`PATH`, `LD_LIBRARY_PATH`, `DISPLAY`, `TMP_NDPI_PATH`,
+`DATA_NDPI_PATH`, `PORT_API`, `XAUTHORITY`) replaced with a single
+`EnvironmentFile=/etc/ndpi/.env` line (values preserved verbatim in the new
+`.env`, including activating `XAUTHORITY`, which node.service had defined
+but left commented-out/unused before this change). All 4
+`config/systemd/uxplay-*.service` files got the same
+`EnvironmentFile=/etc/ndpi/.env` line added. Two things needed care, not
+just a mechanical add:
+1. systemd applies `Environment=`/`EnvironmentFile=` directives in file
+   order, with same-key duplicates resolved by whichever comes *last* — so
+   `EnvironmentFile=` had to be placed *before* `uxplay-airplay.service`'s
+   own `Environment="DISPLAY=:1"` line, not after, or the shared file's
+   `DISPLAY=:0` default (the Hub's own kiosk display) would have
+   silently won and broken the AirPlay bridge's virtual display. Verified
+   this ordering explicitly in all 4 files after editing.
+2. `uxplay-audio-setup.service`'s previously hardcoded
+   `Environment="XDG_RUNTIME_DIR=/run/user/1000"` (added earlier this
+   session, patched via a per-unit-file `sed` in `install_uxplay_ndi_bridge`
+   when the deployed user's UID wasn't 1000) is now just another key in the
+   shared `.env`, and `install_uxplay_ndi_bridge`'s UID patch was
+   retargeted from the unit file to `/etc/ndpi/.env` — one patch site
+   instead of one that would've needed to grow per-service if any other
+   unit ever needed the same UID-dependent value.
+
+**Not tested against a real device** — same standing limitation as the
+rest of this feature; verified with `bash -n` on the deploy script and a
+structural read-through of all 6 affected unit-file-generation sites.
+
 ## Priority order for remaining work
 
 1. Fix routing bug (#1 above) — nothing else matters until navigation works.

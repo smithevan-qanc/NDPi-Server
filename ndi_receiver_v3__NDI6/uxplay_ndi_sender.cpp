@@ -34,7 +34,11 @@
  * Dependencies:
  *    - GStreamer 1.0 + gstreamer1.0-plugins-good (ximagesrc) +
  *      gstreamer1.0-pulseaudio (pulsesrc), unless run with --no-audio
- *    - NDI SDK v6: lib/<arch>/libndi.so.6 (bundled in this repo) or system-installed
+ *    - NDI SDK v6: lib/<arch>/libndi.so.6, bundled in this repo next to this
+ *      binary. Loaded ONLY from there (resolved relative to this
+ *      executable's own path, not the working directory) -- never from a
+ *      system-wide install, so there's no ambiguity about which SDK build
+ *      this binary is actually running against.
  *    - An X11 display to capture (see uxplay-xvfb.service) and, for audio,
  *      a PulseAudio/PipeWire-pulse null-sink named to match --audio-device
  *      (see uxplay-audio-setup.sh)
@@ -57,6 +61,21 @@
 // (Same dlopen/dlsym-by-name pattern as ndi_receiver_v4.cpp in this
 // directory, extended with the Send-side functions this tool needs.)
 
+// Directory this executable was launched from, resolved via /proc/self/exe
+// rather than getcwd() -- so library resolution below is correct regardless
+// of the caller's current working directory (systemd's WorkingDirectory=,
+// a manual run from an arbitrary shell cwd, etc. all resolve the same way).
+static std::string getExecutableDir() {
+    char buf[4096];
+    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (len <= 0) return std::string();
+    buf[len] = '\0';
+    std::string path(buf);
+    size_t slash = path.find_last_of('/');
+    if (slash == std::string::npos) return std::string();
+    return path.substr(0, slash);
+}
+
 struct NDILib {
     void* handle = nullptr;
 
@@ -69,27 +88,43 @@ struct NDILib {
     void (*send_send_video_v2)(NDIlib_send_instance_t p_instance, const NDIlib_video_frame_v2_t* p_video_data) = nullptr;
     void (*send_send_audio_v3)(NDIlib_send_instance_t p_instance, const NDIlib_audio_frame_v3_t* p_audio_data) = nullptr;
 
+    // Loads ONLY the NDI library bundled in this project
+    // (ndi_receiver_v3__NDI6/lib/<arch>/libndi.so.6), resolved relative to
+    // this executable's own directory. Deliberately does not fall back to
+    // /opt/NDI SDK for Linux or any other system-wide install: that path is
+    // not populated by this repo's actual deploy flow (git-hub-deploy-server's
+    // download_ndi_sdk step is unused/commented out), and silently falling
+    // through to whatever NDI build happens to be on the system would risk
+    // loading a different SDK version than the one this binary was built
+    // and tested against. If the bundled library is missing, fail loudly
+    // and say exactly which path was expected, rather than guessing.
     bool loadLibrary() {
-        const char* lib_paths[] = {
-            "lib/aarch64-rpi4-linux-gnueabi/libndi.so.6",
-            "lib/arm-rpi4-linux-gnueabihf/libndi.so.6",
-            "/opt/NDI SDK for Linux/lib/aarch64-rpi4-linux-gnueabi/libndi.so.6",
-            "/usr/local/lib/libndi.so.6",
-            "/usr/lib/libndi.so.6",
-            "libndi.so.6",
+        std::string exe_dir = getExecutableDir();
+        if (exe_dir.empty()) {
+            std::cerr << "[NDI] ERROR: could not resolve this executable's own directory via /proc/self/exe" << std::endl;
+            return false;
+        }
+
+        const char* arches[] = {
+            "aarch64-rpi4-linux-gnueabi", // 64-bit, Raspberry Pi 4/5
+            "arm-rpi4-linux-gnueabihf",   // 32-bit, Raspberry Pi 4
             nullptr
         };
 
-        for (int i = 0; lib_paths[i] != nullptr; i++) {
-            handle = dlopen(lib_paths[i], RTLD_LAZY | RTLD_LOCAL);
+        std::string tried;
+        for (const char** arch = arches; *arch != nullptr; ++arch) {
+            std::string path = exe_dir + "/lib/" + *arch + "/libndi.so.6";
+            tried += "  " + path + "\n";
+            handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
             if (handle) {
-                std::cout << "[NDI] Library loaded: " << lib_paths[i] << std::endl;
+                std::cout << "[NDI] Library loaded: " << path << std::endl;
                 break;
             }
         }
 
         if (!handle) {
-            std::cerr << "[NDI] ERROR: Failed to load NDI library: " << dlerror() << std::endl;
+            std::cerr << "[NDI] ERROR: Failed to load the bundled NDI library. Tried:\n" << tried
+                      << "[NDI] (" << dlerror() << ")" << std::endl;
             return false;
         }
 

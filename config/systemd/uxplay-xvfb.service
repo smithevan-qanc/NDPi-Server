@@ -1,12 +1,13 @@
 [Unit]
 Description=Virtual X11 display for AirPlay-to-NDI bridge
-Documentation=file:///home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/BUILD_AND_SETUP.md
+Documentation=file:///home/ndpi-server/ndpi/BUILD_AND_SETUP.md
 After=network.target
 
 [Service]
 Type=simple
 User=ndpi-server
 Group=ndpi-server
+EnvironmentFile=/etc/ndpi/.env
 
 # :1 is deliberately a different display number than the Hub's own kiosk
 # session (DISPLAY=:0, see ../kiosk.service) so uxplay's fullscreen video

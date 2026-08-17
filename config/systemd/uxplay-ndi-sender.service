@@ -1,6 +1,6 @@
 [Unit]
 Description=AirPlay to NDI Bridge - captures virtual display :1 (+ audio) and re-broadcasts as NDI
-Documentation=file:///home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/BUILD_AND_SETUP.md
+Documentation=file:///home/ndpi-server/ndpi/BUILD_AND_SETUP.md
 After=uxplay-xvfb.service uxplay-audio-setup.service uxplay-airplay.service network-online.target
 Wants=network-online.target
 # Only Xvfb is a hard dependency -- this keeps broadcasting (a black frame)
@@ -12,12 +12,13 @@ BindsTo=uxplay-xvfb.service
 Type=simple
 User=ndpi-server
 Group=ndpi-server
-WorkingDirectory=/home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6
+EnvironmentFile=/etc/ndpi/.env
+WorkingDirectory=/home/ndpi-server/ndpi/ndi_receiver_v3__NDI6
 
 # Edit --width/--height here to match uxplay-xvfb.service's Xvfb screen size
 # if you change it. --audio-device must match the sink_name used by
 # uxplay-audio-setup.sh (default "uxplay_ndi_audio" -> ".monitor").
-ExecStart=/home/ndpi-server/NDPi_Monitor__v3/Server__v3_1_0/ndi_receiver_v3__NDI6/uxplay_ndi_sender \
+ExecStart=/home/ndpi-server/ndpi/ndi_receiver_v3__NDI6/uxplay_ndi_sender \
     --name "NDPi AirPlay" --display :1 --width 1920 --height 1080 --fps 30 \
     --audio-device uxplay_ndi_audio.monitor
 

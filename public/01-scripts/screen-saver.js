@@ -322,22 +322,40 @@
 		startScreenSaverWait();
 	}
 
+	// isInDisabledSchedule() is otherwise only ever evaluated at the moment
+	// the inactivity timer fires (deciding whether to *start* the screen
+	// saver) -- there was no path that re-checked it while already active,
+	// so a blackout period beginning mid-session never dismissed it; only
+	// real user input (_handleUserActivity) did. This polls once a schedule
+	// boundary could plausibly have been crossed (schedules are
+	// minute-granularity) and force-dismisses if one now applies, so the
+	// GUI is already awake and ready the moment a blackout period starts
+	// rather than waiting for someone to wake it manually.
+	const SCHEDULE_POLL_MS = 15000;
+	function _checkScheduleWhileActive() {
+		if (screenSaverActive && isInDisabledSchedule()) {
+			_hideScreenSaver();
+		}
+	}
+
 	function init() {
 		// Load settings on init
 		loadSettings();
-		
+
 		// Listen for settings updates
 		window.addEventListener('screensaver-settings-updated', (e) => {
 			settings = e.detail;
 			clearTimeout(screenSaverTimeout);
 			startScreenSaverWait();
 		});
-		
+
 		document.addEventListener('mousemove', _handleUserActivity);
 		document.addEventListener('mousedown', _handleUserActivity);
 		document.addEventListener('keydown', _handleUserActivity);
 		document.addEventListener('scroll', _handleUserActivity);
 		document.addEventListener('touchstart', _handleUserActivity);
+
+		setInterval(_checkScheduleWhileActive, SCHEDULE_POLL_MS);
 
 		startScreenSaverWait();
 	}
