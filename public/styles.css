@@ -2224,7 +2224,7 @@ input[type="time"],
 input[type="text"],
 input,
 select {
-	width: 100%;
+	/* width: 100%; */
     min-width: 3.125rem;
 	padding: 0.5rem 0.625rem;
 	border-radius: var(--radius-sm);
