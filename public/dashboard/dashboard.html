@@ -196,7 +196,7 @@
 			applyActiveNav('navDashboard');
 			const sysTimeEl = document.getElementById('sys-time');
 			setInterval(() => {
-				sysTimeEl.textContent = new Date();
+				sysTimeEl.textContent = new Date().toLocaleTimeString;
 			}, 1000)
 		})();
 
