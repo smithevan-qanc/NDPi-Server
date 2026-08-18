@@ -59,11 +59,18 @@
 		clearTimeout(screenSaverTimeout);
 		const inactivityDuration = settings.inactivityMinutes * 60 * 1000;
 		screenSaverTimeout = setTimeout(() => {
-			if (!screenSaverActive && !isInDisabledSchedule()) {
+			if (isInDisabledSchedule()) {
+				// Still in a blackout period -- this elapsed wait doesn't
+				// count as idle time toward activation. Re-check again
+				// shortly (SCHEDULE_POLL_MS) instead of waiting a full
+				// inactivityMinutes cycle again, so activation can start
+				// promptly once the blackout actually ends, rather than up
+				// to inactivityMinutes late.
+				screenSaverTimeout = setTimeout(startScreenSaverWait, SCHEDULE_POLL_MS);
+				return;
+			}
+			if (!screenSaverActive) {
 				_initScreenSaver();
-			} else if (isInDisabledSchedule()) {
-				// If in disabled schedule, check again in 1 minute
-				startScreenSaverWait();
 			}
 		}, inactivityDuration);
 	}
@@ -335,6 +342,11 @@
 	function _checkScheduleWhileActive() {
 		if (screenSaverActive && isInDisabledSchedule()) {
 			_hideScreenSaver();
+			// Without this, no timer is left pending afterward -- only
+			// real user input (_handleUserActivity) re-arms the wait, so
+			// the screen saver would never come back once the blackout
+			// that just force-dismissed it ends.
+			startScreenSaverWait();
 		}
 	}
 
