@@ -152,7 +152,7 @@ function applySidebarCollapsed(collapsed) {
 	if (toggleBtn) {
 		toggleBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
 		const label = toggleBtn.querySelector('.nav-btn-label');
-		if (label) { label.textContent = collapsed ? 'Expand' : 'Collapse'; }
+		if (label) { label.textContent = collapsed ? '' : ''; }
 	}
 
 	// Collapsing/expanding changes .sidebar's real width immediately --

@@ -345,7 +345,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0.5625rem 0.75rem;
 	cursor: pointer;
 	transition: background 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out,
-		width 0.2s ease-out, padding 0.2s ease-out, gap 0.2s ease-out;
+		width 0.2s ease-out, padding 0.2s ease-out, justify-content 0.2s ease-out, gap 0.2s ease-out;
 	border-radius: var(--radius-sm);
 	text-align: left;
 }
