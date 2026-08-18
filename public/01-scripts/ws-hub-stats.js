@@ -1,35 +1,37 @@
 /**
- * Connects to the Hub's own /ws/hub-stats feed (service/hub_api_server.js's
- * __ws_HubStats()) and drives the topbar clock (#sys-time) from its
- * systemTime field, instead of the browser's own new Date() -- so the
- * displayed time reflects the Hub's actual system clock rather than
- * whatever the viewing device's local clock happens to read. Renders once
- * immediately from the local clock as a first-paint fallback (so the
- * topbar isn't blank while the socket connects), then the socket's ~1/sec
- * pushes take over.
+ * The one shared connection to the Hub's own /ws/hub-stats feed
+ * (service/hub_api_server.js's __ws_HubStats()). Every page gets the
+ * topbar clock (#sys-time) driven from its systemTime field for free,
+ * instead of the browser's own new Date() -- so the displayed time
+ * reflects the Hub's actual system clock rather than whatever the viewing
+ * device's local clock happens to read. Renders once immediately from the
+ * local clock as a first-paint fallback (so the topbar isn't blank while
+ * the socket connects), then the socket's ~1/sec pushes take over.
  *
- * This is the shared entry point for the Hub's own live stats generally,
- * not just the clock -- the /ws/hub-stats payload also carries CPU/memory/
- * load/etc (see getHubRawSystemStats() server-side), so future uses of
- * that data on these pages should extend this function/connection rather
- * than opening another one.
+ * The /ws/hub-stats payload also carries CPU/memory/load/etc (see
+ * getHubRawSystemStats() server-side) -- pass an onStats(rawMessage)
+ * callback to react to those too. dashboard.html's stats card is the
+ * current example: it derives its own shape from the raw payload and
+ * feeds it to updateSystemStats(). Every page should go through this one
+ * connection for anything /ws/hub-stats carries, rather than opening a
+ * second one -- mirrors how 01-scripts/ws-devices.js's NDPiDevicesRelay is
+ * the one shared connection for per-device data.
  *
- * Pages that already open their own /ws/hub-stats connection for other data
- * (currently just dashboard.html, for its stats card) should read
- * systemTime off that existing connection instead of calling this --
- * opening a second redundant connection to the same endpoint has no
- * benefit.
+ * Returns { close() } -- call it from the page's own beforeunload handler,
+ * same as NDPiDevicesRelay instances already are (e.g. dashboard.html's
+ * devicesStatsRelay.close() / devicesSystemRelay.close()).
  */
-function initGlobalHubStats() {
+function initGlobalHubStats(onStats) {
 	const el = document.getElementById('sys-time');
-	if (!el) return;
 
 	const render = (date) => {
-		el.innerHTML = `${date.toDateString()}<br>${date.toLocaleTimeString()}`;
+		if (el) { el.innerHTML = `${date.toDateString()}<br>${date.toLocaleTimeString()}`; }
 	};
 
-	el.style.fontSize = '1.1rem';
-	render(new Date());
+	if (el) {
+		el.style.fontSize = 'clamp(0.8rem, 1.7vw, 1.25rem)';
+		render(new Date());
+	}
 
 	let socket = null;
 	let reconnectTimer = null;
@@ -39,11 +41,16 @@ function initGlobalHubStats() {
 		socket = new WebSocket(`${protocol}//${window.location.host}/ws/hub-stats`);
 
 		socket.onmessage = (event) => {
+			let data;
 			try {
-				const data = JSON.parse(event.data);
-				if (data && data.systemTime) { render(new Date(data.systemTime)); }
+				data = JSON.parse(event.data);
 			} catch (e) {
 				console.error('Invalid /ws/hub-stats message:', e);
+				return;
+			}
+			if (data && data.systemTime) { render(new Date(data.systemTime)); }
+			if (typeof onStats === 'function') {
+				try { onStats(data); } catch (e) { console.error('/ws/hub-stats onStats handler threw:', e); }
 			}
 		};
 		socket.onclose = () => {
@@ -54,8 +61,11 @@ function initGlobalHubStats() {
 	}
 	connect();
 
-	window.addEventListener('beforeunload', () => {
+	const close = () => {
 		clearTimeout(reconnectTimer);
 		try { socket && socket.close(); } catch (e) { }
-	});
+	};
+	window.addEventListener('beforeunload', close);
+
+	return { close };
 }

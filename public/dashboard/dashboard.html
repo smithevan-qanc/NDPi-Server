@@ -188,15 +188,13 @@
 		</div>
 	</div>
 	<script src="/scripts/functions.js"></script>
+	<script src="/scripts/ws-hub-stats.js"></script>
 
 
 	<script>
 
 		(() => {
 			applyActiveNav('navDashboard');
-			const sysTimeEl = document.getElementById('sys-time');
-			sysTimeEl.style.fontSize = '1.1rem';
-			sysTimeEl.innerHTML = `${new Date().toDateString()}<br>${new Date().toLocaleTimeString()}`;
 		})();
 
 		let devices = [];
@@ -440,14 +438,11 @@
 		};
 
 		/**
-		 *  This Hub's own live stats — connects directly to the Hub's
-		 *  dedicated /ws/hub-stats (service/hub_api_server.js; named
-		 *  distinctly from each device's own /ws/stats to keep the two
-		 *  apart in devtools) instead of the shared /ws GUI socket, which
-		 *  no longer sends a system-stats message at all now that every
-		 *  page gets Hub stats from here directly. The raw os.*-derived
-		 *  payload is converted to the summarized shape updateSystemStats()
-		 *  already expects.
+		 *  This Hub's own live stats, via the shared /ws/hub-stats
+		 *  connection (01-scripts/ws-hub-stats.js) -- also drives the
+		 *  topbar clock automatically. The raw os.*-derived payload is
+		 *  converted here to the summarized shape updateSystemStats()
+		 *  expects.
 		 */
 		function deriveHubStats(raw) {
 			if (!raw || !Array.isArray(raw.loadavg) || !Array.isArray(raw.cpus) || !raw.totalmem) return null;
@@ -467,39 +462,10 @@
 			};
 		}
 
-		let hubStatsSocket = null;
-		let hubStatsReconnectTimer = null;
-		function connectHubStatsSocket() {
-			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-			hubStatsSocket = new WebSocket(`${protocol}//${window.location.host}/ws/hub-stats`);
-
-			hubStatsSocket.onmessage = (event) => {
-				try {
-					const raw = JSON.parse(event.data);
-					const derived = deriveHubStats(raw);
-					if (derived) { updateSystemStats(derived); }
-					// Topbar clock -- reads systemTime off this same feed
-					// instead of the browser's own new Date(), same as
-					// every other page (see 01-scripts/ws-hub-stats.js);
-					// this page just already has its own /ws/hub-stats
-					// connection, so it taps into that instead of opening
-					// a second redundant one.
-					if (raw && raw.systemTime) {
-						const sysTimeEl = document.getElementById('sys-time');
-						const t = new Date(raw.systemTime);
-						if (sysTimeEl) { sysTimeEl.innerHTML = `${t.toDateString()}<br>${t.toLocaleTimeString()}`; }
-					}
-				} catch (e) {
-					console.error('Invalid /ws/stats message:', e);
-				}
-			};
-			hubStatsSocket.onclose = () => {
-				clearTimeout(hubStatsReconnectTimer);
-				hubStatsReconnectTimer = setTimeout(connectHubStatsSocket, 5000);
-			};
-			hubStatsSocket.onerror = () => { };
-		}
-		connectHubStatsSocket();
+		const hubStats = initGlobalHubStats((raw) => {
+			const derived = deriveHubStats(raw);
+			if (derived) { updateSystemStats(derived); }
+		});
 
 		/**
 		 *  Multi-device relay — one Hub connection covers every device
@@ -536,8 +502,7 @@
 		});
 
 		window.addEventListener('beforeunload', () => {
-			clearTimeout(hubStatsReconnectTimer);
-			try { hubStatsSocket && hubStatsSocket.close(); } catch (e) { }
+			hubStats.close();
 			devicesStatsRelay.close();
 			devicesSystemRelay.close();
 		});
