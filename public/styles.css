@@ -190,7 +190,7 @@ html.sidebar-collapsed {
 html.sidebar-collapsed .nav-btn-label,
 html.sidebar-collapsed .sidebar-logo-title {
 	opacity: 0;
-	max-width: 0;
+	width: 0;
 	pointer-events: none;
 
 }
@@ -346,7 +346,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0.5625rem 0.75rem;
 	cursor: pointer;
 	transition: background 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out,
-		width 0.2s ease-out, padding 0.2s ease-out, justify-content 0.2s ease-out, gap 0.2s ease-out;
+		width 0.2s ease, padding 0.2s ease-out, gap 0.2s ease-out;
 	border-radius: var(--radius-sm);
 	text-align: left;
 }
@@ -375,8 +375,9 @@ html.sidebar-collapsed .nav-btn {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	opacity: 1;
-	max-width: 12rem;
-	transition: opacity 0.2s ease, max-width 0.2s ease-out, width 0.2s ease-out;
+	width: -webkit-fill-available;
+    width: stretch;
+	transition: opacity 0.2s ease, width 0.2s ease;
 }
 
 .nav-btn:hover {
