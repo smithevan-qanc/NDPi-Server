@@ -627,24 +627,6 @@ html.sidebar-collapsed .nav-btn {
 		   1.5rem the right side already uses. */
 		padding-left: 1.5rem;
 	}
-
-	.toast-container {
-		left: 0;
-	}
-
-	/* .toast's desktop sizing (min-width: max(18.75rem, 50vw)) is a rem
-	   floor racing a vw ceiling (max-width: 90vw) -- rem scales with the
-	   user's UI-scale setting (see setScale()) while vw doesn't, so at a
-	   large enough scale the floor can exceed the ceiling, and min-width
-	   always wins that conflict per spec. On a narrow phone screen with
-	   scale bumped up for readability, that forced the toast wider than
-	   the viewport itself, clipping most of it off-screen. Pure vw sizing
-	   here sidesteps the conflict entirely. */
-	.toast {
-		min-width: 0;
-		width: 85vw;
-		max-width: 85vw;
-	}
 }
 
 @media (max-width: 31.25rem) {
@@ -1790,8 +1772,13 @@ label {
 }
 
 .toast-icon {
-	font-size: 1.125rem;
+	display: flex;
 	flex-shrink: 0;
+}
+
+.toast-icon svg {
+	width: 1.25rem;
+	height: 1.25rem;
 }
 
 .toast-message {
@@ -1844,6 +1831,34 @@ label {
 	to {
 		transform: translateX(-50%) translateY(0.5rem);
 		opacity: 0;
+	}
+}
+
+/* Deliberately placed AFTER the base .toast-container/.toast rules above,
+   not in the general mobile media-query block near .topbar/.sidebar --
+   this exact selector already has an unconditional rule later in the
+   cascade (right above), and a same-specificity rule earlier in the file
+   loses that tie regardless of being inside a @media block. That's what
+   silently defeated an earlier attempt at this override: `left: 0` sat in
+   the mobile block near the top of the file, so the always-applies
+   `left: var(--live-sidebar-width)` rule here still won on mobile,
+   pinning the container far off the right edge (--live-sidebar-width
+   equals the full viewport width once .sidebar becomes a bottom bar). */
+@media (max-width: 53.75rem) {
+	.toast-container {
+		left: 0;
+	}
+
+	/* .toast's desktop sizing (min-width: max(18.75rem, 50vw)) is a rem
+	   floor racing a vw ceiling (max-width: 90vw) -- rem scales with the
+	   user's UI-scale setting (see setScale()) while vw doesn't, so at a
+	   large enough scale the floor can exceed the ceiling, and min-width
+	   always wins that conflict per spec. Pure vw sizing here sidesteps
+	   the conflict entirely. */
+	.toast {
+		min-width: 0;
+		width: 85vw;
+		max-width: 85vw;
 	}
 }
 

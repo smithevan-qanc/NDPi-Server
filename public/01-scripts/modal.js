@@ -366,11 +366,29 @@ class Toast {
 		const toastEl = document.createElement('div');
 		toastEl.className = `toast toast-${type}`;
 
+		// Same stroke-based SVG convention as the rest of this app's icons
+		// (.back-btn, nav icons, .toast-close-btn above) rather than
+		// unicode glyphs, which render inconsistently across fonts/platforms.
 		const icons = {
-			success: '✓',
-			error: '✕',
-			info: 'ℹ',
-			warning: '⚠'
+			success: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="12" cy="12" r="9" />
+				<path d="M8 12.5l2.5 2.5L16 9" />
+			</svg>`,
+			error: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="12" cy="12" r="9" />
+				<line x1="9" y1="9" x2="15" y2="15" />
+				<line x1="15" y1="9" x2="9" y2="15" />
+			</svg>`,
+			info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="12" cy="12" r="9" />
+				<line x1="12" y1="11" x2="12" y2="16" />
+				<circle cx="12" cy="7.5" r="0.75" fill="currentColor" stroke="none" />
+			</svg>`,
+			warning: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M12 3.5l9.5 16.5h-19L12 3.5z" />
+				<line x1="12" y1="9.5" x2="12" y2="14" />
+				<circle cx="12" cy="17" r="0.75" fill="currentColor" stroke="none" />
+			</svg>`
 		};
 
 		toastEl.innerHTML = `
