@@ -195,12 +195,12 @@
 		(() => {
 			applyActiveNav('navDashboard');
 			const sysTimeEl = document.getElementById('sys-time');
-			sysTimeEl.style.fontSize = '1rem';
+			sysTimeEl.style.fontSize = '1.2rem';
 			const timeNow = new Date();
 			sysTimeEl.textContent = `${timeNow.toDateString()} ${timeNow.toLocaleTimeString()}`;
 			setInterval(() => {
 				const timeNow = new Date();
-				sysTimeEl.textContent = `${timeNow.toDateString()} ${timeNow.toTimeString()}`;
+				sysTimeEl.textContent = `${timeNow.toDateString()} ${timeNow.toLocaleTimeString()}`;
 			}, 1000);
 		})();
 
