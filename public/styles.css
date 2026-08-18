@@ -192,6 +192,7 @@ html.sidebar-collapsed .sidebar-logo-title {
 	opacity: 0;
 	max-width: 0;
 	pointer-events: none;
+
 }
 
 html.sidebar-collapsed .sidebar-section-label {
@@ -375,7 +376,7 @@ html.sidebar-collapsed .nav-btn {
 	white-space: nowrap;
 	opacity: 1;
 	max-width: 12rem;
-	transition: opacity 0.2s ease, max-width 0.2s ease-out;
+	transition: opacity 0.2s ease, max-width 0.2s ease-out, width 0.2s ease-out;
 }
 
 .nav-btn:hover {
