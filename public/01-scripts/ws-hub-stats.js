@@ -29,7 +29,7 @@ function initGlobalHubStats(onStats) {
 	};
 
 	if (el) {
-		el.style.fontSize = 'clamp(0.8rem, 1.7vw, 1.25rem)';
+		el.style.fontSize = 'clamp(0.8rem, 1.7vw, 1.15rem)';
 		render(new Date());
 	}
 

@@ -631,6 +631,20 @@ html.sidebar-collapsed .nav-btn {
 	.toast-container {
 		left: 0;
 	}
+
+	/* .toast's desktop sizing (min-width: max(18.75rem, 50vw)) is a rem
+	   floor racing a vw ceiling (max-width: 90vw) -- rem scales with the
+	   user's UI-scale setting (see setScale()) while vw doesn't, so at a
+	   large enough scale the floor can exceed the ceiling, and min-width
+	   always wins that conflict per spec. On a narrow phone screen with
+	   scale bumped up for readability, that forced the toast wider than
+	   the viewport itself, clipping most of it off-screen. Pure vw sizing
+	   here sidesteps the conflict entirely. */
+	.toast {
+		min-width: 0;
+		width: 85vw;
+		max-width: 85vw;
+	}
 }
 
 @media (max-width: 31.25rem) {
@@ -1778,6 +1792,37 @@ label {
 .toast-icon {
 	font-size: 1.125rem;
 	flex-shrink: 0;
+}
+
+.toast-message {
+	flex: 1;
+}
+
+.toast-close-btn {
+	flex: none;
+	width: 1.375rem;
+	height: 1.375rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border: none;
+	border-radius: 50%;
+	color: var(--text-2);
+	cursor: pointer;
+	padding: 0;
+	margin-left: 0.25rem;
+	transition: color 0.15s ease, background 0.15s ease;
+}
+
+.toast-close-btn svg {
+	width: 0.75rem;
+	height: 0.75rem;
+}
+
+.toast-close-btn:hover {
+	color: var(--text-0);
+	background: rgba(255, 255, 255, 0.12);
 }
 
 @keyframes toastIn {
