@@ -224,6 +224,10 @@ class NDPi {
         this.server_api.on('reboot-command', () => {
             setTimeout(() => { rebootDevice(); }, 1000);
         });
+
+        this.server_api.on('restart-command', () => {
+            setTimeout(() => { process.kill(process.pid, 'SIGTERM') }, 1000);
+        });
     }
 
     async _closeApi() {

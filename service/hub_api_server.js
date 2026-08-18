@@ -2278,7 +2278,8 @@ class NDPiCommandServer_Client extends EventEmitter {
         .post((req, res) => {
             res.json({ success: true, message: 'System shutdown initiated' });
             this.broadcastToGUI({ type: 'server-shutdown', message: 'Hub is shutting down...' });
-            setTimeout(() => { this.emit('shutdown-command'); }, 1000);
+            // setTimeout(() => { this.emit('shutdown-command'); }, 1000);
+            this.emit('shutdown-command');
         });
 
         this.Routes
@@ -2286,7 +2287,8 @@ class NDPiCommandServer_Client extends EventEmitter {
         .post((req, res) => {
             res.json({ success: true, message: 'Server restart initiated' });
             this.broadcastToGUI({ type: 'server-restart', message: 'Hub server is restarting...' });
-            setTimeout(() => { process.exit(0); }, 1000);
+            // setTimeout(() => { this.emit('restart-command') }, 1000);
+            this.emit('restart-command');
         });
 
         this.Routes
@@ -2294,7 +2296,8 @@ class NDPiCommandServer_Client extends EventEmitter {
         .post((req, res) => {
             res.json({ success: true, message: 'System reboot initiated' });
             this.broadcastToGUI({ type: 'server-reboot', message: 'Hub is rebooting...' });
-            setTimeout(() => { this.emit('reboot-command'); }, 1000);
+            // setTimeout(() => { this.emit('reboot-command'); }, 1000);
+            this.emit('reboot-command');
         });
 
         this.Routes
