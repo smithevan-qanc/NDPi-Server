@@ -211,7 +211,7 @@ html.sidebar-collapsed .sidebar-footer {
 
 html.sidebar-collapsed .nav-btn {
 	width: 2.75rem;
-	justify-content: center;
+	/* justify-content: center; */
 	padding: 0.5625rem 0.5rem;
 	gap: 0;
 }
