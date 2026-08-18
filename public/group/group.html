@@ -1,11 +1,12 @@
 <!doctype html>
 <html lang="en">
+
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" href="/styles.css">
-	<script>(function(){var c=localStorage.getItem('ndpi_theme_color');if(c){document.documentElement.style.setProperty('--accent',c);}})();</script>
-	<script>(function(){if(localStorage.getItem('ndpi_sidebar_collapsed')==='true'){document.documentElement.classList.add('sidebar-collapsed');}})();</script>
+	<script>(function () { var c = localStorage.getItem('ndpi_theme_color'); if (c) { document.documentElement.style.setProperty('--accent', c); } })();</script>
+	<script>(function () { if (localStorage.getItem('ndpi_sidebar_collapsed') === 'true') { document.documentElement.classList.add('sidebar-collapsed'); } })();</script>
 	<script src="/scripts/auth.js"></script>
 	<script src="/scripts/ws-client.js"></script>
 	<script src="/scripts/ws-devices.js"></script>
@@ -16,6 +17,7 @@
 	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
 	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
+
 <body class="hide-scrollbar">
 	<div id="customMenu-source" class="context-menu"></div>
 	<div id="main-div" class="app">
@@ -26,15 +28,41 @@
 			</div>
 			<div class="sidebar-nav">
 				<button id="sidebarToggle" class="nav-btn" title="Collapse sidebar">
-					<span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg></span>
+					<span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="3" y="4" width="18" height="16" rx="2" />
+							<line x1="9" y1="4" x2="9" y2="20" />
+						</svg></span>
 					<span class="nav-btn-label">Collapse</span>
 				</button>
-				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5M2 16l10 5 10-5"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2"/><path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m6 9 3 3-3 3M12 15h6"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="3" y="3" width="7" height="7" rx="1.5" />
+							<rect x="14" y="3" width="7" height="7" rx="1.5" />
+							<rect x="3" y="14" width="7" height="7" rx="1.5" />
+							<rect x="14" y="14" width="7" height="7" rx="1.5" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="2" y="4" width="20" height="13" rx="2" />
+							<path d="M8 21h8M12 17v4" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<path d="M12 3 2 8l10 5 10-5-10-5Z" />
+							<path d="M2 12l10 5 10-5M2 16l10 5 10-5" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<circle cx="9" cy="8" r="3.2" />
+							<path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+							<path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2" />
+							<path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="2" y="4" width="20" height="16" rx="2" />
+							<path d="m6 9 3 3-3 3M12 15h6" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<circle cx="12" cy="12" r="3" />
+							<path
+								d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+						</svg></span><span class="nav-btn-label"></span></button>
 			</div>
 			<div class="sidebar-spacer"></div>
 			<div class="sidebar-footer">
@@ -44,8 +72,10 @@
 		<div class="main">
 			<div class="topbar">
 				<div class="back-btn" onclick="history.back()">
-					<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
-  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+					<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle"
+						viewBox="0 0 16 16">
+						<path fill-rule="evenodd"
+							d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z" />
 					</svg>
 				</div>
 				<span class="topbar-title">Group</span>
@@ -53,26 +83,26 @@
 			</div>
 			<div class="content">
 
-		<div class="card" style="max-width:75rem;margin:0 auto;width:100%;">
-			<div class="card-content">
-				<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
-					<div style="display:flex;align-items:center;gap:0.75rem;">
-						<h2 id="groupName" style="font-size:1.7rem;margin:0;">Loading...</h2>
-						<div id="changeName"></div>
+				<div class="card" style="max-width:75rem;margin:0 auto;width:100%;">
+					<div class="card-content">
+						<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
+							<div style="display:flex;align-items:center;gap:0.75rem;">
+								<h2 id="groupName" style="font-size:1.7rem;margin:0;">Loading...</h2>
+								<div id="changeName"></div>
+							</div>
+							<div id="groupStats" class="stats-page-header"></div>
+						</div>
+						<div id="groupContent">
+							<p style="color: #888; padding: 1.25rem;">Loading group...</p>
+						</div>
 					</div>
-					<div id="groupStats" class="stats-page-header"></div>
 				</div>
-				<div id="groupContent">
-					<p style="color: #888; padding: 1.25rem;">Loading group...</p>
-				</div>
-			</div>
-		</div>
 			</div>
 		</div>
 	</div>
 	<script src="/scripts/functions.js"></script>
 	<script>
-		
+
 		(() => {
 			applyActiveNav('navGroups');
 		})();
@@ -86,7 +116,7 @@
 		async function loadGroup() {
 			const params = new URLSearchParams(window.location.search);
 			const groupId = params.get('id');
-			
+
 			if (!groupId) {
 				window.location.href = '/';
 				return;
@@ -103,24 +133,24 @@
 				const devData = await devRes.json();
 				const rokuData = await rokuRes.json();
 				allDevices = devData.devices || [];
-				
+
 				group = grpData.groups.find(g => g.id === groupId);
-				
+
 				if (!group) {
 					document.getElementById('groupContent').innerHTML = '<p style="color: #dc5050;">Group not found</p>';
 					return;
 				}
-				
+
 				// Filter Roku TVs for this group
 				const allRokuTvs = rokuData.rokuTvs || [];
 				groupRokuTvs = allRokuTvs.filter(tv => tv.groupId === groupId);
-				
+
 				// Enrich group devices with full device data
 				group.devices = group.devices.map(gDev => {
 					const fullDevice = allDevices.find(d => (d.id || d.deviceId) === (gDev.id || gDev.deviceId));
 					return fullDevice ? { ...gDev, ...fullDevice } : gDev;
 				});
-				
+
 				if (isInitialLoad) {
 					renderGroup();
 					startWave();
@@ -231,10 +261,10 @@
 				const isSelected = (sourceName === '' && isNoSource(curSource)) || sourceName === group.currentSource;
 
 				card.classList.toggle('selected', isSelected);
-				
+
 				const badge = card.querySelector('.source-selected-badge');
 				if (badge) badge.remove();
-				
+
 				if (isSelected) {
 					const newBadge = document.createElement('div');
 					newBadge.className = 'source-selected-badge';
@@ -243,7 +273,7 @@
 					card.appendChild(newBadge);
 				}
 			});
-			
+
 			// Update devices list
 			updateDevicesList();
 		}
@@ -338,7 +368,7 @@
 				const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
 				const tempColor = dev.systemStats.temperature > 70 ? '#f87171' : dev.systemStats.temperature > 55 ? '#fbbf24' : '#4ade80';
 				const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
-				const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
+				const tempF = ((dev.systemStats.temperature * 9 / 5) + 32).toFixed(0);
 				refs.cpu.textContent = `${dev.systemStats.cpu}%`;
 				refs.cpu.style.color = cpuColor;
 				refs.temp.textContent = `${tempF}°F`;
@@ -410,7 +440,7 @@
 
 		function renderGroup() {
 			updateGroupHeaderStats();
-			
+
 			// Build source grid
 			let admAddDeviceButtonHtml = '';
 			let admGroupActionGroupHtml = '';
@@ -550,7 +580,7 @@
 
 			const sourceGridEl = document.getElementById('groupSourceGrid');
 			const noSourcesEl = document.createElement('div').innerHTML = `<p style="color:#888;grid-column:1/-1;">No NDI sources found on network</p>`;
-			
+
 			if (sources.length > 0) {
 				sources.map(src => {
 					const parsed = parseSourceName(src.name);
@@ -560,7 +590,7 @@
 					const sourceCard = document.createElement('div');
 
 					if (sourceCard.addEventListener ?? customMenu) {
-						sourceCard.addEventListener('contextmenu', function(e) {
+						sourceCard.addEventListener('contextmenu', function (e) {
 							buildContext_Source(e, { name: src.name, url: src.url, favorite: !!src.favorite });
 						}, false);
 					} else {
@@ -774,7 +804,7 @@
 				{ danger: true, confirmText: 'Shutdown All' }
 			);
 			if (!confirmed) return;
-			
+
 			try {
 				const res = await fetch(`/api/group/${group.id}/shutdown`, { method: 'POST' });
 				if (res.ok) {
@@ -794,7 +824,7 @@
 				{ danger: true, confirmText: 'Reboot All' }
 			);
 			if (!confirmed) return;
-			
+
 			try {
 				const res = await fetch(`/api/group/${group.id}/reboot`, { method: 'POST' });
 				if (res.ok) {
@@ -814,14 +844,14 @@
 				{ danger: true, confirmText: 'Remove' }
 			);
 			if (!confirmed) return;
-			
+
 			try {
 				const res = await fetch(`/api/group/${group.id}/remove-device`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ deviceId })
 				});
-				
+
 				if (res.ok) {
 					// Update local state and refresh display
 					group.devices = group.devices.filter(d => (d.id || d.deviceId) !== deviceId);
@@ -842,10 +872,10 @@
 				toast.warning('No Roku TVs configured for this group');
 				return;
 			}
-			
+
 			const ipAddresses = groupRokuTvs.map(tv => tv.ipAddress);
 			await rokuBulkKeypress(ipAddresses, action);
-			
+
 			toast.info(`Sent ${action} command to ${groupRokuTvs.length} Roku TV(s)`);
 		}
 
@@ -855,34 +885,34 @@
 				const devRes = await fetch('/api/devices');
 				const devData = await devRes.json();
 				const allDevs = devData.devices || [];
-				
+
 				// Filter out devices already in this group
 				const groupDeviceIds = group.devices.map(d => d.id || d.deviceId);
-				const availableDevices = allDevs.filter(device => 
+				const availableDevices = allDevs.filter(device =>
 					!groupDeviceIds.includes(device.id || device.deviceId)
 				);
-				
+
 				if (availableDevices.length === 0) {
 					toast.warning('No available devices to add');
 					return;
 				}
-				
+
 				// Create options list with value/label
 				const options = availableDevices.map(device => ({
 					value: device.id || device.deviceId,
 					label: `${device.name} (${device.ip})`
 				}));
-				
+
 				const selectedDeviceId = await modal.select('Select a device to add to this group:', options, null, 'Add Device');
 				if (selectedDeviceId === null || selectedDeviceId === undefined) return;
-				
+
 				// Add device to group via API
 				const res = await fetch(`/api/group/${group.id}/add-device`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ deviceId: selectedDeviceId })
 				});
-				
+
 				if (res.ok) {
 					toast.success('Device added to group');
 					// WebSocket will update the group, triggering updateGroupDisplay
@@ -898,7 +928,7 @@
 		async function renameGroup() {
 			const newName = await modal.prompt('Enter new group name:', group.name, 'Rename Group');
 			if (!newName || newName === group.name) return;
-			
+
 			try {
 				const res = await fetch(`/api/group/${group.id}`, {
 					method: 'PUT',
@@ -923,12 +953,12 @@
 				'Delete Group',
 				{ danger: true, confirmText: 'Delete', cancelText: 'Cancel' }
 			);
-			
+
 			if (!confirmed) return;
-			
+
 			try {
 				const res = await fetch(`/api/group/${group.id}`, { method: 'DELETE' });
-				
+
 				if (res.ok) {
 					toast.success('Group deleted');
 					setTimeout(() => window.location.href = '/groups.html', 500);
@@ -998,7 +1028,7 @@
 				clearTimeout(sourcesReconnectTimer);
 				sourcesReconnectTimer = setTimeout(connectSourcesSocket, 5000);
 			};
-			sourcesSocket.onerror = () => {};
+			sourcesSocket.onerror = () => { };
 		}
 		connectSourcesSocket();
 
@@ -1061,9 +1091,10 @@
 			devicesStatsRelay.close();
 			devicesSystemRelay.close();
 			clearTimeout(sourcesReconnectTimer);
-			try { sourcesSocket && sourcesSocket.close(); } catch (e) {}
+			try { sourcesSocket && sourcesSocket.close(); } catch (e) { }
 		});
 
 	</script>
 </body>
+
 </html>

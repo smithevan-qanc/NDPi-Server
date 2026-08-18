@@ -1,58 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" href="/styles.css">
-	<script>(function(){var c=localStorage.getItem('ndpi_theme_color');if(c){document.documentElement.style.setProperty('--accent',c);}})();</script>
+	<script>(function () { var c = localStorage.getItem('ndpi_theme_color'); if (c) { document.documentElement.style.setProperty('--accent', c); } })();</script>
 	<script src="/scripts/functions.js"></script>
 	<script src="/scripts/auth.js"></script>
 	<title>Create Account | NDPi Monitor</title>
 	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
 	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
+
 <body class="hide-scrollbar">
 	<div class="auth-container">
-		<button onclick="history.back()" class="back-btn" style="position: absolute; top: 1.25rem; left: 1.25rem; font-size: 1.125rem;">←</button>
+		<button onclick="history.back()" class="back-btn"
+			style="position: absolute; top: 1.25rem; left: 1.25rem; font-size: 1.125rem;">←</button>
 		<div class="auth-card">
 			<h1 class="auth-title">Create Account</h1>
 			<p class="auth-subtitle">Create a new user account (Admin Only)</p>
-			
+
 			<form id="createAccountForm">
 				<div class="form-group">
 					<label class="form-label" for="firstName">First Name</label>
 					<input type="text" id="firstName" class="form-input" required autocomplete="given-name">
 				</div>
-				
+
 				<div class="form-group">
 					<label class="form-label" for="lastName">Last Name</label>
 					<input type="text" id="lastName" class="form-input" required autocomplete="family-name">
 				</div>
-				
+
 				<div class="form-group">
 					<label class="form-label" for="username">Username</label>
 					<input type="text" id="username" class="form-input" required autocomplete="username">
 					<p class="form-hint">Username must be unique</p>
 				</div>
-				
+
 				<div class="form-group">
 					<label class="form-label" for="pin">Temporary PIN</label>
-					<input type="password" id="pin" class="form-input" required pattern="[0-9]{4}|[0-9]{6}" inputmode="numeric" maxlength="6" autocomplete="new-password">
+					<input type="password" id="pin" class="form-input" required pattern="[0-9]{4}|[0-9]{6}"
+						inputmode="numeric" maxlength="6" autocomplete="new-password">
 					<p class="form-hint">4 or 6 digit temporary PIN (user will change on first login)</p>
 					<p class="error-message" id="pinError">PIN must be 4 or 6 digits</p>
 				</div>
-				
+
 				<div class="form-group">
 					<label class="form-label" for="pinConfirm">Confirm PIN</label>
-					<input type="password" id="pinConfirm" class="form-input" required pattern="[0-9]{4}|[0-9]{6}" inputmode="numeric" maxlength="6" autocomplete="new-password">
+					<input type="password" id="pinConfirm" class="form-input" required pattern="[0-9]{4}|[0-9]{6}"
+						inputmode="numeric" maxlength="6" autocomplete="new-password">
 					<p class="error-message" id="confirmError">PINs do not match</p>
 				</div>
-				
+
 				<p class="error-message" id="formError" style="margin-bottom: 0.9375rem;"></p>
-				
+
 				<button type="submit" class="button-primary" style="width: 100%;">Create Account</button>
 			</form>
-			
+
 			<p class="link-text">
 				<a href="/advanced-account-settings.html">← Back to Manage Accounts</a>
 			</p>
@@ -96,35 +101,35 @@
 
 		form.addEventListener('submit', async (e) => {
 			e.preventDefault();
-			
+
 			formError.style.display = 'none';
-			
+
 			const firstName = document.getElementById('firstName').value.trim();
 			const lastName = document.getElementById('lastName').value.trim();
 			const username = document.getElementById('username').value.trim();
 			const pin = pinInput.value;
 			const pinConfirm = pinConfirmInput.value;
-			
+
 			// Validation
 			if (pin !== pinConfirm) {
 				confirmError.style.display = 'block';
 				return;
 			}
-			
+
 			if (pin.length !== 4 && pin.length !== 6) {
 				pinError.style.display = 'block';
 				return;
 			}
-			
+
 			try {
 				const res = await fetch('/api/account/create', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ firstName, lastName, username, pin })
 				});
-				
+
 				const data = await res.json();
-				
+
 				if (res.ok) {
 					alert(`Account created for ${firstName} ${lastName}!\n\nUsername: ${username}\nTemporary PIN: ${pin}\n\nUser must sign in and set their own PIN.`);
 					window.location.href = '/advanced-account-settings.html';
@@ -139,4 +144,5 @@
 		});
 	</script>
 </body>
+
 </html>

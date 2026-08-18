@@ -1,31 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" href="/styles.css">
-	<script>(function(){var c=localStorage.getItem('ndpi_theme_color');if(c){document.documentElement.style.setProperty('--accent',c);}})();</script>
+	<script>(function () { var c = localStorage.getItem('ndpi_theme_color'); if (c) { document.documentElement.style.setProperty('--accent', c); } })();</script>
 	<script src="/scripts/auth.js"></script>
 	<title>Sign In | NDPi Monitor</title>
 	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
 	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
+
 <body class="hide-scrollbar">
 	<div class="auth-container">
 		<div class="auth-card">
-			<img src="/api/v2/logo" alt="NLC Logo" style="width: 7.5rem; height: 7.5rem; display: block; margin: 0 auto 0.625rem auto;">
+			<img src="/api/v2/logo" alt="NLC Logo"
+				style="width: 7.5rem; height: 7.5rem; display: block; margin: 0 auto 0.625rem auto;">
 			<h1 class="auth-title">Sign In</h1>
 			<p class="auth-subtitle">Enter your PIN to access NDPi Monitor</p>
-			
+
 			<div class="pin-dots" id="pinDots"></div>
-			
+
 			<form id="signinForm">
 				<div class="form-group">
-					<input type="password" id="pin" class="form-input" required pattern="[0-9]{4}|[0-9]{6}" inputmode="numeric" maxlength="6" autocomplete="one-time-code" autofocus>
+					<input type="password" id="pin" class="form-input" required pattern="[0-9]{4}|[0-9]{6}"
+						inputmode="numeric" maxlength="6" autocomplete="one-time-code" autofocus>
 				</div>
-				
+
 				<p class="error-message" id="formError"></p>
-				
+
 				<button type="submit" class="button-primary" style="width: 100%;">Sign In</button>
 			</form>
 		</div>
@@ -37,7 +41,7 @@
 		// in the app).
 		const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
 		document.documentElement.style.fontSize = `${savedScale}%`;
-		
+
 		const form = document.getElementById('signinForm');
 		const pinInput = document.getElementById('pin');
 		const formError = document.getElementById('formError');
@@ -47,22 +51,22 @@
 		pinInput.addEventListener('input', () => {
 			const length = pinInput.value.length;
 			const maxDots = 6;
-			
+
 			pinDots.innerHTML = '';
 			for (let i = 0; i < maxDots; i++) {
 				const dot = document.createElement('div');
 				dot.className = 'dot' + (i < length ? ' filled' : '');
 				pinDots.appendChild(dot);
 			}
-			
+
 			formError.style.display = 'none';
 		});
 
 		form.addEventListener('submit', async (e) => {
 			e.preventDefault();
-			
+
 			formError.style.display = 'none';
-			
+
 			const attempt = await signIn(pinInput.value);
 
 			if (!attempt.success) {
@@ -138,4 +142,5 @@
 		}
 	</script>
 </body>
+
 </html>

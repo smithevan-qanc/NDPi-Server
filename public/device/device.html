@@ -1,20 +1,19 @@
 <!doctype html>
 <html lang="en">
+
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" href="/styles.css">
 	<script>
-		(function() {
+		(function () {
 			var c = localStorage.getItem('ndpi_theme_color');
-			if (c)
-			{ document.documentElement.style.setProperty('--accent',c); }
+			if (c) { document.documentElement.style.setProperty('--accent', c); }
 		})();
 	</script>
 	<script>
-		(function() {
-			if(localStorage.getItem('ndpi_sidebar_collapsed')==='true')
-			{ document.documentElement.classList.add('sidebar-collapsed'); }
+		(function () {
+			if (localStorage.getItem('ndpi_sidebar_collapsed') === 'true') { document.documentElement.classList.add('sidebar-collapsed'); }
 		})();
 	</script>
 	<script src="/scripts/auth.js"></script>
@@ -25,6 +24,7 @@
 	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
 	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
+
 <body class="hide-scrollbar">
 	<div id="customMenu-source" class="context-menu"></div>
 	<div id="main-div" class="app">
@@ -35,15 +35,41 @@
 			</div>
 			<div class="sidebar-nav">
 				<button id="sidebarToggle" class="nav-btn" title="Collapse sidebar">
-					<span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg></span>
+					<span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="3" y="4" width="18" height="16" rx="2" />
+							<line x1="9" y1="4" x2="9" y2="20" />
+						</svg></span>
 					<span class="nav-btn-label">Collapse</span>
 				</button>
-				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5M2 16l10 5 10-5"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2"/><path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m6 9 3 3-3 3M12 15h6"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="3" y="3" width="7" height="7" rx="1.5" />
+							<rect x="14" y="3" width="7" height="7" rx="1.5" />
+							<rect x="3" y="14" width="7" height="7" rx="1.5" />
+							<rect x="14" y="14" width="7" height="7" rx="1.5" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="2" y="4" width="20" height="13" rx="2" />
+							<path d="M8 21h8M12 17v4" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<path d="M12 3 2 8l10 5 10-5-10-5Z" />
+							<path d="M2 12l10 5 10-5M2 16l10 5 10-5" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<circle cx="9" cy="8" r="3.2" />
+							<path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+							<path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2" />
+							<path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="2" y="4" width="20" height="16" rx="2" />
+							<path d="m6 9 3 3-3 3M12 15h6" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<circle cx="12" cy="12" r="3" />
+							<path
+								d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+						</svg></span><span class="nav-btn-label"></span></button>
 			</div>
 			<div class="sidebar-spacer"></div>
 			<div class="sidebar-footer">
@@ -53,8 +79,10 @@
 		<div class="main">
 			<div class="topbar">
 				<div class="back-btn" onclick="history.back()">
-					<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle" viewBox="0 0 16 16">
-  					<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z"/>
+					<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle"
+						viewBox="0 0 16 16">
+						<path fill-rule="evenodd"
+							d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-4.5-.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5z" />
 					</svg>
 				</div>
 				<span class="topbar-title">Device</span>
@@ -93,7 +121,7 @@
 		async function loadDevice() {
 			const params = new URLSearchParams(window.location.search);
 			const deviceId = params.get('id');
-			
+
 			if (!deviceId) {
 				window.location.href = '/';
 				return;
@@ -108,9 +136,9 @@
 				const devData = await devRes.json();
 				const grpData = await grpRes.json();
 				groups = grpData.groups || [];
-				
+
 				device = devData.devices.find(d => d.id === deviceId || d.deviceId === deviceId);
-				
+
 				if (!device) {
 					document.getElementById('deviceContent').innerHTML = '<p style="color: #dc5050;">Device not found</p>';
 					return;
@@ -132,7 +160,7 @@
 			const hours = Math.floor(seconds / 3600);
 			const minutes = Math.floor((seconds % 3600) / 60);
 			const secs = seconds % 60;
-			const padNum = (num) => { return String(num).padStart(2,'0'); };
+			const padNum = (num) => { return String(num).padStart(2, '0'); };
 
 			if (hours > 0) {
 				return `${padNum(hours)}:${padNum(minutes)}:${padNum(secs)}`;
@@ -477,7 +505,7 @@
 			const cpuColor = device.systemStats.cpu > 80 ? '#f87171' : device.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
 			const memColor = device.systemStats.memory.percent > 80 ? '#f87171' : device.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
 			const tempColor = device.systemStats.temperature > 78 ? '#f87171' : device.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
-			const tempF = ((device.systemStats.temperature * 9/5) + 32).toFixed(0);
+			const tempF = ((device.systemStats.temperature * 9 / 5) + 32).toFixed(0);
 
 			statsHeader.innerHTML = `
 				<!--div style="display:flex;gap:24px;align-items:flex-start;font-size:14px;background:rgba(255,255,255,0.03);padding:12px 20px;border-radius:12px;"-->
@@ -917,7 +945,7 @@
 				toast.info('Device name will remain unchanged.');
 				return;
 			}
-			
+
 			try {
 				const res = await fetch(`/api/device/${device.id}`, {
 					method: 'PUT',
@@ -941,14 +969,14 @@
 			groups.forEach(g => {
 				options.push({ value: g.id, label: g.name });
 			});
-			
+
 			// Find current group ID
 			const currentGroup = groups.find(g => g.name === device.group);
 			const currentGroupId = currentGroup ? currentGroup.id : '';
-			
+
 			const selected = await modal.select('Select a group for this device:', options, currentGroupId, 'Change Group');
 			if (selected === null || selected === undefined) return;
-			
+
 			try {
 				// If device was in a group, remove it
 				if (currentGroup) {
@@ -958,7 +986,7 @@
 						body: JSON.stringify({ deviceId: device.id })
 					});
 				}
-				
+
 				// If new group selected (not 'None'), add device to it
 				if (selected) {
 					const res = await fetch(`/api/group/${selected}/add-device`, {
@@ -966,7 +994,7 @@
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ deviceId: device.id })
 					});
-					
+
 					if (res.ok) {
 						const newGroup = groups.find(g => g.id === selected);
 						toast.success(`Added to group "${newGroup.name}"`);
@@ -976,7 +1004,7 @@
 				} else {
 					toast.success('Removed from group');
 				}
-				
+
 				loadDevice();
 			} catch (e) {
 				toast.error('Error changing group');
@@ -986,7 +1014,7 @@
 		async function shutdownDevice() {
 			const confirmed = await modal.confirm('Are you sure you want to shutdown this device?', 'Shutdown Device', { danger: true, confirmText: 'Shutdown' });
 			if (!confirmed) return;
-			
+
 			try {
 				const res = await fetch(`/api/device/${device.id}/shutdown`, { method: 'POST' });
 				if (res.ok) {
@@ -1002,7 +1030,7 @@
 		async function rebootDevice() {
 			const confirmed = await modal.confirm('Are you sure you want to reboot this device?', 'Reboot Device', { danger: true, confirmText: 'Reboot' });
 			if (!confirmed) return;
-			
+
 			try {
 				const res = await fetch(`/api/device/${device.id}/reboot`, { method: 'POST' });
 				if (res.ok) {
@@ -1018,7 +1046,7 @@
 		async function forgetDevice() {
 			const confirmed = await modal.confirm('Are you sure you want to forget this device? It can be re-added later.', 'Forget Device', { danger: true, confirmText: 'Forget' });
 			if (!confirmed) return;
-			
+
 			try {
 				const res = await fetch(`/api/device/${device.id}`, { method: 'DELETE' });
 				if (res.ok) {
@@ -1046,9 +1074,9 @@
 				}, null, 2),
 				'Configure Network'
 			);
-			
+
 			if (!config) return;
-			
+
 			try {
 				const networkConfig = JSON.parse(config);
 				const res = await fetch(`/api/device/${device.id}/network`, {
@@ -1056,7 +1084,7 @@
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(networkConfig)
 				});
-				
+
 				if (res.ok) {
 					toast.success('Network settings sent to device. Device may reconnect with new IP.');
 				} else {
@@ -1162,7 +1190,7 @@
 				clearTimeout(sourcesReconnectTimer);
 				sourcesReconnectTimer = setTimeout(connectSourcesSocket, 5000);
 			};
-			sourcesSocket.onerror = () => {};
+			sourcesSocket.onerror = () => { };
 		}
 		connectSourcesSocket();
 
@@ -1205,7 +1233,7 @@
 		}
 
 		function connectDeviceSystemSocket(ip, port) {
-			try { deviceSystemSocket && deviceSystemSocket.close(); } catch (e) {}
+			try { deviceSystemSocket && deviceSystemSocket.close(); } catch (e) { }
 
 			deviceSystemSocket = new WebSocket(`${deviceSocketProtocol()}//${ip}:${port}/ws/system`);
 
@@ -1221,11 +1249,11 @@
 				clearTimeout(deviceSocketReconnectTimers.system);
 				deviceSocketReconnectTimers.system = setTimeout(() => connectDeviceSystemSocket(ip, port), 5000);
 			};
-			deviceSystemSocket.onerror = () => {};
+			deviceSystemSocket.onerror = () => { };
 		}
 
 		function connectDeviceStatsSocket(ip, port) {
-			try { deviceStatsSocket && deviceStatsSocket.close(); } catch (e) {}
+			try { deviceStatsSocket && deviceStatsSocket.close(); } catch (e) { }
 
 			deviceStatsSocket = new WebSocket(`${deviceSocketProtocol()}//${ip}:${port}/ws/stats`);
 
@@ -1240,7 +1268,7 @@
 				clearTimeout(deviceSocketReconnectTimers.stats);
 				deviceSocketReconnectTimers.stats = setTimeout(() => connectDeviceStatsSocket(ip, port), 5000);
 			};
-			deviceStatsSocket.onerror = () => {};
+			deviceStatsSocket.onerror = () => { };
 		}
 
 		/**
@@ -1388,12 +1416,13 @@
 		}
 
 		window.addEventListener('beforeunload', () => {
-			try { deviceSystemSocket && deviceSystemSocket.close(); } catch (e) {}
-			try { deviceStatsSocket && deviceStatsSocket.close(); } catch (e) {}
+			try { deviceSystemSocket && deviceSystemSocket.close(); } catch (e) { }
+			try { deviceStatsSocket && deviceStatsSocket.close(); } catch (e) { }
 			clearTimeout(sourcesReconnectTimer);
-			try { sourcesSocket && sourcesSocket.close(); } catch (e) {}
+			try { sourcesSocket && sourcesSocket.close(); } catch (e) { }
 		});
 
 	</script>
 </body>
+
 </html>

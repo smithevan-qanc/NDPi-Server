@@ -1,11 +1,12 @@
 <!doctype html>
 <html lang="en">
+
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" href="/styles.css">
-	<script>(function(){var c=localStorage.getItem('ndpi_theme_color');if(c){document.documentElement.style.setProperty('--accent',c);}})();</script>
-	<script>(function(){if(localStorage.getItem('ndpi_sidebar_collapsed')==='true'){document.documentElement.classList.add('sidebar-collapsed');}})();</script>
+	<script>(function () { var c = localStorage.getItem('ndpi_theme_color'); if (c) { document.documentElement.style.setProperty('--accent', c); } })();</script>
+	<script>(function () { if (localStorage.getItem('ndpi_sidebar_collapsed') === 'true') { document.documentElement.classList.add('sidebar-collapsed'); } })();</script>
 	<script src="/scripts/auth.js"></script>
 	<script src="/scripts/ws-client.js"></script>
 	<script src="/scripts/modal.js"></script>
@@ -15,6 +16,7 @@
 	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
 	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
+
 <body class="hide-scrollbar">
 	<div id="main-div" class="app">
 		<nav class="sidebar">
@@ -24,15 +26,41 @@
 			</div>
 			<div class="sidebar-nav">
 				<button id="sidebarToggle" class="nav-btn" title="Collapse sidebar">
-					<span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg></span>
+					<span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="3" y="4" width="18" height="16" rx="2" />
+							<line x1="9" y1="4" x2="9" y2="20" />
+						</svg></span>
 					<span class="nav-btn-label">Collapse</span>
 				</button>
-				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5M2 16l10 5 10-5"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2"/><path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m6 9 3 3-3 3M12 15h6"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="3" y="3" width="7" height="7" rx="1.5" />
+							<rect x="14" y="3" width="7" height="7" rx="1.5" />
+							<rect x="3" y="14" width="7" height="7" rx="1.5" />
+							<rect x="14" y="14" width="7" height="7" rx="1.5" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="2" y="4" width="20" height="13" rx="2" />
+							<path d="M8 21h8M12 17v4" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<path d="M12 3 2 8l10 5 10-5-10-5Z" />
+							<path d="M2 12l10 5 10-5M2 16l10 5 10-5" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<circle cx="9" cy="8" r="3.2" />
+							<path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+							<path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2" />
+							<path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="2" y="4" width="20" height="16" rx="2" />
+							<path d="m6 9 3 3-3 3M12 15h6" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<circle cx="12" cy="12" r="3" />
+							<path
+								d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+						</svg></span><span class="nav-btn-label"></span></button>
 			</div>
 			<div class="sidebar-spacer"></div>
 			<div class="sidebar-footer">
@@ -45,7 +73,7 @@
 				<div class="topbar-spacer"></div>
 			</div>
 			<div class="content">
-		<section class="dashboard" id="main-section"></section>
+				<section class="dashboard" id="main-section"></section>
 			</div>
 		</div>
 	</div>
@@ -226,10 +254,10 @@
 		function renderSections() {
 			const section_UserPreferences = document.createElement('div');
 			//<div class="card" style="grid-column: 1 / -1;">
-			
+
 			section_UserPreferences.className = 'card';
 			//section_UserPreferences.style.gridColumn = 1 / -1;
-			
+
 			section_UserPreferences.innerHTML = `
 				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
 					<h2>User Preferences</h2>
@@ -503,10 +531,10 @@
 			);
 			// Close if 'Done' is selected.
 			if (updateFavoriteSource === null || updateFavoriteSource === undefined) return;
-			
+
 			// Select the favorite source record.
 			let selectedFavoriteSource = runningFavoriteSources.find(s => s.url === updateFavoriteSource);
-			
+
 			// Prompt to modify name of source.
 			const modName = await modal.prompt(
 				`<div style='margin-bottom:16px;'><pre style='margin:0; line-height:20px; font-size:85%;'><code>` +
@@ -514,7 +542,7 @@
 		` +
 				`Url:  ${selectedFavoriteSource.url}` +
 				`</code></pre></div>Name:`,
-				selectedFavoriteSource.name, 
+				selectedFavoriteSource.name,
 				'Update Favorite NDI',
 				{
 					confirmText: 'Next',
@@ -543,7 +571,7 @@
 					cancelText: 'Cancel'
 				}
 			);
-			
+
 			// Return if 'Cancel' is selected.
 			if (modUrl === null || modUrl === undefined) {
 				viewFavoriteSources();
@@ -598,15 +626,15 @@
 		function renderSchedules() {
 			const settings = getScreenSaverSettings();
 			const list = document.getElementById('scheduleList');
-			
+
 			if (settings.disableSchedules.length === 0) {
 				list.innerHTML = '<p style="font-size:11px; color:#666; font-style:italic;">No schedules configured</p>';
 				return;
 			}
-			
+
 			list.innerHTML = settings.disableSchedules.map((schedule, idx) => {
-				const days = schedule.days.length === 7 ? 'Every day' : 
-					schedule.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ');
+				const days = schedule.days.length === 7 ? 'Every day' :
+					schedule.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ');
 				return `
 					<div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); border-radius:6px;">
 						<div>
@@ -629,7 +657,7 @@
 			let startTime = '';
 			let endTime = '';
 			let days = [0, 1, 2, 3, 4, 5, 6];
-			
+
 			const html = `
 				<div style="display:flex; flex-direction:column; gap:12px;">
 					<div>
@@ -643,7 +671,7 @@
 					<div>
 						<label style="font-size:12px; color:#eee; display:block; margin-bottom:6px;">Days</label>
 						<div style="display:flex; gap:8px; flex-wrap:wrap;">
-							${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day, idx) => `
+							${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => `
 								<label style="display:flex; align-items:center; gap:4px; font-size:11px; color:#eee; cursor:pointer; padding:4px 8px; background:#1a1a1a; border-radius:4px;">
 									<input type="checkbox" class="scheduleDay" value="${idx}" checked style="cursor:pointer;">
 									${day}
@@ -653,16 +681,16 @@
 					</div>
 				</div>
 			`;
-			
-			const confirmed = await modal.custom(html, 'Add Disable Schedule', { 
+
+			const confirmed = await modal.custom(html, 'Add Disable Schedule', {
 				confirmText: 'Add',
 				onOpen: () => {
 					const startInput = document.getElementById('scheduleStart');
 					const endInput = document.getElementById('scheduleEnd');
-					
+
 					startTime = startInput.value;
 					endTime = endInput.value;
-					
+
 					startInput.addEventListener('input', (e) => {
 						startTime = e.target.value;
 					});
@@ -677,17 +705,17 @@
 				}
 			});
 			if (!confirmed) return;
-			
+
 			if (!startTime || !endTime) {
 				toast.error('Please enter both start and end times');
 				return;
 			}
-			
+
 			if (days.length === 0) {
 				toast.error('Please select at least one day');
 				return;
 			}
-			
+
 			const settings = getScreenSaverSettings();
 			settings.disableSchedules.push({ startTime, endTime, days });
 			localStorage.setItem('ndpi_screensaver_settings', JSON.stringify(settings));
@@ -710,12 +738,12 @@
 			const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
 			const scaleSlider = document.getElementById('scaleSlider');
 			const scaleValue = document.getElementById('scaleValue');
-			
+
 			if (!scaleSlider || !scaleValue) {
 				setTimeout(initializeScale, 200);
 				return;
 			}
-			
+
 			scaleSlider.value = savedScale;
 			scaleValue.value = savedScale;
 			applyScale(savedScale);
@@ -723,7 +751,7 @@
 			let debounceTimer;
 
 			// Scale Entry Method
-			scaleValue.addEventListener('input', function() {
+			scaleValue.addEventListener('input', function () {
 				let scale = Math.max(this.value, 50);
 				scale = Math.min(scale, 200);
 				scaleSlider.value = scale;
@@ -744,11 +772,11 @@
 			*/
 
 			// Scale Slider Entry Method
-			scaleSlider.addEventListener('input', function() {
+			scaleSlider.addEventListener('input', function () {
 				const scale = this.value;
 				scaleValue.value = scale;
 			});
-			scaleSlider.addEventListener('change', function() {
+			scaleSlider.addEventListener('change', function () {
 				const scale = this.value;
 				applyScale(scale);
 				localStorage.setItem('ndpi_ui_scale', scale);
@@ -828,13 +856,13 @@
 				clearTimeout(hubSystemReconnectTimer);
 				hubSystemReconnectTimer = setTimeout(connectHubSystemSocket, 5000);
 			};
-			hubSystemSocket.onerror = () => {};
+			hubSystemSocket.onerror = () => { };
 		}
 		connectHubSystemSocket();
 
 		window.addEventListener('beforeunload', () => {
 			clearTimeout(hubSystemReconnectTimer);
-			try { hubSystemSocket && hubSystemSocket.close(); } catch (e) {}
+			try { hubSystemSocket && hubSystemSocket.close(); } catch (e) { }
 		});
 
 		async function checkForHubUpdate() {
@@ -1015,9 +1043,9 @@
 				}, null, 2),
 				'Configure Server Network'
 			);
-			
+
 			if (!config) return;
-			
+
 			try {
 				const networkConfig = JSON.parse(config);
 				const confirmed = await modal.confirm(
@@ -1025,15 +1053,15 @@
 					'Apply Network Settings',
 					{ danger: true, confirmText: 'Apply' }
 				);
-				
+
 				if (!confirmed) return;
-				
+
 				const res = await fetch('/api/system/network', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(networkConfig)
 				});
-				
+
 				if (res.ok) {
 					toast.success('Network settings applied. Server may reconnect with new IP.');
 					setTimeout(() => window.location.reload(), 10000);
@@ -1060,10 +1088,10 @@
 
 				const rokuData = await rokuRes.json();
 				const groupsData = await groupsRes.json();
-				
+
 				rokuTvs = rokuData.rokuTvs || [];
 				groups = groupsData.groups || [];
-				
+
 				renderRokuTvs();
 			} catch (e) {
 				console.error('Failed to load Roku TVs:', e);
@@ -1072,16 +1100,16 @@
 
 		function renderRokuTvs() {
 			const container = document.getElementById('rokuTvList');
-			
+
 			if (rokuTvs.length === 0) {
 				container.innerHTML = '<p style="color:#888;font-size:12px;">No Roku TVs added yet</p>';
 				return;
 			}
-			
+
 			container.innerHTML = rokuTvs.map(tv => {
 				const group = groups.find(g => g.id === tv.groupId);
 				const groupName = group ? group.name : 'Unknown Group';
-				
+
 				return `
 					<div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); border-radius:6px;">
 						<div>
@@ -1104,22 +1132,22 @@
 			// Get IP address
 			const ipAddress = await modal.prompt('Enter Roku TV IP address:', '', 'Add Roku TV');
 			if (!ipAddress) return;
-			
+
 			// Validate IP format
 			const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
 			if (!ipPattern.test(ipAddress)) {
 				toast.error('Invalid IP address format');
 				return;
 			}
-			
+
 			// Fetch device info from Roku
 			toast.info('Fetching device information...');
-			
+
 			try {
 				console.log(`Fetching device info from http://${ipAddress}:8060/query/device-info`);
 				const response = await fetch(`http://${ipAddress}:8060/query/device-info`, {
 					method: 'GET',
-					headers: { 
+					headers: {
 						'Accept': 'application/xml'
 					}
 				});
@@ -1127,13 +1155,13 @@
 					toast.error('Failed to connect to Roku TV. Check IP address.');
 					return;
 				}
-				
+
 				const xmlText = await response.text();
 				const parser = new DOMParser();
 				const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-				
+
 				const getTagText = (tagName) => xmlDoc.getElementsByTagName(tagName)[0]?.textContent || '';
-				
+
 				const deviceInfo = {
 					friendlyName: getTagText('friendly-device-name') || getTagText('user-device-name') || 'Roku TV',
 					model: getTagText('model-name'),
@@ -1141,18 +1169,18 @@
 					screenSize: getTagText('screen-size'),
 					deviceType: getTagText('is-tv') === 'true' ? 'TV' : 'Device'
 				};
-				
+
 				// Select group
 				if (groups.length === 0) {
 					toast.error('No groups available. Create a group first.');
 					return;
 				}
-				
+
 				const groupOptions = groups.map(g => ({ value: g.id, label: g.name }));
 				const groupId = await modal.select('Select group for this Roku TV:', groupOptions, null, 'Add Roku TV');
-				
+
 				if (!groupId) return;
-				
+
 				// Save to server
 				const res = await fetch('/api/roku-tv', {
 					method: 'POST',
@@ -1167,7 +1195,7 @@
 						groupId
 					})
 				});
-				
+
 				if (res.ok) {
 					toast.success('Roku TV added successfully');
 					loadRokuTvs();
@@ -1184,18 +1212,18 @@
 		async function removeRokuTv(id) {
 			const tv = rokuTvs.find(t => t.id === id);
 			if (!tv) return;
-			
+
 			const confirmed = await modal.confirm(
 				`Remove "${tv.displayName}" from Roku TV management?`,
 				'Remove Roku TV',
 				{ danger: true, confirmText: 'Remove' }
 			);
-			
+
 			if (!confirmed) return;
-			
+
 			try {
 				const res = await fetch(`/api/roku-tv/${id}`, { method: 'DELETE' });
-				
+
 				if (res.ok) {
 					toast.success('Roku TV removed');
 					loadRokuTvs();
@@ -1209,4 +1237,5 @@
 
 	</script>
 </body>
+
 </html>

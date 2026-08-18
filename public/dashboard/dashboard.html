@@ -1,11 +1,12 @@
 <!doctype html>
 <html lang="en">
+
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" href="/styles.css">
-	<script>(function(){var c=localStorage.getItem('ndpi_theme_color');if(c){document.documentElement.style.setProperty('--accent',c);}})();</script>
-	<script>(function(){if(localStorage.getItem('ndpi_sidebar_collapsed')==='true'){document.documentElement.classList.add('sidebar-collapsed');}})();</script>
+	<script>(function () { var c = localStorage.getItem('ndpi_theme_color'); if (c) { document.documentElement.style.setProperty('--accent', c); } })();</script>
+	<script>(function () { if (localStorage.getItem('ndpi_sidebar_collapsed') === 'true') { document.documentElement.classList.add('sidebar-collapsed'); } })();</script>
 	<script src="/scripts/auth.js"></script>
 	<script src="/scripts/ws-client.js"></script>
 	<script src="/scripts/ws-devices.js"></script>
@@ -15,6 +16,7 @@
 	<link rel="icon" type="image/svg+xml" href="/api/v2/logo">
 	<!-- <link rel="icon" type="image/svg+xml" href="/media/favicon.svg"> -->
 </head>
+
 <body class="hide-scrollbar">
 	<div id="main-div" class="app">
 		<nav class="sidebar">
@@ -24,15 +26,41 @@
 			</div>
 			<div class="sidebar-nav">
 				<button id="sidebarToggle" class="nav-btn" title="Collapse sidebar">
-					<span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg></span>
+					<span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="3" y="4" width="18" height="16" rx="2" />
+							<line x1="9" y1="4" x2="9" y2="20" />
+						</svg></span>
 					<span class="nav-btn-label">Collapse</span>
 				</button>
-				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5M2 16l10 5 10-5"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2"/><path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m6 9 3 3-3 3M12 15h6"/></svg></span><span class="nav-btn-label"></span></button>
-				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDashboard" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="3" y="3" width="7" height="7" rx="1.5" />
+							<rect x="14" y="3" width="7" height="7" rx="1.5" />
+							<rect x="3" y="14" width="7" height="7" rx="1.5" />
+							<rect x="14" y="14" width="7" height="7" rx="1.5" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navDevices" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="2" y="4" width="20" height="13" rx="2" />
+							<path d="M8 21h8M12 17v4" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navGroups" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<path d="M12 3 2 8l10 5 10-5-10-5Z" />
+							<path d="M2 12l10 5 10-5M2 16l10 5 10-5" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navUsers" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<circle cx="9" cy="8" r="3.2" />
+							<path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+							<path d="M16.5 4.8c1.5.4 2.5 1.7 2.5 3.2s-1 2.8-2.5 3.2" />
+							<path d="M18 14.3c2 .5 3.5 2.2 3.5 4.7" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navConsole" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<rect x="2" y="4" width="20" height="16" rx="2" />
+							<path d="m6 9 3 3-3 3M12 15h6" />
+						</svg></span><span class="nav-btn-label"></span></button>
+				<button id="navSettings" class="nav-btn"><span class="nav-btn-icon"><svg viewBox="0 0 24 24">
+							<circle cx="12" cy="12" r="3" />
+							<path
+								d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+						</svg></span><span class="nav-btn-label"></span></button>
 			</div>
 			<div class="sidebar-spacer"></div>
 			<div class="sidebar-footer">
@@ -43,97 +71,119 @@
 			<div class="topbar">
 				<span class="topbar-title">Dashboard</span>
 				<div class="topbar-spacer"></div>
+				<span class="topbar-title" id="sys-time"></span>
 			</div>
 			<div class="content">
 
-		<section class="dashboard">
-			<!-- Connected Devices Section -->
-			<div class="card">
-				<h2>Connected Devices</h2>
-				<div class="card-content">
-					<div id="devicesList" class="devices-grid">
-						<!-- Device tiles will be rendered here -->
-					</div>
-				</div>
-			</div>
-
-			<!-- System Stats Section -->
-			<div class="card">
-				<h2 id="sys-status">Getting System Stats...</h2>
-				<div class="card-content" id="systemStats">
-					<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.8125rem;">
-						<div>
-							<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">CPU Usage</div>
-							<div style="display: flex; align-items: center; gap: 0.5rem;">
-								<div style="flex: 1; height: 0.375rem; background: rgba(255,255,255,0.1); border-radius: 0.1875rem; overflow: hidden;">
-									
-									<div id="cpu-use-bar" style="transition: width 5s ease, background 2s ease; height: 100%; background: inherit; width: 0rem;"></div>
-
-								</div>
-								<span id="cpu-use-value" style="color: inherit; font-weight: 600; min-width: 2.8125rem;"></span>
+				<section class="dashboard">
+					<!-- Connected Devices Section -->
+					<div class="card">
+						<h2>Connected Devices</h2>
+						<div class="card-content">
+							<div id="devicesList" class="devices-grid">
+								<!-- Device tiles will be rendered here -->
 							</div>
-						</div>
-						<div>
-							<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">CPU Temp</div>
-							<div style="display: flex; align-items: center; gap: 0.5rem;">
-								<div style="flex: 1; height: 0.375rem; background: rgba(255,255,255,0.1); border-radius: 0.1875rem; overflow: hidden;">
-
-									<div id="cpu-temp-bar" style="transition: width 5s ease, background 2s ease; height: 100%; background: inherit; width: 0rem;"></div>
-
-								</div>
-
-								<span id="cpu-temp-value" style="color: inherit; font-weight: 600; min-width: 2.8125rem;"></span>
-
-							</div>
-						</div>
-						<div>
-							<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">Memory</div>
-							<div style="display: flex; align-items: center; gap: 0.5rem;">
-								<div style="flex: 1; height: 0.375rem; background: rgba(255,255,255,0.1); border-radius: 0.1875rem; overflow: hidden;">
-
-									<div id="memory-use-bar" style="transition: width 5s ease, background 2s ease; height: 100%; background: inherit; width: 0rem;"></div>
-
-								</div>
-
-								<span id="memory-use-value" style="color: inherit; font-weight: 600; min-width: 2.8125rem;"></span>
-
-							</div>
-							<div id="memory-use-ratio" style="color: #888; font-size: 0.6875rem; margin-top: 0.125rem;">-.- GB / -.- GB</div>
-						</div>
-						<div>
-							<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">Disk Usage</div>
-							<div style="display: flex; align-items: center; gap: 0.5rem;">
-								<div style="flex: 1; height: 0.375rem; background: rgba(255,255,255,0.1); border-radius: 0.1875rem; overflow: hidden;">
-
-									<div id="disk-use-bar" style="transition: width 5s ease, background 2s ease; height: 100%; background: inherit; width: 0rem;"></div>
-
-								</div>
-								<span id="disk-use-value" style="color: inherit; font-weight: 600; min-width: 2.8125rem;"></span>
-							</div>
-						</div>
-						<div>
-							<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">Load Average</div>
-							<div id="load-average" style="color: #888; font-size: 0.75rem;">
-								-.-- / -.-- / -.--
-							</div>
-							<div style="color: #888; font-size: 0.6875rem; margin-top: 0.125rem;">1m / 5m / 15m</div>
 						</div>
 					</div>
-				</div>
-			</div>
-			
-			
-			<!-- Groups Section -->
-			<div class="card">
-				<h2>Display Groups</h2>
-				<div class="card-content">
-					<div id="groupsList" class="devices-grid">
-						<!-- Device tiles will be rendered here -->
-					</div>
-				</div>
-			</div>
 
-		</section>
+					<!-- System Stats Section -->
+					<div class="card">
+						<h2 id="sys-status">Getting System Stats...</h2>
+						<div class="card-content" id="systemStats">
+							<div
+								style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.8125rem;">
+								<div>
+									<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">CPU Usage</div>
+									<div style="display: flex; align-items: center; gap: 0.5rem;">
+										<div
+											style="flex: 1; height: 0.375rem; background: rgba(255,255,255,0.1); border-radius: 0.1875rem; overflow: hidden;">
+
+											<div id="cpu-use-bar"
+												style="transition: width 5s ease, background 2s ease; height: 100%; background: inherit; width: 0rem;">
+											</div>
+
+										</div>
+										<span id="cpu-use-value"
+											style="color: inherit; font-weight: 600; min-width: 2.8125rem;"></span>
+									</div>
+								</div>
+								<div>
+									<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">CPU Temp</div>
+									<div style="display: flex; align-items: center; gap: 0.5rem;">
+										<div
+											style="flex: 1; height: 0.375rem; background: rgba(255,255,255,0.1); border-radius: 0.1875rem; overflow: hidden;">
+
+											<div id="cpu-temp-bar"
+												style="transition: width 5s ease, background 2s ease; height: 100%; background: inherit; width: 0rem;">
+											</div>
+
+										</div>
+
+										<span id="cpu-temp-value"
+											style="color: inherit; font-weight: 600; min-width: 2.8125rem;"></span>
+
+									</div>
+								</div>
+								<div>
+									<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">Memory</div>
+									<div style="display: flex; align-items: center; gap: 0.5rem;">
+										<div
+											style="flex: 1; height: 0.375rem; background: rgba(255,255,255,0.1); border-radius: 0.1875rem; overflow: hidden;">
+
+											<div id="memory-use-bar"
+												style="transition: width 5s ease, background 2s ease; height: 100%; background: inherit; width: 0rem;">
+											</div>
+
+										</div>
+
+										<span id="memory-use-value"
+											style="color: inherit; font-weight: 600; min-width: 2.8125rem;"></span>
+
+									</div>
+									<div id="memory-use-ratio"
+										style="color: #888; font-size: 0.6875rem; margin-top: 0.125rem;">-.- GB / -.- GB
+									</div>
+								</div>
+								<div>
+									<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">Disk Usage</div>
+									<div style="display: flex; align-items: center; gap: 0.5rem;">
+										<div
+											style="flex: 1; height: 0.375rem; background: rgba(255,255,255,0.1); border-radius: 0.1875rem; overflow: hidden;">
+
+											<div id="disk-use-bar"
+												style="transition: width 5s ease, background 2s ease; height: 100%; background: inherit; width: 0rem;">
+											</div>
+
+										</div>
+										<span id="disk-use-value"
+											style="color: inherit; font-weight: 600; min-width: 2.8125rem;"></span>
+									</div>
+								</div>
+								<div>
+									<div style="color: #eee; margin-bottom: 0.5rem; font-weight: 600;">Load Average
+									</div>
+									<div id="load-average" style="color: #888; font-size: 0.75rem;">
+										-.-- / -.-- / -.--
+									</div>
+									<div style="color: #888; font-size: 0.6875rem; margin-top: 0.125rem;">1m / 5m / 15m
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+
+					<!-- Groups Section -->
+					<div class="card">
+						<h2>Display Groups</h2>
+						<div class="card-content">
+							<div id="groupsList" class="devices-grid">
+								<!-- Device tiles will be rendered here -->
+							</div>
+						</div>
+					</div>
+
+				</section>
 			</div>
 		</div>
 	</div>
@@ -141,9 +191,13 @@
 
 
 	<script>
-		
+
 		(() => {
 			applyActiveNav('navDashboard');
+			const sysTimeEl = document.getElementById('sys-time');
+			setInterval(() => {
+				sysTimeEl.textContent = new Date();
+			}, 1000)
 		})();
 
 		let devices = [];
@@ -303,7 +357,7 @@
 				const cpuColor = dev.systemStats.cpu > 80 ? '#f87171' : dev.systemStats.cpu > 50 ? '#fbbf24' : '#4ade80';
 				const memColor = dev.systemStats.memory.percent > 80 ? '#f87171' : dev.systemStats.memory.percent > 50 ? '#fbbf24' : '#4ade80';
 				const tempColor = dev.systemStats.temperature > 78 ? '#f87171' : dev.systemStats.temperature > 65 ? '#fbbf24' : '#4ade80';
-				const tempF = ((dev.systemStats.temperature * 9/5) + 32).toFixed(0);
+				const tempF = ((dev.systemStats.temperature * 9 / 5) + 32).toFixed(0);
 				refs.cpu.textContent = `${dev.systemStats.cpu}%`;
 				refs.cpu.style.color = cpuColor;
 				refs.temp.textContent = `${tempF}°F`;
@@ -432,7 +486,7 @@
 				clearTimeout(hubStatsReconnectTimer);
 				hubStatsReconnectTimer = setTimeout(connectHubStatsSocket, 5000);
 			};
-			hubStatsSocket.onerror = () => {};
+			hubStatsSocket.onerror = () => { };
 		}
 		connectHubStatsSocket();
 
@@ -472,7 +526,7 @@
 
 		window.addEventListener('beforeunload', () => {
 			clearTimeout(hubStatsReconnectTimer);
-			try { hubStatsSocket && hubStatsSocket.close(); } catch (e) {}
+			try { hubStatsSocket && hubStatsSocket.close(); } catch (e) { }
 			devicesStatsRelay.close();
 			devicesSystemRelay.close();
 		});
@@ -495,18 +549,18 @@
 				console.error('One or more system stats elements not found!');
 				return;
 			}
-			
+
 			const cpuColor = stats.cpuUsage > 80 ? '#dc5050' : stats.cpuUsage > 60 ? '#ffa500' : 'rgb(129, 193, 39)';
 			const memColor = stats.memoryUsage > 80 ? '#dc5050' : stats.memoryUsage > 60 ? '#ffa500' : 'rgb(129, 193, 39)';
 			const diskColor = stats.diskUsage > 80 ? '#dc5050' : stats.diskUsage > 60 ? '#ffa500' : 'rgb(129, 193, 39)';
 			const tempColor = stats.cpuTemp > 78 ? '#dc5050' : stats.cpuTemp > 65 ? '#ffa500' : 'rgb(129, 193, 39)';
-			const tempF = ((stats.cpuTemp * 9/5) + 32).toFixed(0);
+			const tempF = ((stats.cpuTemp * 9 / 5) + 32).toFixed(0);
 			/*
 				40°C is low and 85°C is high
 				Updated --	31.5°C is low
 							76.5°C is high
 			*/
-			const tempHighLowPercent = (stats.cpuTemp - 31.5) / (76.5 - 31.5) * 100; 
+			const tempHighLowPercent = (stats.cpuTemp - 31.5) / (76.5 - 31.5) * 100;
 
 			cpuUseBar.style.width = `${stats.cpuUsage}%`;
 			cpuUseBar.style.background = cpuColor;
@@ -534,7 +588,7 @@
 			if (initLoadMsg) {
 				initLoadMsg.textContent = 'System Stats';
 			}
-			
+
 			/*
 			container.innerHTML = `
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13px;">
@@ -589,4 +643,5 @@
 
 	</script>
 </body>
+
 </html>
