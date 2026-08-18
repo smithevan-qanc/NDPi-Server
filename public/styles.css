@@ -2087,6 +2087,7 @@ select option {
 	background: rgba(81, 43, 42, 1);
 	color: rgba(231, 58, 41, 1);
 	border: none;
+	font-weight: 500;
 }
 
 .button-danger:hover {
