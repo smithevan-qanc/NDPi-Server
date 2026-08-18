@@ -9,9 +9,39 @@ let account = null;
     }
 })();
 
+// The Hub's own kiosk browser hits http://localhost:PORT/ (see
+// config/kiosk.service) -- "localhost" only ever resolves to the machine
+// the browser itself is running on, so a page that successfully loaded
+// under this hostname can only be the kiosk browser on the Hub itself.
+// The actual security boundary is server-side (POST /api/account/local-signin
+// re-checks the real TCP peer address, not this) -- this is just what
+// decides whether to attempt it at all.
+function isLocalHost() {
+    return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+}
+
+// Signs in as the 'admin' account with no PIN entry, but only succeeds if
+// the server confirms this request actually came from its own loopback
+// (see hub_api_server.js's isLoopbackAddress()) -- returns true/false
+// rather than throwing, so callers can fall back to a normal sign-in.
+async function tryLocalAutoSignIn() {
+    try {
+        const res = await fetch('/api/account/local-signin', { method: 'POST' });
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (!data.success) return false;
+        localStorage.setItem('ndpi_token', data.account.token);
+        account = data.account;
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
 async function loadUserAccount() {
     const token = localStorage.getItem('ndpi_token');
     if (!token) {
+        if (isLocalHost() && await tryLocalAutoSignIn()) { return; }
         redirectSignIn();
 		return;
     }
@@ -24,6 +54,10 @@ async function loadUserAccount() {
         const data = await res.json();
         if (res.ok) {
             account = data.account;
+        } else if (isLocalHost() && await tryLocalAutoSignIn()) {
+            // Stale/invalid token (e.g. the admin PIN changed elsewhere) --
+            // still on the Hub's own loopback, so recover instead of
+            // bouncing to the sign-in screen.
         } else {
             redirectSignIn();
         }

@@ -43,6 +43,19 @@ function getSettingValue(tuples, key, fallback = '') {
     return (value === undefined || value === null || value === '') ? fallback : value;
 }
 
+// Used to gate the local-only auto-signin route (POST /api/account/local-signin)
+// -- reads the actual TCP peer address (req.socket.remoteAddress), not
+// anything client-supplied (Host header, request body, etc), since this is
+// what stands between an unauthenticated request and a full admin session.
+// Doesn't consult `trust proxy`/X-Forwarded-For on purpose: this Hub's kiosk
+// browser talks to it directly, and honoring a forwarded-for header here
+// would let anything sending one claim to be loopback.
+function isLoopbackAddress(remoteAddress) {
+    if (!remoteAddress) return false;
+    const addr = remoteAddress.replace(/^::ffff:/, '');
+    return addr === '127.0.0.1' || addr === '::1';
+}
+
 // Mirrors the deleted clientServer_websocket.js's buildStatusMessage() --
 // same keys, same fallbacks, just reading from a relayed settings-tuple
 // array (Array.from(client_fs.js's fileMap), the exact shape /ws/system
@@ -1588,6 +1601,44 @@ class NDPiCommandServer_Client extends EventEmitter {
             });
         });
 
+        /**
+         *  Local-only auto-signin -- the Hub's own kiosk browser hits
+         *  http://localhost:PORT/ (config/kiosk.service), and since
+         *  "localhost" only ever resolves to the machine the browser is
+         *  actually running on, a browser that successfully loaded this
+         *  page under that hostname can only be running on the Hub itself.
+         *  Gated here (not just client-side) on the actual TCP peer
+         *  address being loopback -- see isLoopbackAddress() -- so this
+         *  route itself refuses to hand out a session to anything that
+         *  isn't really connecting from the Hub's own loopback, regardless
+         *  of what the client claims. Always signs in as the 'admin'
+         *  account specifically (see updateAccount()'s protections for
+         *  that account elsewhere in this file), not just "any admin".
+         */
+        this.Routes
+        .route('/api/account/local-signin')
+        .post((req, res) => {
+            if (!isLoopbackAddress(req.socket.remoteAddress))
+            { return res.status(403).json({ error: 'Forbidden' }); }
+
+            const account = this.settings.findAccountByUsername('admin');
+            if (!account)
+            { return res.status(404).json({ error: 'No admin account' }); }
+
+            res.json({
+                success: true,
+                account: {
+                    token: account.pinHash,
+                    id: account.id,
+                    firstName: account.firstName,
+                    lastName: account.lastName,
+                    username: account.username,
+                    isAdmin: account.isAdmin || false,
+                    firstTimeLogin: account.firstTimeLogin || false,
+                },
+            });
+        });
+
         this.Routes
         .route('/api/account')
         .post((req, res) => {
@@ -1649,6 +1700,19 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             const updates = req.body || {};
 
+            // The 'admin' account (username, not just isAdmin -- there can
+            // be other admins) is the one guaranteed account this Hub can
+            // always be signed into (see createDefaultAdminAccount() and
+            // /api/account/local-signin). Only its PIN is editable; every
+            // other field is locked, regardless of who's asking or whether
+            // they're an admin themselves.
+            if (account.username.toLowerCase() === 'admin')
+            {
+                const lockedFields = ['firstName', 'lastName', 'username', 'isAdmin'].filter((key) => key in updates);
+                if (lockedFields.length > 0)
+                { return res.status(400).json({ error: `The 'admin' account's ${lockedFields.join(', ')} cannot be changed -- only its PIN is editable.` }); }
+            }
+
             if (updates.username && updates.username !== account.username && this.settings.findAccountByUsername(updates.username))
             { return res.status(400).json({ error: 'Username already taken' }); }
 
@@ -1701,6 +1765,9 @@ class NDPiCommandServer_Client extends EventEmitter {
             const account = this.settings.getAccount(req.params.id);
             if (!account)
             { return res.status(404).json({ error: 'Account not found' }); }
+
+            if (account.username.toLowerCase() === 'admin')
+            { return res.status(400).json({ error: "The 'admin' account cannot be deleted." }); }
 
             const adminAccounts = this.settings.getAccounts().filter((acc) => acc.isAdmin);
             if (account.isAdmin && adminAccounts.length === 1)

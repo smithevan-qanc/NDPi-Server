@@ -42,6 +42,19 @@
 		const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
 		document.documentElement.style.fontSize = `${savedScale}%`;
 
+		// On the Hub's own kiosk browser (localhost), land here straight
+		// back into the admin account instead of requiring a PIN --
+		// otherwise an explicit sign-out (or the top-of-file token clear
+		// this page always runs) would leave the kiosk stuck on this
+		// screen forever with no one there to type a PIN.
+		(async () => {
+			if (isLocalHost() && await tryLocalAutoSignIn()) {
+				const returnUrl = sessionStorage.getItem('signin_return') || '/';
+				sessionStorage.removeItem('signin_return');
+				window.location.href = returnUrl;
+			}
+		})();
+
 		const form = document.getElementById('signinForm');
 		const pinInput = document.getElementById('pin');
 		const formError = document.getElementById('formError');

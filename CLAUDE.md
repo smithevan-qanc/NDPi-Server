@@ -2227,6 +2227,51 @@ just a mechanical add:
 rest of this feature; verified with `bash -n` on the deploy script and a
 structural read-through of all 6 affected unit-file-generation sites.
 
+### Local-only admin auto-signin + a protected 'admin' account (user request)
+
+Two related features: the Hub's own kiosk browser (`http://localhost:PORT/`,
+`config/kiosk.service`) should sign itself in as the admin account with no
+PIN, and the `admin` account itself should be locked down (only its PIN
+editable) so it can't accidentally be renamed/demoted/deleted out from
+under that auto-signin.
+
+**Auto-signin**: new `POST /api/account/local-signin`
+(`hub_api_server.js`) — gated on `isLoopbackAddress(req.socket.remoteAddress)`
+(127.0.0.1/::1, `::ffff:`-stripped), independent of anything the client
+claims; always resolves to the account named `admin` specifically, not
+"any admin". `auth.js`'s `loadUserAccount()` calls this (via new
+`isLocalHost()`/`tryLocalAutoSignIn()` helpers) before falling back to
+`redirectSignIn()`, both when there's no token and when an existing token
+turns out to be invalid/stale. `sign-in.html` also calls it directly on
+load — needed because its own top-of-file IIFE unconditionally clears any
+token whenever that page loads, so without this an explicit sign-out (or
+any bounce through that page) would otherwise strand the kiosk on the PIN
+screen with no one there to type one.
+
+**Protected `admin` account**: `handleAccountUpdate` (backs both
+`PUT /api/account/:id` and `POST /api/account/:id/update`) now rejects any
+update touching `firstName`/`lastName`/`username`/`isAdmin` when
+`account.username.toLowerCase() === 'admin'` — regardless of who's asking,
+including another admin, since the user's ask was literally "the only
+thing editable is the PIN." `DELETE /api/account/:id` gained the same
+username check ahead of the pre-existing last-admin-account check. Client-side
+UX (not itself enforcement, matches this codebase's existing
+`allowEditExternal`-is-UI-only convention): `users.html`'s Grant/Revoke
+Admin button no longer renders for the `admin` account;
+`account-settings.js` disables the firstName/lastName fields and the
+update button when the signed-in account is `admin`.
+
+**Verified live** (booted the Hub locally, real HTTP calls, not mocked):
+`POST /api/account/local-signin` from actual `127.0.0.1` correctly returns
+the admin account's token; attempts to change `admin`'s username, isAdmin
+(including via its own requestor id), and firstName each correctly 400
+with the new message; `DELETE` on it correctly 400s; a PIN-only update
+still succeeds and the new PIN correctly signs in afterward; local-signin
+still resolves correctly after the PIN change. Did not test the loopback
+rejection path against a genuine non-loopback source (would need a real
+remote host) — logic is a simple, directly-reviewed one-liner, not
+exercised end-to-end.
+
 ## Priority order for remaining work
 
 1. Fix routing bug (#1 above) — nothing else matters until navigation works.

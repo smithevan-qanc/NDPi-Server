@@ -202,9 +202,9 @@
 						<div>Username: ${user.username}</div>
 						<div>Created: ${createdDate}</div>
 					</div>
-					${account && account.isAdmin && user.id !== account.id ? `
+					${account && account.isAdmin && user.id !== account.id && user.username.toLowerCase() !== 'admin' ? `
 						<div class="admin-actions">
-							<button onclick="toggleAdminPrivileges('${user.id}', ${user.isAdmin})" 
+							<button onclick="toggleAdminPrivileges('${user.id}', ${user.isAdmin})"
 									class="admin-toggle-btn ${user.isAdmin ? 'revoke' : 'grant'}">
 								${user.isAdmin ? 'Revoke Admin' : 'Grant Admin'}
 							</button>

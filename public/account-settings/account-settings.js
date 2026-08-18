@@ -17,6 +17,17 @@ function initPage() {
         document.getElementById('username').textContent = account.username;
         document.getElementById('firstName').value = account.firstName;
         document.getElementById('lastName').value = account.lastName;
+
+        // The 'admin' account is locked server-side to PIN-only changes
+        // (hub_api_server.js's handleAccountUpdate) -- disable the fields
+        // here too so this reads as "not editable" instead of a request
+        // that silently gets rejected on submit.
+        if (String(account.username).toLowerCase() === 'admin') {
+            document.getElementById('firstName').disabled = true;
+            document.getElementById('lastName').disabled = true;
+            const updateBtn = document.getElementById('update-profile');
+            if (updateBtn) { updateBtn.disabled = true; updateBtn.title = "The 'admin' account's name cannot be changed."; }
+        }
     }
 
     document.getElementById('update-profile').addEventListener('click', async function(e) {
