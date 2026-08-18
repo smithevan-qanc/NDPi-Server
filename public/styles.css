@@ -192,7 +192,7 @@ html.sidebar-collapsed .sidebar-logo-title {
 	opacity: 0;
 	width: 0;
 	pointer-events: none;
-
+	transition: width 0.25s ease-in;
 }
 
 html.sidebar-collapsed .sidebar-section-label {
