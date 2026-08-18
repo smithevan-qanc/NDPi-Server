@@ -369,7 +369,7 @@ function applyActiveNav(element) {
 	// 'nearest' } scrolls only .sidebar-nav just enough to reveal it,
 	// without touching the page's own scroll position -- a no-op on
 	// desktop, where .sidebar-nav doesn't overflow.
-	el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	el.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 
 
