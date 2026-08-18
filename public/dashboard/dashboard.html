@@ -195,10 +195,11 @@
 		(() => {
 			applyActiveNav('navDashboard');
 			const sysTimeEl = document.getElementById('sys-time');
+			sysTimeEl.style.fontSize = '1.2rem';
 			setInterval(() => {
 				const timeNow = new Date()
-				sysTimeEl.textContent = `${timeNow.toDateString()} ${timeNow.toLocaleTimeString()}`;
-			}, 1000)
+				sysTimeEl.textContent = `${timeNow.toDateString()} ${timeNow.toTimeString()}`;
+			}, 1000);
 		})();
 
 		let devices = [];
