@@ -2272,6 +2272,60 @@ rejection path against a genuine non-loopback source (would need a real
 remote host) — logic is a simple, directly-reviewed one-liner, not
 exercised end-to-end.
 
+### Custom on-screen keyboard for the kiosk touch display (user request)
+
+Chromium kiosk mode never shows the native OS on-screen keyboard, so text
+inputs were untypeable on the Hub's attached touchscreen. New
+`public/01-scripts/on-screen-keyboard.js` — self-contained, self-initializing
+(no dependency on functions.js/auth.js, since sign-in.html/set-pin.html
+don't load those), full QWERTY + a separate 10-key numpad, styled in
+styles.css's new `ON-SCREEN KEYBOARD` section.
+
+Triggered on `touchstart` specifically (not `focus`), since a mouse click
+also fires focus and shouldn't raise it — a real keyboard is assumed
+attached wherever a mouse is. Disabled entirely inside the app's existing
+mobile breakpoint (`(max-width: 860px)`, same value as
+`functions.js`'s `MOBILE_BAR_QUERY` / styles.css's `53.75rem`, duplicated
+as a literal rather than shared since this script must work without
+functions.js loaded): a phone/tablet also delivers touchstart, but its own
+native keyboard works fine there.
+
+Key presses splice `input.value` directly at `selectionStart`/`selectionEnd`
+(wrapped in try/catch -- some input types like `number` throw on
+`selectionStart` access) and dispatch a real `input` event afterward so
+existing app listeners still fire; `maxLength` is enforced manually since
+direct `.value` writes bypass the browser's native enforcement. Keyboard
+buttons use `pointerdown` + `preventDefault()` rather than `click`, so the
+active input never blurs while typing (cursor/selection stay visible
+throughout) — no need to re-focus between keypresses.
+
+Positioning always targets directly under the touched input (per the
+user's explicit spec, never flipping above it): if there isn't room below
+in the viewport, the nearest scrollable ancestor is scrolled up just
+enough instead. Horizontal position is centered under the input but
+clamped within the viewport so it can never overflow either edge.
+Deliberately not real DOM measurement gated behind a frame wait — the
+keyboard is always `display:flex` (only `opacity`/`pointer-events` toggle
+with `.osk-visible`), so `offsetHeight`/`offsetWidth` are valid to read
+immediately on show.
+
+Wired into all 14 pages with either a static text `<input>` or a
+`modal.js`-driven `modal.prompt()` call (every page except
+`not-found.html`) — the script tag itself is what matters (event
+delegation on `document` means no other per-page wiring is needed), placed
+consistently right after `functions.js`/`ws-hub-stats.js` (or after
+`auth.js` on `sign-in.html`, which loads neither).
+
+**Verified**: `node --check` on the new script and every extracted
+`<script>` block across all 14 edited pages; an HTML tag-balance check on
+all 14 (clean); booted the Hub locally and confirmed both new assets
+(`/scripts/on-screen-keyboard.js`, the new CSS section in `/styles.css`)
+serve with real content, plus a full page-route sweep (200s). **Not**
+tested on an actual touchscreen — no touch input available in this
+environment; the touch-vs-mouse distinction, live positioning/scroll
+behavior, and cursor-splice correctness are the parts most worth checking
+by hand on the real kiosk display before trusting this fully.
+
 ## Priority order for remaining work
 
 1. Fix routing bug (#1 above) — nothing else matters until navigation works.
