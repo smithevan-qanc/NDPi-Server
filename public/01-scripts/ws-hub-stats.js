@@ -1,11 +1,18 @@
 /**
- * Drives the topbar clock (#sys-time) from the Hub's own /ws/hub-stats feed
- * (service/hub_api_server.js's __ws_HubStats()) instead of the browser's own
- * new Date() -- so the displayed time reflects the Hub's actual system
- * clock rather than whatever the viewing device's local clock happens to
- * read. Renders once immediately from the local clock as a first-paint
- * fallback (so the topbar isn't blank while the socket connects), then the
- * socket's ~1/sec pushes take over.
+ * Connects to the Hub's own /ws/hub-stats feed (service/hub_api_server.js's
+ * __ws_HubStats()) and drives the topbar clock (#sys-time) from its
+ * systemTime field, instead of the browser's own new Date() -- so the
+ * displayed time reflects the Hub's actual system clock rather than
+ * whatever the viewing device's local clock happens to read. Renders once
+ * immediately from the local clock as a first-paint fallback (so the
+ * topbar isn't blank while the socket connects), then the socket's ~1/sec
+ * pushes take over.
+ *
+ * This is the shared entry point for the Hub's own live stats generally,
+ * not just the clock -- the /ws/hub-stats payload also carries CPU/memory/
+ * load/etc (see getHubRawSystemStats() server-side), so future uses of
+ * that data on these pages should extend this function/connection rather
+ * than opening another one.
  *
  * Pages that already open their own /ws/hub-stats connection for other data
  * (currently just dashboard.html, for its stats card) should read
@@ -13,7 +20,7 @@
  * opening a second redundant connection to the same endpoint has no
  * benefit.
  */
-function initHubStatsClock() {
+function initGlobalHubStats() {
 	const el = document.getElementById('sys-time');
 	if (!el) return;
 

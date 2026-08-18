@@ -98,7 +98,7 @@
 		</div>
 	</div>
 	<script src="/scripts/functions.js"></script>
-	<script src="/scripts/ws-hub-stats-clock.js"></script>
+	<script src="/scripts/ws-hub-stats.js"></script>
 	<script>
 
 		let selectedAccountId = null;
@@ -113,7 +113,7 @@
 				}
 			}, 500);
 
-			initHubStatsClock();
+			initGlobalHubStats();
 		})();
 
 		async function loadAccounts() {

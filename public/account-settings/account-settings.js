@@ -9,7 +9,7 @@ const ws = initWebSocket();
 // set-pin.html, etc. -- this file was missed).
 function initPage() {
 
-    initHubStatsClock();
+    initGlobalHubStats();
 
     populateFields();
 
