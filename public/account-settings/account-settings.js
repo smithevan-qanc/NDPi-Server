@@ -9,14 +9,7 @@ const ws = initWebSocket();
 // set-pin.html, etc. -- this file was missed).
 function initPage() {
 
-    const sysTimeEl = document.getElementById('sys-time');
-    sysTimeEl.style.fontSize = '1.1rem';
-    const timeNow = new Date();
-    sysTimeEl.innerHTML = `${timeNow.toDateString()}<br>${timeNow.toLocaleTimeString()}`;
-    setInterval(() => {
-        const timeNow = new Date();
-        sysTimeEl.innerHTML = `${timeNow.toDateString()}<br>${timeNow.toLocaleTimeString()}`;
-    }, 1000);
+    initHubStatsClock();
 
     populateFields();
 

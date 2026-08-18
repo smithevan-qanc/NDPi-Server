@@ -196,12 +196,7 @@
 			applyActiveNav('navDashboard');
 			const sysTimeEl = document.getElementById('sys-time');
 			sysTimeEl.style.fontSize = '1.1rem';
-			const timeNow = new Date();
-			sysTimeEl.innerHTML = `${timeNow.toDateString()}<br>${timeNow.toLocaleTimeString()}`;
-			setInterval(() => {
-				const timeNow = new Date();
-				sysTimeEl.innerHTML = `${timeNow.toDateString()}<br>${timeNow.toLocaleTimeString()}`;
-			}, 1000);
+			sysTimeEl.innerHTML = `${new Date().toDateString()}<br>${new Date().toLocaleTimeString()}`;
 		})();
 
 		let devices = [];
@@ -480,8 +475,20 @@
 
 			hubStatsSocket.onmessage = (event) => {
 				try {
-					const derived = deriveHubStats(JSON.parse(event.data));
+					const raw = JSON.parse(event.data);
+					const derived = deriveHubStats(raw);
 					if (derived) { updateSystemStats(derived); }
+					// Topbar clock -- reads systemTime off this same feed
+					// instead of the browser's own new Date(), same as
+					// every other page (see 01-scripts/ws-hub-stats-clock.js);
+					// this page just already has its own /ws/hub-stats
+					// connection, so it taps into that instead of opening
+					// a second redundant one.
+					if (raw && raw.systemTime) {
+						const sysTimeEl = document.getElementById('sys-time');
+						const t = new Date(raw.systemTime);
+						if (sysTimeEl) { sysTimeEl.innerHTML = `${t.toDateString()}<br>${t.toLocaleTimeString()}`; }
+					}
 				} catch (e) {
 					console.error('Invalid /ws/stats message:', e);
 				}

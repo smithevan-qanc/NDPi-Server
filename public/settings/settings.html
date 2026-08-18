@@ -79,19 +79,13 @@
 		</div>
 	</div>
 	<script src="/scripts/functions.js"></script>
+	<script src="/scripts/ws-hub-stats-clock.js"></script>
 	<script>
 		const mainContainer = document.getElementById('main-section');
 
 		(() => {
 			applyActiveNav('navSettings');
-			const sysTimeEl = document.getElementById('sys-time');
-			sysTimeEl.style.fontSize = '1.1rem';
-			const timeNow = new Date();
-			sysTimeEl.innerHTML = `${timeNow.toDateString()}<br>${timeNow.toLocaleTimeString()}`;
-			setInterval(() => {
-				const timeNow = new Date();
-				sysTimeEl.innerHTML = `${timeNow.toDateString()}<br>${timeNow.toLocaleTimeString()}`;
-			}, 1000);
+			initHubStatsClock();
 		})();
 
 		// Called by 01-scripts/functions.js's bootstrap once `account` has
