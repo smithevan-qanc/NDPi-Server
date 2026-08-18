@@ -1865,6 +1865,7 @@ label {
 #screen-saver-modal {
 	display: none;
 	position: fixed;
+	cursor: none;
 	inset: 0;
 	z-index: 9999;
 	transition: backdrop-filter 2000ms ease-in, background-color 2000ms ease-in;
@@ -1880,6 +1881,7 @@ label {
 	opacity: 0;
 	height: 100%;
 	width: 100%;
+	cursor: none;
 	transition: transform 1000ms ease, opacity 1000ms ease;
 }
 
