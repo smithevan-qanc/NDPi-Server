@@ -197,7 +197,7 @@
 			const sysTimeEl = document.getElementById('sys-time');
 			setInterval(() => {
 				const timeNow = new Date()
-				sysTimeEl.textContent = `${timeNow.toLocaleDateString()} ${timeNow.toLocaleTimeString()}`;
+				sysTimeEl.textContent = `${timeNow.toDateString()} ${timeNow.toLocaleTimeString()}`;
 			}, 1000)
 		})();
 
