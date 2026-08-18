@@ -359,7 +359,17 @@ function setNavigationButtons() {
 
 function applyActiveNav(element) {
 	if (!element) return;
-	document.getElementById(element).classList.add('active');
+	const el = document.getElementById(element);
+	if (!el) return;
+	el.classList.add('active');
+	// On mobile, .sidebar-nav (the button row) scrolls horizontally on its
+	// own -- .sidebar-footer (the account/user icon) sits outside that
+	// scroll area, so a button further down the list (e.g. Settings) can
+	// land scrolled out of view underneath it. { block: 'nearest', inline:
+	// 'nearest' } scrolls only .sidebar-nav just enough to reveal it,
+	// without touching the page's own scroll position -- a no-op on
+	// desktop, where .sidebar-nav doesn't overflow.
+	el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 
