@@ -107,8 +107,12 @@
 		(async () => {
 			applyActiveNav('navConsole');
 			const sysTimeEl = document.getElementById('sys-time');
+			sysTimeEl.style.fontSize = '1.2rem';
+			const timeNow = new Date();
+			sysTimeEl.textContent = `${timeNow.toDateString()} ⎯ ${timeNow.toLocaleTimeString()}`;
 			setInterval(() => {
-				sysTimeEl.textContent = new Date().toLocaleTimeString();
+				const timeNow = new Date();
+				sysTimeEl.textContent = `${timeNow.toDateString()} ⎯ ${timeNow.toLocaleTimeString()}`;
 			}, 1000);
 		})();
 
