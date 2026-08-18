@@ -11,9 +11,10 @@ function initPage() {
 
     const sysTimeEl = document.getElementById('sys-time');
     setInterval(() => {
-        sysTimeEl.textContent = new Date().toLocaleTimeString();
+        const timeNow = new Date()
+        sysTimeEl.textContent = `${timeNow.toLocaleDateString()} ${timeNow.toLocaleTimeString()}`;
     }, 1000);
-    
+
     populateFields();
 
     function populateFields() {
