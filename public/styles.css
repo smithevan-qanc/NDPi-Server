@@ -58,7 +58,8 @@
 	--online: #3fca6a;
 	--offline: #6b7280;
 	--warning: #f5a524;
-	--danger: #ef4444;
+	/* --danger: #ef4444; */
+	--danger: rgba(231, 58, 41, 1);
 
 	--radius-sm: 0.375rem;
 	--radius-md: 0.625rem;
@@ -2080,15 +2081,19 @@ select option {
 }
 
 .button-danger {
-	background: rgba(239, 68, 68, 0.14);
+	/* background: rgba(239, 68, 68, 0.14);
 	color: #f87171;
-	border-color: rgba(239, 68, 68, 0.4);
+	border-color: rgba(239, 68, 68, 0.4); */
+	background: rgba(81, 43, 42, 1);
+	color: rgba(231, 58, 41, 1);
+	border: none;
 }
 
 .button-danger:hover {
-	background: var(--danger);
+	/* background: var(--danger);
 	color: #fff;
-	border-color: var(--danger);
+	border-color: var(--danger); */
+	background: color-mix(in srgb, rgb(255, 255, 255) 10%, rgba(81, 43, 42, 1));
 }
 
 .button-warning {
