@@ -10,12 +10,12 @@ const ws = initWebSocket();
 function initPage() {
 
     const sysTimeEl = document.getElementById('sys-time');
-    sysTimeEl.style.fontSize = '1.2rem';
+    sysTimeEl.style.fontSize = '1.1rem';
     const timeNow = new Date();
-    sysTimeEl.textContent = `${timeNow.toDateString()} ⎯ ${timeNow.toLocaleTimeString()}`;
+    sysTimeEl.innerHTML = `${timeNow.toDateString()}<br>${timeNow.toLocaleTimeString()}`;
     setInterval(() => {
         const timeNow = new Date();
-        sysTimeEl.textContent = `${timeNow.toDateString()} ⎯ ${timeNow.toLocaleTimeString()}`;
+        sysTimeEl.innerHTML = `${timeNow.toDateString()}<br>${timeNow.toLocaleTimeString()}`;
     }, 1000);
 
     populateFields();
