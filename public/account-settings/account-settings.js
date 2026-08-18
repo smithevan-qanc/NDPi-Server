@@ -8,6 +8,12 @@ const ws = initWebSocket();
 // (same root cause CLAUDE.md documents as already fixed on settings.html,
 // set-pin.html, etc. -- this file was missed).
 function initPage() {
+
+    const sysTimeEl = document.getElementById('sys-time');
+    setInterval(() => {
+        sysTimeEl.textContent = new Date().toLocaleTimeString();
+    }, 1000);
+    
     populateFields();
 
     function populateFields() {

@@ -75,6 +75,7 @@
 				</div>
 				<span class="topbar-title">Console</span>
 				<div class="topbar-spacer"></div>
+				<code class="topbar-title" id="sys-time"></code>
 			</div>
 			<div class="content" style="overflow:hidden;">
 
@@ -105,6 +106,10 @@
 
 		(async () => {
 			applyActiveNav('navConsole');
+			const sysTimeEl = document.getElementById('sys-time');
+			setInterval(() => {
+				sysTimeEl.textContent = new Date().toLocaleTimeString();
+			}, 1000);
 		})();
 
 		async function initPage(account) {

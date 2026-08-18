@@ -71,6 +71,7 @@
 			<div class="topbar">
 				<span class="topbar-title">Devices</span>
 				<div class="topbar-spacer"></div>
+				<code class="topbar-title" id="sys-time"></code>
 			</div>
 			<div class="content">
 
@@ -126,6 +127,10 @@
 
 		(() => {
 			applyActiveNav('navDevices');
+			const sysTimeEl = document.getElementById('sys-time');
+			setInterval(() => {
+				sysTimeEl.textContent = new Date().toLocaleTimeString();
+			}, 1000);
 		})();
 
 		// Global variables

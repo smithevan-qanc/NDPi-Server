@@ -71,6 +71,7 @@
 			<div class="topbar">
 				<span class="topbar-title">Settings</span>
 				<div class="topbar-spacer"></div>
+				<code class="topbar-title" id="sys-time"></code>
 			</div>
 			<div class="content">
 				<section class="dashboard" id="main-section"></section>
@@ -83,6 +84,10 @@
 
 		(() => {
 			applyActiveNav('navSettings');
+			const sysTimeEl = document.getElementById('sys-time');
+			setInterval(() => {
+				sysTimeEl.textContent = new Date().toLocaleTimeString();
+			}, 1000);
 		})();
 
 		// Called by 01-scripts/functions.js's bootstrap once `account` has

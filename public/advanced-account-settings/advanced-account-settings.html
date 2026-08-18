@@ -77,6 +77,7 @@
 				</div>
 				<span class="topbar-title">Manage Accounts</span>
 				<div class="topbar-spacer"></div>
+				<code class="topbar-title" id="sys-time"></code>
 			</div>
 			<div class="content">
 
@@ -109,6 +110,11 @@
 					alert('Access denied. Admin privileges required.');
 					window.location.href = '/';
 				}
+			}, 500);
+
+			const sysTimeEl = document.getElementById('sys-time');
+			setInterval(() => {
+				sysTimeEl.textContent = new Date().toLocaleTimeString();
 			}, 1000);
 		})();
 

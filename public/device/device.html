@@ -87,6 +87,7 @@
 				</div>
 				<span class="topbar-title">Device</span>
 				<div class="topbar-spacer"></div>
+				<code class="topbar-title" id="sys-time"></code>
 			</div>
 			<div class="content">
 				<div class="card">
@@ -111,6 +112,10 @@
 
 		(() => {
 			applyActiveNav('navDevices');
+			const sysTimeEl = document.getElementById('sys-time');
+			setInterval(() => {
+				sysTimeEl.textContent = new Date().toLocaleTimeString();
+			}, 1000);
 		})();
 
 		let device = null;

@@ -76,6 +76,7 @@
 			<div class="topbar">
 				<span class="topbar-title">Groups</span>
 				<div class="topbar-spacer"></div>
+				<code class="topbar-title" id="sys-time"></code>
 			</div>
 			<div class="content">
 
@@ -130,6 +131,10 @@
 
 		(() => {
 			applyActiveNav('navGroups');
+			const sysTimeEl = document.getElementById('sys-time');
+			setInterval(() => {
+				sysTimeEl.textContent = new Date().toLocaleTimeString();
+			}, 1000);
 		})();
 
 		/*
