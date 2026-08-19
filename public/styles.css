@@ -1444,11 +1444,13 @@ label {
 
 .console-line {
 	margin: 0;
+	flex: 1;
 	color: var(--text-1);
-	font-family: 'SF Mono', 'Courier New', Courier, monospace;
+	font-family: monospace;
+	/* font-family: 'SF Mono', 'Courier New', Courier, monospace; */
 	font-weight: 400;
 	font-size: 0.9rem;
-	letter-spacing: 0.0187rem;
+	/* letter-spacing: 0.0187rem; */
 	padding: 0 0.3125rem 0 0.3125rem;
 	user-select: text;
 	cursor: text;
@@ -1456,14 +1458,16 @@ label {
 }
 
 .console-input {
-	font-family: 'SF Mono', 'Courier New', Courier, monospace;
-	letter-spacing: 0.0187rem;
+	font-family: monospace;
+	/* font-family: 'SF Mono', 'Courier New', Courier, monospace; */
+	/* letter-spacing: 0.0187rem; */
 	border-color: transparent !important;
 	box-shadow: none !important;
 	padding: 0 0 0 0 !important;
 	border-radius: 0 !important;
 	text-decoration-line: none;
-	font-weight: 600;
+	flex: 1;
+	font-weight: 400;
     background: rgba(255, 255, 255, 0) !important;
     color: var(--text-1) !important;
     box-sizing: border-box;
@@ -2298,7 +2302,6 @@ input[type="time"],
 input[type="text"],
 input,
 select {
-	/* width: 100%; */
     min-width: 3.125rem;
 	padding: 0.5rem 0.625rem;
 	border-radius: var(--radius-sm);
