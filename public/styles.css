@@ -1887,7 +1887,7 @@ label {
 
 @keyframes blurAnimation {
 	from { backdrop-filter: blur(0.25rem); background-color: rgba(0, 0, 0, 0.7); }
-	to   { backdrop-filter: blur(0.5625rem); background-color: rgba(0, 0, 0, 1); }
+	to   { backdrop-filter: blur(0.5625rem) grayscale(1); background-color: rgba(0, 0, 0, 1); }
 }
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF SCREEN SAVER css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
