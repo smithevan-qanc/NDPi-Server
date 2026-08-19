@@ -870,6 +870,7 @@
 		});
 
 		async function checkForHubUpdate() {
+			navigator.vibrate(200);
 			try {
 				const res = await fetch('/api/v2/system/check-for-update', { method: 'POST' });
 				if (res.ok) {

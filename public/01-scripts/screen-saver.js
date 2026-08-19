@@ -79,7 +79,7 @@
         if (width < height) {
             logoSquareSize = Math.max(width / 5, 100);
         } else {
-            logoSquareSize = Math.max(height / 5);
+            logoSquareSize = Math.max(height / 5, 100);
         }
     }
 
