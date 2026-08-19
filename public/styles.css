@@ -2301,7 +2301,7 @@ select {
 	border: 0.0625rem solid var(--border-strong);
 	background: var(--bg-3);
 	color: var(--text-0);
-	font-size: max(16px, 1rem) !important;
+	font-size: 0.8rem;
 }
 
 input:disabled {
@@ -2338,6 +2338,7 @@ select:focus {
 	border-style: ridge;
 	border-color: var(--accent);
 	background: var(--bg-3-hover);
+	font-size: max(16px, 1rem) !important;
 	/* box-shadow: 0 0 0 0.1875rem rgba(var(--accent-rgb), 0.18); */
 }
 
