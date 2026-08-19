@@ -84,6 +84,9 @@ class NDPiWebSocket {
         newLine.className = 'console-line'
         if (data.color) newLine.style.color = data.color;
         if (data.weight) newLine.style.fontWeight = data.weight;
+        if (data.fontFamily) newLine.style.fontFamily = data.fontFamily;
+        if (data.marginBottom) newLine.style.marginBottom = data.marginBottom;
+        if (data.borderBottom) newLine.style.borderBottom = data.borderBottom;
         if (data.isResponse) newLine.style.padding = `0 5px 0 12px`;
         consoleEl.appendChild(newLine);
         newLine.scrollIntoView();
@@ -101,7 +104,10 @@ class NDPiWebSocket {
                         this.onLinePush({
                             text: response.message || '',
                             color: '#9a9a9a',
-                            weight: '400'
+                            weight: '400',
+                            fontFamily: 'system-ui',
+                            marginBottom: '1rem',
+                            borderBottom: '0.5px solid #676767',
                         }, true);
                     });
                 }
@@ -225,6 +231,6 @@ window.addEventListener('beforeunload', () => {
 });
 
 document.addEventListener("online", function() {
-    console.log('online now');
+    console.log('Online now');
 });
 

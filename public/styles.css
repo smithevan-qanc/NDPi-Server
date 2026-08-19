@@ -1447,7 +1447,7 @@ label {
 	color: var(--text-1);
 	font-family: 'SF Mono', 'Courier New', Courier, monospace;
 	font-weight: 400;
-	font-size: 0.75rem;
+	font-size: 0.0rem;
 	letter-spacing: 0.0187rem;
 	padding: 0 0.3125rem 0 0.3125rem;
 	user-select: text;
