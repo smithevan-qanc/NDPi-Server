@@ -1882,7 +1882,7 @@ label {
 	height: 100%;
 	width: 100%;
 	cursor: none;
-	transition: transform 1000ms ease, opacity 1000ms ease;
+	transition: transform 1000ms ease-in-out, opacity 1000ms ease-in-out;
 }
 
 @keyframes blurAnimation {
