@@ -77,9 +77,9 @@
 
     function resizeLogo(height = 1000, width= 1000) {
         if (width < height) {
-            logoSquareSize = Math.max(width / 5, 100);
+            logoSquareSize = Math.max(width / 5, 150);
         } else {
-            logoSquareSize = Math.max(height / 5, 100);
+            logoSquareSize = Math.max(height / 5, 150);
         }
     }
 
