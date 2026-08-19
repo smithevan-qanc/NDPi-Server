@@ -1148,12 +1148,11 @@
 			toast.info('Fetching device information...');
 
 			try {
-				console.log(`Fetching device info from http://${ipAddress}:8060/query/device-info`);
-				const response = await fetch(`http://${ipAddress}:8060/query/device-info`, {
-					method: 'GET',
-					headers: {
-						'Accept': 'application/xml'
-					}
+				console.log(`Fetching device info for ${ipAddress} via Hub proxy`);
+				const response = await fetch('/api/roku-info', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ ipAddress })
 				});
 				if (!response.ok) {
 					toast.error('Failed to connect to Roku TV. Check IP address.');
