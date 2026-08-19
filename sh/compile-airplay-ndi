@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -e
+
+if [ "$LOGNAME" != "root" ]; then
+    echo "Error: MUST run as root user."
+    exit 1
+fi
+
+_OUTPUT_NAME="uxplay_ndi_sender"
+_SOURCE_CODE="uxplay_ndi_sender.cpp"
+_HOME="/home/ndpi-server"
+
+cd $_HOME/ndpi/ndi_receiver_v3__NDI6
+
+rm -f $_OUTPUT_NAME
+
+if ! g++ \
+    -o $_OUTPUT_NAME $_SOURCE_CODE \
+    $(pkg-config --cflags --libs gstreamer-1.0 gstreamer-app-1.0) \
+    -I"include" \
+    -ldl \
+    -pthread \
+    -std=c++11 \
+; then
+    exit 1
+else
+    echo ""
+    chmod +x "${_OUTPUT_NAME}"
+    echo "-- Successful Compilation"
+    exit 0
+fi
