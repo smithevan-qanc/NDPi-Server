@@ -10,9 +10,9 @@
 # Depricated: Run autostart from systemd service instead
 
 # Disable screen blanking and power management
-xset s off
-xset -dpms
-xset s noblank
+# xset s off
+# xset -dpms
+# xset s noblank
 
 # Start window manager (lightweight)
-openbox &
+# openbox &

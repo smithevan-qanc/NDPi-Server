@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.8.11",
-    "bonjour": "^3.5.0",
+    "bonjour": "^3.5.1",
     "express": "^4.18.2",
     "uuid": "^14.0.1",
     "ws": "^8.14.2"

@@ -4,12 +4,12 @@
 #       2026-04-21
 
 # Set display
-export DISPLAY=:0
+# export DISPLAY=:0
 
 # tint2 &
 # nm-applet &
 
 # Disable screen blanking and power management
-xset s off
-xset -dpms
-xset s noblank
+# xset s off
+# xset -dpms
+# xset s noblank
