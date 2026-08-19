@@ -870,13 +870,6 @@
 		});
 
 		async function checkForHubUpdate() {
-			if (typeof window.navigator.vibrate === "function") {
-				window.navigator.vibrate(200);
-			} else {
-				// Optional: Add visual feedback for iOS users here
-				console.log("Vibration API not supported on this device.");
-			}
-			console.log(window.navigator);
 			try {
 				const res = await fetch('/api/v2/system/check-for-update', { method: 'POST' });
 				if (res.ok) {
