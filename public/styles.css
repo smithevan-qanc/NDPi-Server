@@ -1530,8 +1530,8 @@ label {
 }
 
 .modal-overlay {
-    backdrop-filter: blur(6px);
-	-webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(10px) opacity(0.5);
+	-webkit-backdrop-filter: blur(10px) opacity(0.5);
 }
 
 .modal-overlay.active {
@@ -1545,7 +1545,7 @@ label {
 
 .offline-modal,
 .modal-box {
-	background: rgba(90,90,90,0.5);
+	background: rgba(90, 90, 90, 0.5);
 	backdrop-filter: blur(0.5rem);
 	-webkit-backdrop-filter: blur(0.5rem);
 	border: 0.0625rem solid var(--border);
@@ -1560,6 +1560,10 @@ label {
 .offline-modal {
     padding: 2.5rem 3.75rem;
     text-align: center;
+}
+
+.modal-box {
+	background: rgba(90, 90, 90, 0.85);
 }
 
 @keyframes modalSlideUp {
