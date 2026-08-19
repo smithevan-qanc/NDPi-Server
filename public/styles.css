@@ -2301,11 +2301,13 @@ select {
 	border: 0.0625rem solid var(--border-strong);
 	background: var(--bg-3);
 	color: var(--text-0);
-	font-size: 1rem;
+	font-size: max(16px, 1rem) !important;
 }
 
 input:disabled {
 	cursor: not-allowed;
+	background-color: rgba(110, 110, 110, 0.05);
+	border-color: rgba(96, 96, 96, 0.2)
 }
 
 input[type="date"],
