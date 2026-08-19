@@ -1961,6 +1961,81 @@ reach their handler (404 "Device not found" for a fake id, not a
 route-not-matched 404) for an unknown device, and confirmed untouched
 routes (`/api/devices`, `/api/groups`, page routes) still serve normally.
 
+### `settings.html` converted from JS-built markup to static HTML + CSS classes (user request)
+
+`settings.html` was the one page left rendering its entire card skeleton
+(all 8 cards -- User Preferences, Appearance, Server Management, Display
+Resolution, and the 4 admin-only ones) via a `renderSections()` function
+that built every card as an `innerHTML` template string and
+`appendChild()`'d it into an empty `<section id="main-section">`. User
+asked for the skeleton to be static HTML instead, with JavaScript only
+adding event listeners and populating dynamic fields after
+`DOMContentLoaded` -- plus consolidating the page's many inline `style="..."`
+attributes into CSS classes.
+
+- All 8 cards are now real markup in the `<body>`. The 4 admin-only cards
+  (`section-SystemControls`, `section-ClientDeviceManagement`,
+  `section-AdminControls`, `section-RokuTvs`) carry a `hidden` attribute
+  by default; `revealAdminSections()` (called from `initPage()`, same
+  `account`-must-be-loaded-first hook every other page on this app already
+  uses) clears it when `account.isAdmin` -- replacing the old
+  conditional-`appendChild` gate. Genuinely data-driven content (schedule
+  list, Roku TV list, theme swatches, display-resolution info) is still
+  rendered by its own function, since that content can't be known
+  statically -- only the page's fixed skeleton moved.
+- Every top-level button that used to carry an inline `onclick="..."`
+  (Reset scale, Add Block Period, Restart/Check-for-update/Install-update,
+  Reboot/Shutdown, Forget All Devices, User Accounts, Favorite NDI
+  Sources, Add Roku TV, the resolution `<select>`'s `onchange`) is now
+  wired in one place, `wireStaticButtons()`, via `addEventListener`.
+  Buttons inside dynamically-rendered list rows (a single schedule's
+  Remove button, a single Roku TV's Remove button) still use inline
+  `onclick` in their template strings -- consistent with how every other
+  per-item tile in this app (device tiles, group tiles, source cards)
+  already wires its own per-item actions, and not something a
+  page-load-time listener could reach anyway since those rows don't exist
+  yet at that point.
+- New shared CSS classes added to `styles.css` (a `SETTINGS PAGE` section)
+  replacing this page's repeated inline styles: `.button-row`,
+  `.settings-inline-row`, `.scale-slider`, `.screensaver-wait`/
+  `-wait-row`, `.settings-hint`, `.settings-list`/`-wrap`/`-item`/
+  `-item-title`/`-item-meta`/`-empty` (the schedule-row and Roku-row list
+  items were two independent copies of the same hand-written inline style
+  block -- now one shared class pair), `.info-grid-message`,
+  `.logo-upload-row`/`.logo-preview-item`/`.logo-actions`,
+  `.resolution-controls`, and `.modal-form`/`-label`/`-days`/`-day` (used
+  by the "Add Block Period" modal's form, whose time inputs also lost
+  their hardcoded `#1a1a1a`/`#444`/`#eee` colors in favor of this
+  stylesheet's normal themed `input`/`select` rules -- an actual
+  correctness fix, not just cleanup, since those hardcoded values ignored
+  the selectable accent-color/theme system every other input in the app
+  already follows). Also added a general-purpose `.card-content.flush`
+  modifier (`padding: 0`) to the existing `CARD` section for cards like
+  these whose first child is an `<h2>` that already supplies its own
+  padding/border via `.card h2` -- stacking the default 0.75rem
+  `.card-content` padding on top of that would have doubled the gap.
+- One id had to be kept in sync by hand: the static "Install Update"
+  button was written as `installHubUpdateBtn` (not `installUpdateBtn`) to
+  match the pre-existing `connectHubSystemSocket()` handler elsewhere in
+  the script, which looks that id up by `getElementById` every time a
+  `/ws/system` message reports `ndpi_version_update_available` -- a
+  mismatch here would have silently left that button permanently hidden.
+
+**Verified**: `node --check` on the extracted `<script>` block; a Python
+`html.parser` tag-balance check on the full file (zero mismatches); a
+brace-balance check on `styles.css`; booted the Hub locally and confirmed
+`settings.html` serves 200 with all 8 cards (including the 4
+`hidden`-by-default admin ones) present in the raw response body, every
+button id present exactly once; round-tripped `POST
+/api/account/local-signin` (confirms `account.isAdmin` gating has real
+data to key off) and `GET /api/v2/setting/ui_theme_color`; confirmed a
+full page-route sweep across every other page still 200s (nothing else
+was touched). **Not** verified visually in an actual browser -- the
+DOM-structure and event-wiring reasoning above is sound by inspection,
+but the on-page interactions (scale slider, schedule/Roku add-remove,
+logo upload preview) are worth a real click-through before fully
+trusting this refactor.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

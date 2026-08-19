@@ -74,7 +74,193 @@
 				<code class="topbar-title" id="sys-time" style="text-align: end;"></code>
 			</div>
 			<div class="content">
-				<section class="dashboard" id="main-section"></section>
+				<section class="dashboard" id="main-section">
+					<!-- USER - PREFERENCES -->
+					<div class="card">
+						<div class="card-content flush">
+							<h2>User Preferences</h2>
+							<!-- SCALING -->
+							<div class="settings-row">
+								<div class="settings-label">Scaling:</div>
+								<div class="settings-inline-row">
+									<input type="number" max="400" min="50" id="scaleValue">
+									<p>%</p>
+									<button id="resetScaleBtn" type="button" class="button-subtle">
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-counterclockwise" viewBox="0 0 16 16">
+											<path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"/>
+											<path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/>
+										</svg>
+										<span>Reset</span>
+									</button>
+								</div>
+								<input type="range" id="scaleSlider" min="50" max="150" value="100" class="scale-slider">
+							</div>
+							<!-- SCREEN - SAVER -->
+							<div class="settings-row">
+								<div class="settings-label">Screen Saver</div>
+								<div class="screensaver-wait">
+									<div class="screensaver-wait-row">
+										<p>Start screensaver after...</p>
+										<input type="number" max="120" min="0.5" step="0.5" id="screenSaverWait">
+										<p>minutes.</p>
+									</div>
+								</div>
+								<p class="settings-hint">Screen saver won't activate during these times:</p>
+								<div class="settings-list-wrap">
+									<div id="scheduleList" class="settings-list"></div>
+									<button id="addScheduleBtn" type="button" class="button-transparent">
+										<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+											<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+											<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+										</svg>
+										<span>Add Block Period</span>
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- APPEARANCE -->
+					<div class="card">
+						<div class="card-content flush">
+							<h2>Appearance</h2>
+							<!-- THEME -->
+							<div class="settings-row">
+								<div class="settings-label">Theme Color</div>
+								<div class="theme-swatches" id="themeSwatches"></div>
+								<p>Saved to this Hub and applied on every device that opens it.</p>
+							</div>
+							<!-- LOGO -->
+							<div class="settings-row">
+								<div class="settings-label">Logo</div>
+								<div class="logo-upload-row">
+									<div class="logo-preview-item">
+										<div class="logo-preview-box"><img id="currentLogoPreview" src="/api/v2/logo" alt="Current logo"></div>
+										<span class="info-label">Current</span>
+									</div>
+									<div class="logo-preview-item">
+										<div class="logo-preview-box" id="newLogoPreviewBox" style="display:none;"><img id="newLogoPreview" alt="New logo preview"></div>
+										<span class="info-label" id="newLogoLabel" style="display:none;">New (unsaved)</span>
+									</div>
+								</div>
+								<input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none;">
+								<div class="logo-actions">
+									<button type="button" class="button-subtle" id="chooseLogoBtn">Choose Image...</button>
+									<button type="button" class="button-primary" id="saveLogoBtn" disabled>Save Logo</button>
+									<button type="button" class="button-danger" id="resetLogoBtn">Reset to Default</button>
+								</div>
+								<p>PNG, JPEG, WEBP, GIF, or SVG. 2MB max. Applies to the sidebar and sign-in logo on every device.</p>
+							</div>
+						</div>
+					</div>
+					<!-- SERVER - MANAGEMENT -->
+					<div class="card">
+						<div class="card-content flush">
+							<h2>Server Management</h2>
+							<!-- RESTART - SERVER -->
+							<div class="settings-row">
+								<div class="button-row">
+									<button id="restartServerBtn" type="button" class="button-primary">Restart Server Services</button>
+								</div>
+							</div>
+							<!-- GITHUB - UPDATE -->
+							<div class="settings-row">
+								<div class="button-row">
+									<button id="checkUpdateBtn" type="button" class="button-subtle">Check for Update</button>
+									<button id="installHubUpdateBtn" type="button" class="button-primary" hidden>Install Update</button>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- DISPLAY - RESOLUTION -->
+					<div class="card">
+						<div class="card-content flush">
+							<h2>Display Resolution</h2>
+							<!-- CONNECTED - DISPLAY -->
+							<div class="settings-row">
+								<div class="info-grid" id="displayResolutionInfo">
+									<p class="info-grid-message">Loading display info...</p>
+								</div>
+								<div class="resolution-controls">
+									<label for="resolutionPreferenceSelect" class="settings-label">Resolution</label>
+									<select id="resolutionPreferenceSelect" class="mono" disabled></select>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- SYSTEM - CONTROLS -->
+					<div class="card" id="section-SystemControls" hidden>
+						<div class="card-content flush">
+							<h2>System Controls</h2>
+							<!-- DEVICE - CONTROL -->
+							<div class="settings-row">
+								<div class="button-row">
+									<button id="rebootBtn" type="button" class="button-warning">Reboot Server Machine</button>
+									<button id="shutdownBtn" type="button" class="button-danger">
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-power" viewBox="0 0 16 16">
+											<path d="M7.5 1v7h1V1z"/>
+											<path d="M3 8.812a5 5 0 0 1 2.578-4.375l-.485-.874A6 6 0 1 0 11 3.616l-.501.865A5 5 0 1 1 3 8.812"/>
+										</svg>
+										<span>Power OFF Server Machine</span>
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- CLIENT - DEVICES -->
+					<div class="card" id="section-ClientDeviceManagement" hidden>
+						<div class="card-content flush">
+							<h2>Client Device Management</h2>
+							<!-- CLIENT - DEVICE - MANAGEMENT -->
+							<div class="settings-row">
+								<div class="button-row">
+									<button id="forgetAllBtn" type="button" class="button-danger">Forget All Added Devices</button>
+								</div>
+								<p><strong>WARNING:</strong>
+									This will remove all saved devices. <br>
+									They may be re-added on the <a href="devices.html">devices</a> page.
+								</p>
+							</div>
+						</div>
+					</div>
+					<!-- ADMIN - CONTROLS -->
+					<div class="card" id="section-AdminControls" hidden>
+						<div class="card-content flush">
+							<h2>Admin Controls</h2>
+							<!-- USERS - NDI FAVORITES -->
+							<div class="settings-row">
+								<div class="button-row">
+									<button id="userAccountsBtn" type="button" class="button-primary">
+										<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-people-fill" viewBox="0 0 16 16">
+											<path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
+										</svg>
+										<span>User Accounts</span>
+									</button>
+									<button id="favoriteSourcesBtn" type="button" class="button-primary">Favorite NDI Sources</button>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- ROKU - TVS -->
+					<div class="card" id="section-RokuTvs" hidden>
+						<div class="card-content flush">
+							<h2>Roku TVs</h2>
+							<!-- CONNECTED - TVS -->
+							<div class="settings-row">
+								<p class="settings-hint">Add Roku TVs to control in groups.</p>
+								<div class="settings-list-wrap">
+									<div id="rokuTvList" class="settings-list"></div>
+									<button id="addRokuBtn" type="button" class="button-transparent">
+										<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+											<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+											<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+										</svg>
+										<span>Add Roku TV</span>
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
 			</div>
 		</div>
 	</div>
@@ -82,30 +268,53 @@
 	<script src="/scripts/ws-hub-stats.js"></script>
 	<script src="/scripts/on-screen-keyboard.js"></script>
 	<script>
-		const mainContainer = document.getElementById('main-section');
-
 		(() => {
 			applyActiveNav('navSettings');
 			initGlobalHubStats();
 		})();
 
 		// Called by 01-scripts/functions.js's bootstrap once `account` has
-		// actually loaded (renderSections() reads account.isAdmin) — do not
-		// call renderSections() directly at top level, it runs before the
-		// async loadUserAccount() call has resolved. initializeScale()/
-		// initializeScreenSaverSettings() must run after renderSections()
-		// too, since they set values on inputs renderSections() creates —
-		// calling them before it (as top-level statements further down this
-		// same script) throws on the null elements, which aborts the rest
-		// of this script's top-level execution before it ever reaches
-		// `let rokuTvs = [];`, leaving that binding in the temporal dead
-		// zone for loadRokuTvs() to blow up on later.
+		// actually loaded (revealAdminSections() reads account.isAdmin) --
+		// do not run this at top level, it runs before the async
+		// loadUserAccount() call has resolved.
 		function initPage() {
-			renderSections();
+			wireStaticButtons();
+			revealAdminSections();
 			initializeScale();
 			initializeScreenSaverSettings();
 			initializeThemeSwatches();
 			initializeLogoUpload();
+		}
+
+		// All of this page's cards/sections are static markup in the HTML
+		// itself (not built with innerHTML template strings) -- this just
+		// wires up their event listeners and, for the admin-only cards,
+		// un-hides them. Dynamic *list content* inside a couple of these
+		// cards (schedules, Roku TVs, theme swatches, display-resolution
+		// info) is still rendered by its own function below, since that
+		// content is genuinely data-driven and can't be known statically.
+		function revealAdminSections() {
+			if (!account.isAdmin) return;
+			document.getElementById('section-SystemControls').hidden = false;
+			document.getElementById('section-ClientDeviceManagement').hidden = false;
+			document.getElementById('section-AdminControls').hidden = false;
+			document.getElementById('section-RokuTvs').hidden = false;
+			loadRokuTvs();
+		}
+
+		function wireStaticButtons() {
+			document.getElementById('resetScaleBtn').addEventListener('click', resetScale);
+			document.getElementById('addScheduleBtn').addEventListener('click', addSchedule);
+			document.getElementById('restartServerBtn').addEventListener('click', restartServer);
+			document.getElementById('checkUpdateBtn').addEventListener('click', checkForHubUpdate);
+			document.getElementById('installHubUpdateBtn').addEventListener('click', installHubUpdate);
+			document.getElementById('resolutionPreferenceSelect').addEventListener('change', (e) => saveResolutionPreference(e.target.value));
+			document.getElementById('rebootBtn').addEventListener('click', rebootSystem);
+			document.getElementById('shutdownBtn').addEventListener('click', shutdownSystem);
+			document.getElementById('forgetAllBtn').addEventListener('click', forgetAllDevices);
+			document.getElementById('userAccountsBtn').addEventListener('click', () => window.location.href = '/advanced-account-settings.html');
+			document.getElementById('favoriteSourcesBtn').addEventListener('click', viewFavoriteSources);
+			document.getElementById('addRokuBtn').addEventListener('click', addRokuTv);
 		}
 
 		// Hub-wide logo override (hub_fs.js's custom-logo.json, served at
@@ -255,227 +464,6 @@
 			} catch (e) { /* keep the locally-cached selection */ }
 		}
 
-		function renderSections() {
-			const section_UserPreferences = document.createElement('div');
-			//<div class="card" style="grid-column: 1 / -1;">
-
-			section_UserPreferences.className = 'card';
-			//section_UserPreferences.style.gridColumn = 1 / -1;
-
-			section_UserPreferences.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>User Preferences</h2>
-					<div class="settings-row">
-						<div class="settings-label">Scaling:</div>
-						<div style="display:flex; justify-content:center; align-items:center; flex-direction:row; gap:4px; width: 100%;">
-							<input type="number" max="400" min="50" id="scaleValue"></input>
-							<p style="margin: 0;">%</p>
-							<!--span style="font-size:16px; color:#888; background:transparent;">%</span-->
-							<p></p>
-							<button onclick="resetScale()" class="button-subtle">
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-counterclockwise" viewBox="0 0 16 16">
-									<path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"/>
-									<path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/>
-								</svg>
-								<span>Reset</span>
-							</button>
-						</div>
-						<input type="range" id="scaleSlider" min="50" max="150" value="100" style="width: -webkit-fill-available;">
-					</div>
-					<div class="settings-row last-child" style="display: block;">
-						<div class="settings-label">Screen Saver</div>
-						<div style="display:flex; align-items:center; gap:5px; margin-top:0.5rem;">
-							<div style="display:flex; justify-content:center; align-items:start; flex-direction:column; gap:5px; margin-left:12px;">
-								<div style="display: flex; flex-wrap: wrap; flex-direction: row; gap: 5px; margin-bottom: 5px; justify-items: end; align-items: center;">
-									<p style="margin: 0;">Start screensaver after... </p>
-									<input onchange="saveScreenSaverSettings()" type="number" max="120" min="0.5" step="0.5" id="screenSaverWait">
-									<p style="margin: 0;"> minutes.</p>
-								</div>
-							</div>
-						</div>
-						<p style="font-size:12px; color:#888; margin-top:8px; margin-left:12px;">Screen saver won't activate during these times:</p>
-						<div style="margin-top:16px; margin-left:12px; margin-right:12px;">
-							<div id="scheduleList" style="margin-bottom:12px; display:flex; flex-direction:column; gap:8px;"></div>
-							<button onclick="addSchedule()" class="button-transparent">
-								<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle" viewBox="0 0 16 16">
-									<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-									<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
-								</svg>
-								<span>Add Block Period</span>
-							</button>
-						</div>
-					</div>
-				</div>
-			`;
-
-			const section_Appearance = document.createElement('div');
-			section_Appearance.className = 'card';
-			section_Appearance.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>Appearance</h2>
-					<div class="settings-row">
-						<div class="settings-label">Theme Color</div>
-						<div class="theme-swatches" id="themeSwatches"></div>
-						<p>Saved to this Hub and applied on every device that opens it.</p>
-					</div>
-					<div class="settings-row">
-						<div class="settings-label">Logo</div>
-						<div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
-							<div style="display:flex; flex-direction:column; align-items:center; gap:0.375rem;">
-								<div class="logo-preview-box"><img id="currentLogoPreview" src="/api/v2/logo" alt="Current logo"></div>
-								<span class="info-label">Current</span>
-							</div>
-							<div style="display:flex; flex-direction:column; align-items:center; gap:0.375rem;">
-								<div class="logo-preview-box" id="newLogoPreviewBox" style="display:none;"><img id="newLogoPreview" alt="New logo preview"></div>
-								<span class="info-label" id="newLogoLabel" style="display:none;">New (unsaved)</span>
-							</div>
-						</div>
-						<input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none;">
-						<div style="display:flex; gap:0.625rem; margin-top:0.625rem; flex-wrap:wrap;">
-							<button type="button" class="button-subtle" id="chooseLogoBtn">Choose Image...</button>
-							<button type="button" class="button-primary" id="saveLogoBtn" disabled>Save Logo</button>
-							<button type="button" class="button-danger" id="resetLogoBtn">Reset to Default</button>
-						</div>
-						<p>PNG, JPEG, WEBP, GIF, or SVG. 2MB max. Applies to the sidebar and sign-in logo on every device.</p>
-					</div>
-				</div>
-			`;
-
-			const section_ServerManagement = document.createElement('div');
-			section_ServerManagement.className = 'card';
-			//section_ServerManagement.style.gridColumn = 1 / -1;
-			section_ServerManagement.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>Server Management</h2>
-					<div class="settings-row last-child">
-						<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
-							<button onclick="restartServer()" class="button-primary">Restart Server Services</button>
-						</div>
-					</div>
-					<div class="settings-row">
-						<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
-							<button onclick="checkForHubUpdate()" class="button-subtle">Check for Update</button>
-							<button onclick="installHubUpdate()" id="installHubUpdateBtn" class="button-primary" hidden>Install Update</button>
-						</div>
-					</div>
-				</div>
-			`;
-
-			const section_DisplayResolution = document.createElement('div');
-			section_DisplayResolution.className = 'card';
-			section_DisplayResolution.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>Display Resolution</h2>
-					<div class="settings-row">
-						<div class="info-grid" id="displayResolutionInfo" style="margin-top:8px; margin-left:8px; margin-right:8px;">
-							<p style="color:#888;grid-column:1/-1;">Loading display info...</p>
-						</div>
-						<div style="display:flex; align-items:center; gap:10px; margin-top:16px; margin-left:8px; flex-wrap:wrap;">
-							<label for="resolutionPreferenceSelect" class="settings-label">Resolution</label>
-							<select id="resolutionPreferenceSelect" class="mono" onchange="saveResolutionPreference(this.value)" disabled></select>
-						</div>
-					</div>
-				</div>
-			`;
-
-			const section_SystemControls = document.createElement('div');
-			section_SystemControls.className = 'card';
-			//section_SystemControls.style.gridColumn = 1 / -1;
-			section_SystemControls.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>System Controls</h2>
-					<div class="settings-row">
-						<!--label style="font-weight: 600; color: #eee; font-size: 14px;">System Controls</label-->
-						<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
-							<button onclick="rebootSystem()" class="button-warning">Reboot Server Machine</button>
-							<button onclick="shutdownSystem()" class="button-danger">
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-power" viewBox="0 0 16 16">
-									<path d="M7.5 1v7h1V1z"/>
-									<path d="M3 8.812a5 5 0 0 1 2.578-4.375l-.485-.874A6 6 0 1 0 11 3.616l-.501.865A5 5 0 1 1 3 8.812"/>
-								</svg>
-								<span>Power OFF Server Machine</span>
-							</button>
-						</div>
-					</div>
-				</div>
-			`;
-
-			const section_ClientDeviceManagement = document.createElement('div');
-			section_ClientDeviceManagement.className = 'card';
-			//section_ClientDeviceManagement.style.gridColumn = 1 / -1;
-			section_ClientDeviceManagement.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>Client Device Management</h2>
-					<div class="settings-row">
-						<!--label style="font-weight: 600; color: #eee; font-size: 14px;">Client Device Management</label-->
-						<div style="display: flex; gap: 10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
-							<button onclick="forgetAllDevices()" class="button-danger">Forget All Added Devices</button>
-						</div>
-						<p><strong>WARNING:</strong>
-							This will remove all saved devices. <br>
-							They may be re-added on the <a href="devices.html" style="color:#888;">devices</a> page.
-						</p>
-					</div>
-				</div>
-			`;
-
-			const section_AdminControls = document.createElement('div');
-			section_AdminControls.className = 'card';
-			//section_AdminControls.style.gridColumn = 1 / -1;
-			section_AdminControls.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2>Admin Controls</h2>
-					<div id="admin-section" class="settings-row" style="padding-bottom:12px;">
-						<!--label style="font-weight: 600; color: #eee; font-size: 14px;">Admin Controls</label-->
-						<div style="display:flex; gap:10px; margin-top:8px; margin-left:8px; flex-wrap:wrap;">
-							<button onclick="window.location.href='/advanced-account-settings.html'" class="button-primary">
-								<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-people-fill" viewBox="0 0 16 16">
-									<path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
-								</svg>
-								<span>User Accounts</span>
-							</button>
-							<button onclick="viewFavoriteSources()" class="button-primary">Favorite NDI Sources</button>
-						</div>
-					</div>
-				</div>
-			`;
-
-			const section_RokuTvs = document.createElement('div');
-			section_RokuTvs.className = 'card';
-			//section_RokuTvs.style.gridColumn = 1 / -1;
-			section_RokuTvs.innerHTML = `
-				<div class="card-content" style="display: flex; flex-direction: column; padding: 0;">
-					<h2 id="roku-tv-section-header">Roku TVs</h2>
-					<div id="roku-tv-section" class="settings-row" style="padding-bottom:12px;">
-						<!--label style="font-weight: 600; color: #eee; font-size: 14px;">Roku TV Management</label-->
-						<p style="font-size:12px; color:#888; margin-top:8px; margin-left:12px;">Add Roku TVs to control in groups.</p>
-						<div style="margin-top:16px; margin-left:12px; margin-right:12px;">
-							<div id="rokuTvList" style="margin-bottom:12px; display:flex; flex-direction:column; gap:8px;"></div>
-							<button onclick="addRokuTv()" class="button-transparent"><svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle" viewBox="0 0 16 16">
-									<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-									<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
-								</svg>
-								<span>Add Roku TV</span>
-							</button>
-						</div>
-					</div>
-				</div>
-			`;
-
-			mainContainer.appendChild(section_UserPreferences);
-			mainContainer.appendChild(section_Appearance);
-			mainContainer.appendChild(section_ServerManagement);
-			mainContainer.appendChild(section_DisplayResolution);
-
-			if (account.isAdmin) {
-				mainContainer.appendChild(section_SystemControls);
-				mainContainer.appendChild(section_ClientDeviceManagement);
-				mainContainer.appendChild(section_AdminControls);
-				mainContainer.appendChild(section_RokuTvs);
-				loadRokuTvs();
-			}
-		}
-
 		// Screen Saver Settings Functions
 		function getScreenSaverSettings() {
 			const defaults = {
@@ -623,7 +611,9 @@
 
 		function initializeScreenSaverSettings() {
 			const settings = getScreenSaverSettings();
-			document.getElementById('screenSaverWait').value = settings.inactivityMinutes;
+			const waitInput = document.getElementById('screenSaverWait');
+			waitInput.value = settings.inactivityMinutes;
+			waitInput.addEventListener('change', saveScreenSaverSettings);
 			renderSchedules();
 		}
 
@@ -632,7 +622,7 @@
 			const list = document.getElementById('scheduleList');
 
 			if (settings.disableSchedules.length === 0) {
-				list.innerHTML = '<p style="font-size:11px; color:#666; font-style:italic;">No schedules configured</p>';
+				list.innerHTML = '<p class="settings-list-empty">No schedules configured</p>';
 				return;
 			}
 
@@ -640,14 +630,14 @@
 				const days = schedule.days.length === 7 ? 'Every day' :
 					schedule.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ');
 				return `
-					<div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); border-radius:6px;">
+					<div class="settings-list-item">
 						<div>
-							<div style="font-size:13px; font-weight:600; color:#eee;">${schedule.startTime} - ${schedule.endTime}</div>
-							<div style="font-size:11px; color:#888;">
+							<div class="settings-list-item-title">${schedule.startTime} - ${schedule.endTime}</div>
+							<div class="settings-list-item-meta">
 								${days}
 							</div>
 						</div>
-						<button onclick="removeSchedule(${idx})" class="button-danger" style="padding:6px 12px; font-size:11px;">
+						<button onclick="removeSchedule(${idx})" class="button-danger">
 							<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16">
 								<path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/>
 							</svg>
@@ -663,21 +653,21 @@
 			let days = [0, 1, 2, 3, 4, 5, 6];
 
 			const html = `
-				<div style="display:flex; flex-direction:column; gap:12px;">
+				<div class="modal-form">
 					<div>
-						<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">Start Time</label>
-						<input type="time" id="scheduleStart" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px;">
+						<label class="modal-form-label">Start Time</label>
+						<input type="time" id="scheduleStart">
 					</div>
 					<div>
-						<label style="font-size:12px; color:#eee; display:block; margin-bottom:4px;">End Time</label>
-						<input type="time" id="scheduleEnd" style="width:100%; padding:8px; background:#1a1a1a; border:2px solid #444; border-radius:8px; color:#eee; font-size:14px;">
+						<label class="modal-form-label">End Time</label>
+						<input type="time" id="scheduleEnd">
 					</div>
 					<div>
-						<label style="font-size:12px; color:#eee; display:block; margin-bottom:6px;">Days</label>
-						<div style="display:flex; gap:8px; flex-wrap:wrap;">
+						<label class="modal-form-label">Days</label>
+						<div class="modal-form-days">
 							${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => `
-								<label style="display:flex; align-items:center; gap:4px; font-size:11px; color:#eee; cursor:pointer; padding:4px 8px; background:#1a1a1a; border-radius:4px;">
-									<input type="checkbox" class="scheduleDay" value="${idx}" checked style="cursor:pointer;">
+								<label class="modal-form-day">
+									<input type="checkbox" class="scheduleDay" value="${idx}" checked>
 									${day}
 								</label>
 							`).join('')}
@@ -922,7 +912,7 @@
 
 			const port = getEntry('output_display_port');
 			if (!port || !port.value) {
-				infoGrid.innerHTML = '<p style="color:#888;grid-column:1/-1;">No display detected.</p>';
+				infoGrid.innerHTML = '<p class="info-grid-message">No display detected.</p>';
 				select.innerHTML = '';
 				select.disabled = true;
 				return;
@@ -1106,7 +1096,7 @@
 			const container = document.getElementById('rokuTvList');
 
 			if (rokuTvs.length === 0) {
-				container.innerHTML = '<p style="color:#888;font-size:12px;">No Roku TVs added yet</p>';
+				container.innerHTML = '<p class="settings-list-empty">No Roku TVs added yet</p>';
 				return;
 			}
 
@@ -1115,14 +1105,14 @@
 				const groupName = group ? group.name : 'Unknown Group';
 
 				return `
-					<div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); border-radius:6px;">
+					<div class="settings-list-item">
 						<div>
-							<div style="font-size:13px; font-weight:600; color:#eee;">${tv.displayName}</div>
-							<div style="font-size:11px; color:#888;">
+							<div class="settings-list-item-title">${tv.displayName}</div>
+							<div class="settings-list-item-meta">
 								${tv.ipAddress} • ${tv.model || 'Unknown Model'} • Group: ${groupName}
 							</div>
 						</div>
-						<button onclick="removeRokuTv('${tv.id}')" class="button-danger" style="padding:6px 12px; font-size:11px;">
+						<button onclick="removeRokuTv('${tv.id}')" class="button-danger">
 							<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16">
 								<path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/>
 							</svg>
