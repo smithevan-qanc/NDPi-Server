@@ -2036,6 +2036,39 @@ but the on-page interactions (scale slider, schedule/Roku add-remove,
 logo upload preview) are worth a real click-through before fully
 trusting this refactor.
 
+### `/ws/console` (remote shell terminal on `console.html`) ported from `server copy.js` (user request)
+
+`console.html` + `01-scripts/ws-console.js` were already fully built to
+open `ws://<host>/ws/console` and speak a specific protocol (`connected`/
+`response` messages in, `command`/`command-kill` messages out), but
+`hub_api_server.js` never had a handler for that path -- there was no
+`/ws/console` case in the upgrade router at all, so every connection
+attempt fell through to the default `socket.destroy()`. The actual
+server-side logic already existed, working, in the deprecated
+pre-refactor `server copy.js`'s `wsConsole` -- a raw shell session (exec a
+command, stream stdout/stderr back line-by-line with color/weight hints,
+track `cd` to keep a per-session working directory, support a kill
+command for a running child process). Ported that logic into a new
+`__ws_Console()` method matching this file's existing WS-handler
+conventions (own `ws_serv_console`/`consoleSessions` fields, registered in
+`start()`, its own branch in the `Server.on('upgrade', ...)` router,
+cleaned up in `close()`) -- the message shapes were kept byte-for-byte
+identical to the original so the existing frontend needed zero changes.
+One pre-existing no-op bug in the original was carried over unchanged on
+purpose (scope was "port the logic," not "fix it"): the `cd` handler's
+double-slash cleanup computes `` `${workingDir}`.replaceAll('//', '/')
+`` but never assigns the result back to `workingDir`, so it's actually a
+no-op -- harmless (cosmetic only, doesn't affect which directory commands
+actually run in), just worth knowing if it's ever revisited.
+
+**Verified live**: booted the Hub locally and drove `/ws/console` with a
+raw `ws` client end-to-end -- confirmed the `connected` message on open,
+`echo` round-tripping through `response`, `cd /tmp && pwd` correctly
+updating the session's tracked `pwd` (`/tmp` on the next response) and
+persisting for subsequent commands, and `command-kill` against a running
+`sleep` producing a real terminated response. `node --check` on
+`hub_api_server.js`.
+
 ## Confirmed bugs (verified by source + live repro — fixed)
 
 1. **CRITICAL — all internal navigation is broken.** Every page links via

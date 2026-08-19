@@ -178,6 +178,23 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         /**
+         *  Console WebSocket ( /ws/console )
+         *  ------------------------------------
+         *  Ported from the pre-refactor server copy.js's `wsConsole` -- a
+         *  raw shell session into this Hub's own machine. Driven by the
+         *  already-built public/console/console.html + 01-scripts/
+         *  ws-console.js (gated behind account.isAdmin client-side by that
+         *  script's initConsole(), same as every other admin-only page in
+         *  this app); nothing about that frontend or the message protocol
+         *  it speaks was changed here, just the server-side handler that
+         *  used to be missing. Each connection gets its OWN session (own
+         *  tracked working directory, own running child process) rather
+         *  than sharing one across every open terminal tab.
+         */
+        this.ws_serv_console = null;
+        this.consoleSessions = new Map(); // socketID -> ws
+
+        /**
          *  Device system/stats relay ( /ws/devices/system, /ws/devices/stats )
          *  ---------------------------------------------------------------------
          *  The Hub opens its OWN outbound connections to every adopted
@@ -285,6 +302,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.__ws_Gui();
         this.__ws_HubSystem();
         this.__ws_HubStats();
+        this.__ws_Console();
         this.__ws_DevicesSystemRelay();
         this.__ws_DevicesStatsRelay();
         this.__Routers();
@@ -647,6 +665,187 @@ class NDPiCommandServer_Client extends EventEmitter {
                 { try { ws.send(stats); } catch {} }
             });
         }, 1000);
+    }
+
+    /**
+     *      Console - WebSocket Connection Handler ( /ws/console )
+     *      Ported logic from server copy.js's `wsConsole` -- see the
+     *      constructor comment above `this.ws_serv_console` for context.
+     *      Message shapes are unchanged from the original so the existing
+     *      01-scripts/ws-console.js frontend needs no changes:
+     *        Client -> Hub:  { type: 'command', command }
+     *                        { type: 'command-kill' }
+     *        Hub -> Client:  { type: 'connected', data, pwd, hostname }
+     *                        { type: 'response', data, keepOpen, pwd }
+     */
+    __ws_Console() {
+        this.ws_serv_console = new WebSocket.Server({ noServer: true });
+
+        this.ws_serv_console.on('connection', async (ws) => {
+            const socketID = uuidv4();
+            let child = null;
+            let workingDir = await __printWorkingDirectory.call(this);
+
+            this.consoleSessions.set(socketID, ws);
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `Console WebSocket connection ADDED. Active: ${this.consoleSessions.size}`);
+
+            const CRLFArray = (string = '') => string.split(/\r?\n/);
+
+            // Working directory reported by the shell at connection time --
+            // same 'pwd' exec used by the original, run once per session.
+            async function __printWorkingDirectory() {
+                let response = '';
+                await new Promise((resolve) => {
+                    child = exec('pwd', {
+                        env: {
+                            ...process.env,
+                            DISPLAY: ':0',
+                            XAUTHORITY: `${process.env.HOME}/.Xauthority`,
+                        },
+                        stdio: ['ignore', 'pipe', 'pipe'],
+                    });
+                    child.stdout.on('data', (data) => { response = data.toString().trim(); });
+                    child.stderr.on('data', (data) => { response = data.toString().trim(); });
+                    child.on('exit', () => { child = null; });
+                    child.on('close', () => { resolve(); });
+                });
+                return response;
+            }
+
+            // Sends a batch of response lines back to this session's
+            // client. keepOpen=false re-enables the browser's prompt.
+            function __respond(data, keepOpen = true) {
+                try {
+                    ws.send(JSON.stringify({
+                        type: 'response',
+                        data,
+                        keepOpen,
+                        pwd: workingDir,
+                    }));
+                } catch {}
+            }
+
+            function __killChildProcess() {
+                if (!child) return;
+                const procID = Math.floor(child.pid + 1);
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Console Kill Command Received. PID:', procID);
+                if (procID > 10) {
+                    try { process.kill(procID, 'SIGTERM'); }
+                    catch (e) { console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, "Attempted to kill a process that doesn't exist:", procID); }
+                }
+            }
+
+            ws.send(JSON.stringify({
+                type: 'connected',
+                data: [{ message: `Connected to NDPi Monitor Hub - Session: ${socketID}` }],
+                pwd: workingDir,
+                hostname: os.hostname(),
+            }));
+
+            ws.on('message', (raw) => {
+                let message;
+                try { message = JSON.parse(raw); } catch { return; }
+
+                // Only 'command'/'command-kill' messages are handled here.
+                if (!String(message.type).includes('command')) return;
+
+                if (message.type === 'command-kill') {
+                    __killChildProcess();
+                    __respond([{ message: null, font: { color: '#e1e1e1', weight: '400' } }], false);
+                    return;
+                }
+
+                const options = {
+                    detached: true,
+                    env: {
+                        ...process.env,
+                        DISPLAY: ':0',
+                        XAUTHORITY: `${process.env.HOME}/.Xauthority`,
+                    },
+                    cwd: workingDir,
+                };
+
+                const commandAmpParse = String(message.command).includes(' && ')
+                    ? String(message.command).split(' && ')
+                    : [String(message.command)];
+
+                ___processCommands(commandAmpParse);
+
+                async function ___processCommands(commands = []) {
+                    let loopError = false;
+                    let currentCount = 0;
+                    const totalCount = commands.length;
+
+                    for (const command of commands) {
+                        if (loopError) break;
+                        currentCount++;
+
+                        await new Promise((resolve) => {
+                            child = exec(command, options);
+
+                            child.stdout.on('data', (data) => {
+                                const outputArry = CRLFArray(data.toString().trim()).map((line) => ({
+                                    message: String(line),
+                                    font: { color: '#e1e1e1', weight: String(line).includes('*') ? '600' : '400' },
+                                }));
+                                __respond(outputArry);
+                            });
+
+                            child.stderr.on('data', (data) => {
+                                loopError = true;
+                                const outputArry = CRLFArray(data.toString().trim()).map((line) => ({
+                                    message: String(line),
+                                    font: { color: '#ff0000', weight: String(line).includes('*') ? '600' : '400' },
+                                }));
+                                __respond(outputArry);
+                            });
+
+                            child.on('error', (err) => {
+                                loopError = true;
+                                __respond([{ message: err.toString().trim(), font: { color: '#b00000', weight: '400' } }]);
+                            });
+
+                            child.on('exit', () => {
+                                // Handle changing directories so the session's
+                                // tracked cwd stays correct for the next command.
+                                if (!loopError && command.startsWith('cd ')) {
+                                    const parseCmdArgs = command.split(' ');
+                                    if (parseCmdArgs[1].startsWith('../')) {
+                                        const dirTree = workingDir.split('/');
+                                        dirTree.pop();
+                                        workingDir = dirTree.join('/');
+                                    } else if (parseCmdArgs[1].startsWith('/')) {
+                                        workingDir = parseCmdArgs[1];
+                                    } else {
+                                        workingDir += `/${parseCmdArgs[1]}`;
+                                    }
+                                    if (`${workingDir}`.includes('//')) { `${workingDir}`.replaceAll('//', '/'); }
+                                    options.cwd = workingDir;
+                                }
+                                child = null;
+                                resolve();
+                            });
+
+                            child.on('close', () => {
+                                if (currentCount === totalCount || loopError) {
+                                    __respond([{ message: null, font: { color: '#e1e1e1', weight: '400' } }], false);
+                                }
+                            });
+                        });
+                    }
+                }
+            });
+
+            ws.onerror = (error) => {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'Console WebSocket', error);
+            };
+
+            ws.onclose = () => {
+                __killChildProcess();
+                this.consoleSessions.delete(socketID);
+                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `Console WebSocket connection REMOVED. Active: ${this.consoleSessions.size}`);
+            };
+        });
     }
 
     /**
@@ -2511,6 +2710,12 @@ class NDPiCommandServer_Client extends EventEmitter {
                     this.ws_serv_hub_stats.emit('connection', ws, request);
                 });
             }
+            else if (pathname === '/ws/console')
+            {
+                this.ws_serv_console.handleUpgrade(request, socket, head, (ws) => {
+                    this.ws_serv_console.emit('connection', ws, request);
+                });
+            }
             else if (pathname === '/ws/devices/system')
             {
                 this.ws_serv_devices_system.handleUpgrade(request, socket, head, (ws) => {
@@ -2551,6 +2756,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         try { this.ws_serv_sources?.close(); } catch {}
         try { this.ws_serv_hub_system?.close(); } catch {}
         try { this.ws_serv_hub_stats?.close(); } catch {}
+        try { this.ws_serv_console?.close(); } catch {}
         try { this.ws_serv_devices_system?.close(); } catch {}
         try { this.ws_serv_devices_stats?.close(); } catch {}
 
@@ -2577,12 +2783,14 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_conn_devices_system.forEach(terminate);
         this.ws_conn_devices_stats.forEach(terminate);
         this.ws_conn_sources.forEach(terminate);
+        this.consoleSessions.forEach(terminate);
         this.ws_conn_gui.clear();
         this.ws_conn_hub_system.clear();
         this.ws_conn_hub_stats.clear();
         this.ws_conn_devices_system.clear();
         this.ws_conn_devices_stats.clear();
         this.ws_conn_sources.clear();
+        this.consoleSessions.clear();
 
         if (this.hubStatsSendInterval)
         {
