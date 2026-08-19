@@ -1966,7 +1966,7 @@ label {
 
 .form-input {
     width: 100%;
-    padding: 0.625rem 1rem;
+    padding: 0.325rem 0.625rem;
     background: var(--bg-3);
     border: 0.0625rem solid var(--border-strong);
     border-radius: var(--radius-md);
