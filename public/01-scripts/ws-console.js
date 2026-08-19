@@ -93,7 +93,7 @@ class NDPiWebSocket {
     }
     
     handleMessage(message) {
-        const formatted_directory = `${this.pwd}`.replace('/home/ndpi-server/ndpi-monitor', '~');
+        const formatted_directory = `${this.pwd}`.replace('/home/ndpi-server/ndpi', '~');
 
         switch (message.type) {
 
