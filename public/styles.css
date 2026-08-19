@@ -2460,7 +2460,7 @@ input[type="number"]::-webkit-outer-spin-button {
 	/* padding: 0.75rem 0; */
 }
 
-.settings-row .button-primary {
+.settings-row.button-primary {
 	min-width: 9.375rem;
 }
 
