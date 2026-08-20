@@ -79,6 +79,8 @@
 			</div>
 			<div class="content">
 
+				<div id="touch-area" style="margin: 0.7rem; border-radius: 1rem; background-color: white; width: 100%; height: 200px; touch-action: none;"></div>
+
 				<section class="dashboard" style="flex: 1;">
 					<div class="card" style="grid-column: 1 / -1;">
 						<div class="card-content" style="gap: 1vh;">
@@ -105,6 +107,26 @@
 	<script src="/scripts/ws-hub-stats.js"></script>
 	<script src="/scripts/on-screen-keyboard.js"></script>
 	<script>
+
+		const touchSqEl = document.getElementById('touch-area');
+		touchSqEl.addEventListener('pointerdown', e => {
+			let dot = document.getElementById(String(e.pointerId)) || null;
+			if (!dot) {
+				dot = document.createElement('div');
+				dot.classList.add('touch-dot');
+				dot.id = String(e.pointerId);
+				positionDot(e, dot);
+				document.body.appendChild(dot);
+			} else {
+				positionDot(e, dot)
+			}
+		});
+		function positionDot(e, dot) {
+			dot.style.height = `${e.height * 10}px`;
+			dot.style.width =  `${e.width  * 10}px`;
+			dot.style.top = `${e.pageX}px`;
+			dot.style.left = `${e.pageY}px`;
+		}
 
 		(async () => {
 			applyActiveNav('navConsole');

@@ -2889,4 +2889,11 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF ON-SCREEN KEYBOARD css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
+.touch-dot {
+	border-radius: 50%;
+	background-color: red;
+	position: absolute;
+	transform: translate(-50%, -50%);
+}
+
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF FILE ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
