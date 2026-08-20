@@ -192,7 +192,7 @@ html.sidebar-collapsed .nav-btn-label,
 html.sidebar-collapsed .sidebar-logo-title {
 	opacity: 0;
 	width: 0;
-	pointer-events: none;
+	/* pointer-events: none; */
 	transition: width 0.25s ease-in;
 }
 
@@ -1444,6 +1444,7 @@ label {
 }
 
 .console-line {
+	display: flex;
 	margin: 0;
 	color: var(--text-1);
 	font-family: monospace;
@@ -1453,6 +1454,7 @@ label {
 	user-select: text;
 	cursor: text;
 	line-height: 130%;
+	align-items: center;
 	/* font-family: 'SF Mono', 'Courier New', Courier, monospace; */
 	/* letter-spacing: 0.0187rem; */
 }
@@ -2093,18 +2095,19 @@ button {
  */
 button:disabled {
     background: var(--bg-2) !important;
-    border-color: var(--border) !important;
     color: var(--text-3) !important;
+    /* border-color: var(--border) !important; */
+	border: none !important;
     box-shadow: none !important;
     cursor: not-allowed;
-    pointer-events: none;
+    /* pointer-events: none; */
 }
 
 select:disabled {
     background: var(--bg-2);
     color: var(--text-3);
     cursor: not-allowed;
-    pointer-events: none;
+    /* pointer-events: none; */
 }
 
 .button-svg {
@@ -2164,30 +2167,32 @@ select option {
 .button-warning {
 	background: rgba(245, 165, 36, 0.14);
 	color: var(--warning);
-	border-color: rgba(245, 165, 36, 0.4);
+	/* border-color: rgba(245, 165, 36, 0.4); */
+	border: none;
 }
 
 .button-warning:hover {
 	background: var(--warning);
 	color: #0a0b0d;
-	border-color: var(--warning);
+	/* border-color: var(--warning); */
 }
 
 .button-subtle {
 	background: var(--bg-2);
 	color: var(--text-2);
-	border: 0.0625rem solid var(--border);
+	/* border: 0.0625rem solid var(--border); */
+	border: none;
 }
 
 .button-subtle:hover {
 	background: var(--bg-2-hover);
-	border-color: rgba(var(--accent-rgb), 0.25);
+	/* border-color: rgba(var(--accent-rgb), 0.25); */
 	/* color: var(--bg-2); */
 }
 
 .discovery-button {
     background: var(--accent);
-    border-color: var(--accent);
+    /* border-color: var(--accent); */
     color: #0a0b0d;
     font-weight: 600;
     margin: 0.625rem;
