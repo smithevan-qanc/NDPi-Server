@@ -15,30 +15,38 @@ const THEME_COLOR_CACHE_KEY = 'ndpi_theme_color';
  *  Converts a UTC date string reported by a device/Hub's version settings
  *  (either a full ISO datetime like '2026-08-20T16:12:34Z', or a bare
  *  'YYYY-MM-DD' date -- version/current-date on both repos only ever holds
- *  a date, no time) into a human-readable string in the browser's own
- *  local timezone. A bare date has no real time component to convert, so
- *  it's shown as a date only rather than implying a (possibly
- *  timezone-shifted) midnight that was never actually reported.
+ *  a date, no time) into a staged relative "time ago" label: 'now' under a
+ *  minute, then whole minutes/hours/days/weeks/months/years as each
+ *  threshold is crossed.
  */
-function formatHumanDate(dateString) {
+function formatTimeAgo(dateString) {
 	if (!dateString) return '';
 	const str = String(dateString);
-	const dateOptions = { year: 'numeric', month: 'short', day: 'numeric' };
 
+	let date;
 	const bareDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
 	if (bareDateMatch) {
 		// No time component was ever reported -- parse the Y/M/D directly
 		// into a local-midnight Date instead of letting `new Date(str)`
-		// interpret it as UTC midnight, which would shift the displayed
-		// calendar date back a day for negative-UTC-offset timezones.
+		// interpret it as UTC midnight, which would skew the elapsed time
+		// by a timezone offset that was never actually reported.
 		const [, y, m, d] = bareDateMatch;
-		const localDate = new Date(Number(y), Number(m) - 1, Number(d));
-		return localDate.toLocaleDateString(undefined, dateOptions);
+		date = new Date(Number(y), Number(m) - 1, Number(d));
+	} else {
+		date = new Date(str);
 	}
-
-	const date = new Date(str);
 	if (isNaN(date.getTime())) return str;
-	return date.toLocaleString(undefined, { ...dateOptions, hour: 'numeric', minute: '2-digit' });
+
+	const MINUTE = 60, HOUR = 60 * MINUTE, DAY = 24 * HOUR, WEEK = 7 * DAY, MONTH = 30 * DAY, YEAR = 365 * DAY;
+	const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+
+	if (diffSeconds < MINUTE) return 'now';
+	if (diffSeconds < HOUR) return `${Math.floor(diffSeconds / MINUTE)}min`;
+	if (diffSeconds < DAY) return `${Math.floor(diffSeconds / HOUR)}h`;
+	if (diffSeconds < WEEK) return `${Math.floor(diffSeconds / DAY)}d`;
+	if (diffSeconds < MONTH) return `${Math.floor(diffSeconds / WEEK)}w`;
+	if (diffSeconds < YEAR) return `${Math.floor(diffSeconds / MONTH)}m`;
+	return `${Math.floor(diffSeconds / YEAR)}y`;
 }
 
 /**
@@ -65,11 +73,11 @@ function renderVersionInfo(elementId, tuples) {
 	if (!version) { el.innerHTML = ''; return; }
 
 	let html = `Installed version: <strong>${version}</strong>`;
-	if (versionDate) { html += ` (${formatHumanDate(versionDate)})`; }
+	if (versionDate) { html += ` ${formatTimeAgo(versionDate)}`; }
 
 	if (updateAvailable && updateVersion) {
 		html += `<br>New version available: <strong>${updateVersion}</strong>`;
-		if (updateVersionDate) { html += ` (${formatHumanDate(updateVersionDate)})`; }
+		if (updateVersionDate) { html += ` ${formatTimeAgo(updateVersionDate)}`; }
 	}
 
 	el.innerHTML = html;
