@@ -1343,6 +1343,7 @@ label {
 }
 
 .info-value {
+	display: flex;
 	font-size: 0.8438rem;
 	color: var(--text-1);
 }
@@ -2276,6 +2277,7 @@ select {
 	background: var(--bg-3);
 	color: var(--text-0);
 	font-size: 0.8rem;
+	flex: 1;
 }
 
 input:disabled {
