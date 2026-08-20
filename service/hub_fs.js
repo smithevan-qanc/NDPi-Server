@@ -321,6 +321,15 @@ class FileSystemMonitor extends EventEmitter {
     async start() {
         this.startWatcher();
         this.startDrmMonitor();
+        // updateOutputDisplayFiles() otherwise only ever runs in response to
+        // a live DRM hotplug event from the udevadm monitor started just
+        // above -- if the display was already connected before this process
+        // started (the normal case), no such event ever fires, so the
+        // resolution dropdown's options would stay empty indefinitely. Run
+        // it once up front so a boot with an already-connected display gets
+        // populated immediately instead of waiting on a DRM event that may
+        // never come.
+        this.updateOutputDisplayFiles();
         this.pollUpdate();
         this.emit('ready');
         await func.waitForNetwork();
@@ -663,6 +672,14 @@ class FileSystemMonitor extends EventEmitter {
                     fileMapCurrRes.options = resolutionOptions;
                     this.fileMap.set('output_display_resolution_preference', fileMapCurrRes);
                     this.emit('drm');
+                    // Unlike a normal setting change, this mutates the fileMap
+                    // in memory only -- __flushQueue() (the only other place
+                    // that emits 'update') never runs for it, since no file on
+                    // disk changed. Without this, /ws/system (and therefore
+                    // the settings page's resolution dropdown) would never
+                    // learn the options changed until some unrelated setting
+                    // happened to change and trigger its own broadcast.
+                    this.emit('update', JSON.stringify(Array.from(this.fileMap)));
                 }
             });
         }
