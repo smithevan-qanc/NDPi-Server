@@ -2893,6 +2893,8 @@ input[type="number"]::-webkit-outer-spin-button {
 	border-radius: 50%;
 	background-color: red;
 	position: absolute;
+	min-height: 10px;
+	min-width: 10px;
 	transform: translate(-50%, -50%);
 }
 
