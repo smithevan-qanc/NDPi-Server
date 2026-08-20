@@ -107,6 +107,7 @@ html, body {
 	background: var(--bg-1);
 	overflow-x: hidden;
     user-select: none;
+	-webkit-user-select: none;
 }
 
 body::-webkit-scrollbar {
@@ -814,6 +815,7 @@ html.sidebar-collapsed .nav-btn {
 	padding: 0.875rem 1rem;
 	cursor: pointer;
 	user-select: none;
+	-webkit-user-select: none;
 	transition: all 0.15s ease-in-out;
 	display: flex;
 	flex-direction: column;
@@ -1363,6 +1365,7 @@ label {
 	text-transform: uppercase;
 	letter-spacing: 0.0312rem;
 	max-width: 50%;
+	touch-action: ;
 }
 
 .info-value {
@@ -1479,6 +1482,7 @@ label {
 	font-size: 0.8rem;
 	padding: 0 0.3125rem 0 0.3125rem;
 	user-select: text;
+	-webkit-user-select: text;
 	cursor: text;
 	line-height: 130%;
 	align-items: center;

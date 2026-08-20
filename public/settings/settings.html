@@ -135,17 +135,15 @@
 							<h2>Appearance</h2>
 							<!-- THEME -->
 							<div class="settings-row">
-								<div class="settings-label">Theme Color</div>
 								<div class="theme-swatches" id="themeSwatches"></div>
+								<div class="settings-label">Theme Color</div>
 								<p>Saved to this Hub and applied on every device that opens it.</p>
 							</div>
 							<!-- LOGO -->
 							<div class="settings-row">
-								<div class="settings-label">Logo</div>
 								<div class="logo-upload-row">
 									<div class="logo-preview-item">
 										<div class="logo-preview-box"><img id="currentLogoPreview" src="/api/v2/logo" alt="Current logo"></div>
-										<span class="info-label">Current</span>
 									</div>
 									<div class="logo-preview-item">
 										<div class="logo-preview-box" id="newLogoPreviewBox" style="display:none;"><img id="newLogoPreview" alt="New logo preview"></div>
@@ -153,6 +151,7 @@
 									</div>
 								</div>
 								<input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none;">
+								<div class="settings-label">Logo</div>
 								<p>PNG, JPEG, WEBP, GIF, or SVG. 2MB max. Applies to the sidebar and sign-in logo on every device.</p>
 								<div class="logo-actions">
 									<button type="button" class="button-subtle" id="chooseLogoBtn">Choose Image...</button>
@@ -174,9 +173,9 @@
 							</div>
 							<!-- GITHUB - UPDATE -->
 							<div class="settings-row">
-								<div class="button-row">
-									<button id="checkUpdateBtn" type="button" class="button-subtle">Check for Update</button>
-									<button id="installHubUpdateBtn" type="button" class="button-primary" hidden>Install Update</button>
+								<div class="button-row" style="margin-bottom: 0.5rem;">
+									<button id="checkUpdateBtn" type="button" class="button-primary">Check for Update</button>
+									<button id="installHubUpdateBtn" type="button" class="button-primary" disabled hidden>Install Update</button>
 								</div>
 								<div id="hubVersionInfo" class="settings-hint"></div>
 							</div>
@@ -850,6 +849,9 @@
 						const hasUpdate = String(entry[1].value) === 'true';
 						installBtn.hidden = !hasUpdate;
 						installBtn.disabled = !hasUpdate;
+					} else {
+						installBtn.hidden = true;
+						installBtn.disabled = true;
 					}
 
 					renderVersionInfo('hubVersionInfo', tuples);
