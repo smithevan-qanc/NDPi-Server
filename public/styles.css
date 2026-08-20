@@ -2268,7 +2268,7 @@ input[type="number"],
 input[type="date"],
 input[type="time"],
 input[type="text"],
-input,
+/* input, */
 select {
     min-width: 3.125rem;
 	padding: 0.5rem 0.625rem;
