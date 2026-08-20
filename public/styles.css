@@ -1125,8 +1125,10 @@ html.sidebar-collapsed .nav-btn {
 .group-tile h2 {
 	font-weight: 700;
 	font-size: 120%;
+	flex: 1;
 	padding: 0;
 	border: none;
+	text-transform: none;
 }
 
 .group-tile:hover {
