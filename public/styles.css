@@ -1362,6 +1362,7 @@ label {
 	font-size: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.0312rem;
+	max-width: 50%;
 }
 
 .info-value {
@@ -2315,6 +2316,28 @@ select {
 	flex: 1;
 }
 
+/**
+ *  select's native dropdown arrow doesn't respect author padding as
+ *  clearance the way text content does -- browsers draw it in a narrow
+ *  reserved strip pinned to the right edge, which reads as "touching the
+ *  border" against this app's heavily rounded (50px) pill shape. Taking
+ *  over the arrow entirely (appearance: none + a custom SVG chevron) gives
+ *  full control over its position instead of fighting the native one.
+ *  Color is a literal hex matching --text-2's rgb(180,180,180) -- a data
+ *  URI is opaque to CSS custom properties, so var() can't be used inside
+ *  it, but this app has no light-theme variant for that token to diverge
+ *  from anyway.
+ */
+select {
+	-webkit-appearance: none;
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b4b4b4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.875rem center;
+	background-size: 0.75rem;
+	padding-right: 2.25rem;
+}
+
 input:disabled {
 	cursor: not-allowed;
 	background-color: rgba(110, 110, 110, 0.05) !important;
@@ -2338,6 +2361,20 @@ select:hover {
 	background: var(--bg-3-hover);
 }
 
+/**
+ *  Same shorthand-reset problem as select:focus below, but for :hover --
+ *  select:hover's `background` shorthand above resets background-image to
+ *  none. select:hover's specificity (0,1,1) beats a plain `select {}` rule
+ *  regardless of source order, so this needs its own same-specificity
+ *  override rather than relying on the earlier chevron rule further down.
+ */
+select:hover {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b4b4b4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.875rem center;
+	background-size: 0.75rem;
+}
+
 input[type="password"]:focus,
 input[type="number"]:focus,
 input[type="date"]:focus,
@@ -2352,6 +2389,21 @@ select:focus {
 	padding: 0.375rem 1rem;
 	font-size: max(16px, 1rem) !important;
 	/* box-shadow: 0 0 0 0.1875rem rgba(var(--accent-rgb), 0.18); */
+}
+
+/**
+ *  The shared select:focus rule above uses the `background`/`padding`
+ *  shorthands (needed for the text inputs it's grouped with), which reset
+ *  background-image to none and padding-right back to 1rem -- undoing the
+ *  custom chevron above on focus. Same selector specificity, later in
+ *  source, so this wins for just these sub-properties without !important.
+ */
+select:focus {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b4b4b4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.875rem center;
+	background-size: 0.75rem;
+	padding-right: 2.25rem;
 }
 
 input[type="range"] {
