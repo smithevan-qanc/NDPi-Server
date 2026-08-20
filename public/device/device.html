@@ -309,6 +309,7 @@
 				<!-- Software Update -->
 				<div style="margin-top:24px;">
 					<h3 class="section-title">Software Update</h3>
+					<div id="deviceVersionInfo" class="settings-hint" style="margin-bottom:8px;"></div>
 					<div style="display:flex;gap:10px;flex-wrap:wrap;">
 						<button onclick="checkForDeviceUpdate()" class="button-subtle">Check for Update</button>
 						<button onclick="installDeviceUpdate()" id="installUpdateBtn" class="button-primary" hidden>Install Update</button>
@@ -736,10 +737,12 @@
 		function updateUpdateSection() {
 			const updateAvailable = getSetting('ndpi_version_update_available');
 			const installBtn = document.getElementById('installUpdateBtn');
-			if (!installBtn) return;
-			const hasUpdate = updateAvailable && String(updateAvailable.value) === 'true';
-			installBtn.hidden = !hasUpdate;
-			installBtn.disabled = !hasUpdate;
+			if (installBtn) {
+				const hasUpdate = updateAvailable && String(updateAvailable.value) === 'true';
+				installBtn.hidden = !hasUpdate;
+				installBtn.disabled = !hasUpdate;
+			}
+			renderVersionInfo('deviceVersionInfo', device.settings);
 		}
 
 		async function checkForDeviceUpdate() {

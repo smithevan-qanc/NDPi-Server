@@ -5,6 +5,7 @@ UPDATE_AVAILABLE=false
 
 cd $HOME/ndpi
 CURRENT_VERSION="$(head -n 1 version/current)"
+CURRENT_VERSION_DATE="$(head -n 1 version/current-date)"
 
 cd $HOME/TMP_ndpi
 BRANCH="$(head -n 1 version/git)"
@@ -20,6 +21,7 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 fi
 
 NEWEST_VERSION="$(head -n 1 version/current)"
+NEWEST_VERSION_DATE="$(head -n 1 version/current-date)"
 
 if [ "$CURRENT_VERSION" != "$NEWEST_VERSION" ]; then
     UPDATE_AVAILABLE=true
@@ -29,10 +31,12 @@ printf "{
     \"update_available\": ${UPDATE_AVAILABLE},
     \"newest_version\": {
         \"ndpi\": \"$NEWEST_VERSION\",
+        \"released\": \"$NEWEST_VERSION_DATE\",
         \"git\": \"$REMOTE\"
     },
     \"installed_version\": {
         \"ndpi\": \"$CURRENT_VERSION\",
+        \"released\": \"$CURRENT_VERSION_DATE\",
         \"git\": \"$LOCAL\"
     }
 }

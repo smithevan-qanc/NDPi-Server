@@ -11,6 +11,70 @@
  */
 const THEME_COLOR_CACHE_KEY = 'ndpi_theme_color';
 
+/**
+ *  Converts a UTC date string reported by a device/Hub's version settings
+ *  (either a full ISO datetime like '2026-08-20T16:12:34Z', or a bare
+ *  'YYYY-MM-DD' date -- version/current-date on both repos only ever holds
+ *  a date, no time) into a human-readable string in the browser's own
+ *  local timezone. A bare date has no real time component to convert, so
+ *  it's shown as a date only rather than implying a (possibly
+ *  timezone-shifted) midnight that was never actually reported.
+ */
+function formatHumanDate(dateString) {
+	if (!dateString) return '';
+	const str = String(dateString);
+	const dateOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+
+	const bareDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+	if (bareDateMatch) {
+		// No time component was ever reported -- parse the Y/M/D directly
+		// into a local-midnight Date instead of letting `new Date(str)`
+		// interpret it as UTC midnight, which would shift the displayed
+		// calendar date back a day for negative-UTC-offset timezones.
+		const [, y, m, d] = bareDateMatch;
+		const localDate = new Date(Number(y), Number(m) - 1, Number(d));
+		return localDate.toLocaleDateString(undefined, dateOptions);
+	}
+
+	const date = new Date(str);
+	if (isNaN(date.getTime())) return str;
+	return date.toLocaleString(undefined, { ...dateOptions, hour: 'numeric', minute: '2-digit' });
+}
+
+/**
+ *  Renders the installed/available-update version info shared by
+ *  settings.html (Hub's own /ws/system feed) and device.html (a device's
+ *  relayed settings tuples) -- same [key, {value,...}] tuple shape either
+ *  way, so one function covers both.
+ */
+function renderVersionInfo(elementId, tuples) {
+	const el = document.getElementById(elementId);
+	if (!el || !Array.isArray(tuples)) return;
+
+	const getValue = (key) => {
+		const entry = tuples.find(([k]) => k === key);
+		return entry ? entry[1].value : undefined;
+	};
+
+	const version = getValue('ndpi_version');
+	const versionDate = getValue('ndpi_version_date');
+	const updateAvailable = String(getValue('ndpi_version_update_available')) === 'true';
+	const updateVersion = getValue('ndpi_version_update_version');
+	const updateVersionDate = getValue('ndpi_version_update_version_date');
+
+	if (!version) { el.innerHTML = ''; return; }
+
+	let html = `Installed version: <strong>${version}</strong>`;
+	if (versionDate) { html += ` (${formatHumanDate(versionDate)})`; }
+
+	if (updateAvailable && updateVersion) {
+		html += `<br>New version available: <strong>${updateVersion}</strong>`;
+		if (updateVersionDate) { html += ` (${formatHumanDate(updateVersionDate)})`; }
+	}
+
+	el.innerHTML = html;
+}
+
 function hexToRgbString(hex) {
 	const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
 	if (!match) return null;

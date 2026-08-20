@@ -178,6 +178,13 @@ class FileSystemMonitor extends EventEmitter {
                 allowEditExternal: false,
             },
             {
+                key: "ndpi_version_update_version_date",
+                value: ``,
+                group: `Backend`,
+                allowEditInternal: true,
+                allowEditExternal: false,
+            },
+            {
                 key: "ndpi_version",
                 value: this.#pgmVersion,
                 group: `Backend`,

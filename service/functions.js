@@ -125,6 +125,8 @@ async function checkForUpdate() {
                     { fs.writeFileSync(path.join(process.env.DATA_NDPI_PATH, 'ndpi_version_update_available'), String(update.update_available), 'utf8'); }
                     if (update.newest_version?.ndpi)
                     { fs.writeFileSync(path.join(process.env.DATA_NDPI_PATH, 'ndpi_version_update_version'), String(update.newest_version.ndpi), 'utf8'); }
+                    if (update.newest_version?.released)
+                    { fs.writeFileSync(path.join(process.env.DATA_NDPI_PATH, 'ndpi_version_update_version_date'), String(update.newest_version.released), 'utf8'); }
                 }
                 catch (err) { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ checkForUpdate() ] Error parsing update.`, err); }
                 finally
