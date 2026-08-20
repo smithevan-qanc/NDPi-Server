@@ -73,7 +73,7 @@ function renderVersionInfo(elementId, tuples) {
 	if (!version) { el.innerHTML = ''; return; }
 
 	let html = `Installed version: <strong>${version}</strong>`;
-	if (versionDate) { html += ` ${formatTimeAgo(versionDate)}`; }
+	// if (versionDate) { html += ` ${formatTimeAgo(versionDate)}`; }
 
 	if (updateAvailable && updateVersion) {
 		html += `<br>New version available: <strong>${updateVersion}</strong>`;
