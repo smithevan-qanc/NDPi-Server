@@ -121,6 +121,18 @@
 				positionDot(e, dot)
 			}
 		});
+		touchSqEl.addEventListener('pointermove', e => {
+			let dot = document.getElementById(String(e.pointerId)) || null;
+			if (dot) { positionDot(e, dot); }
+		});
+		touchSqEl.addEventListener('pointerup', e => {
+			let dot = document.getElementById(String(e.pointerId)) || null;
+			if (dot) { dot.remove(); }
+		});
+		touchSqEl.addEventListener('pointercancel', e => {
+			let dot = document.getElementById(String(e.pointerId)) || null;
+			if (dot) { dot.remove(); }
+		});
 		function positionDot(e, dot) {
 			dot.style.height = `${e.height}px`;
 			dot.style.width =  `${e.width}px`;
