@@ -2,6 +2,7 @@ class NDPiWebSocket {
     constructor() {
         this.ws = null;
         this.pingInterval = null;
+        this.pingStartTimer = null;
         this.heartbeatTimeout = null;
         this.heartbeatMaxAge = 30000; // 30 seconds without heartbeat = connection lost
         this.onDevicesUpdate = null;
@@ -121,7 +122,7 @@ class NDPiWebSocket {
      *  full page reload instead of trying to resume in place.
      */
     startPing() {
-        if (this.pingInterval) return;
+        if (this.pingInterval || this.pingStartTimer) return;
 
         const tryPing = async () => {
             try {
@@ -137,11 +138,27 @@ class NDPiWebSocket {
             }
         };
 
-        tryPing();
-        this.pingInterval = setInterval(tryPing, 1000);
+        // Debounce the first ping by 2s: right as the WS drops (e.g. a
+        // software-update restart), the Hub's HTTP server can still be very
+        // briefly reachable -- old process not fully torn down yet, or the
+        // OS accepting the connection before the new process is actually
+        // listening. Pinging immediately can catch it in that flaky window,
+        // see a 200, and reload straight into a Hub that's still mid-restart
+        // -- which just repeats the whole offline/reload dance a few times
+        // in a row. Waiting 2s first gives the restart time to actually
+        // take the API down before polling starts.
+        this.pingStartTimer = setTimeout(() => {
+            this.pingStartTimer = null;
+            tryPing();
+            this.pingInterval = setInterval(tryPing, 1000);
+        }, 2000);
     }
 
     stopPing() {
+        if (this.pingStartTimer) {
+            clearTimeout(this.pingStartTimer);
+            this.pingStartTimer = null;
+        }
         if (this.pingInterval) {
             clearInterval(this.pingInterval);
             this.pingInterval = null;
