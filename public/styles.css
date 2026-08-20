@@ -703,6 +703,10 @@ html.sidebar-collapsed .nav-btn {
 	transition: height 1s ease;
 }
 
+.card-content h2 {
+	text-transform: uppercase;
+}
+
 /**
  *  For cards whose own first child (e.g. an `<h2>`, styled by `.card h2`
  *  above) already supplies its own padding/border -- stacking the
