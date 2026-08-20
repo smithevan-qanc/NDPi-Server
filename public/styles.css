@@ -1341,21 +1341,26 @@ label {
 .info-label {
 	color: var(--text-3);
 	font-size: 0.75rem;
-	padding-left: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.0312rem;
 }
 
 .info-item {
 	display: flex;
-	flex-direction: column;
+	/* flex-direction: column; */
 	gap: 0.1875rem;
+	justify-content: space-between;
+	align-items: center;
 }
 
 .info-value {
 	display: flex;
 	font-size: 0.8438rem;
 	color: var(--text-1);
+	justify-content: right;
+    text-align: end;
+    flex: 1;
+    align-items: center;
 }
 
 /**
