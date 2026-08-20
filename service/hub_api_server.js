@@ -2259,10 +2259,15 @@ class NDPiCommandServer_Client extends EventEmitter {
             res.json({ success: true, message: `Source "${sourceName}" assigned to group "${group.name}"` });
         });
 
-        // Same viaWebSocket reasoning as deviceCommandRoute() above.
-        const groupCommandRoute = (subPath, buildCommand, viaWebSocket = true) => {
+        // Same viaWebSocket reasoning as deviceCommandRoute() above. basePath
+        // mirrors deviceCommandRoute()'s own parameter -- defaults to the
+        // original unversioned '/api/group/:groupId' so the 4 pre-existing
+        // routes below keep their exact path, while 'setting' (added after
+        // those) passes '/api/v2/group/:groupId' explicitly, matching the
+        // repo's '/api/v2/*' convention for anything new.
+        const groupCommandRoute = (subPath, buildCommand, viaWebSocket = true, basePath = '/api/group/:groupId') => {
             this.Routes
-            .route(`/api/group/:groupId/${subPath}`)
+            .route(`${basePath}/${subPath}`)
             .post(async (req, res) => {
                 const { groupId } = req.params;
                 const group = this.settings.getGroup(groupId);
@@ -2282,6 +2287,12 @@ class NDPiCommandServer_Client extends EventEmitter {
         groupCommandRoute('reboot', () => ({ type: 'reboot-device' }), false);
         groupCommandRoute('overlay', () => ({ type: 'set-setting', data: { name: 'ndpi_status_no_source_display_mode', value: 'overlay' } }));
         groupCommandRoute('blank', () => ({ type: 'set-setting', data: { name: 'ndpi_status_no_source_display_mode', value: 'blank' } }));
+
+        // Generic settings fan-out -- writes one setting to every device in
+        // the group, same 'set-setting' command deviceCommandRoute('setting')
+        // sends per-device. Backs group.html's per-field editable settings
+        // grid and its "Sync" action.
+        groupCommandRoute('setting', (req) => ({ type: 'set-setting', data: { name: req.body.name, value: req.body.value } }), true, '/api/v2/group/:groupId');
 
         this.Routes
         .route('/api/group/:groupId/add-device')

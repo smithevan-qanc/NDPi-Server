@@ -2252,36 +2252,10 @@ select option {
 
 .display-controls {
 	display: flex;
+	align-items: center;
 	gap: 0.625rem;
 	margin: 1rem 0;
 	flex-wrap: wrap;
-}
-
-.display-btn {
-	border: none;
-	cursor: pointer;
-	font-weight: 500;
-}
-
-.display-btn-overlay {
-	background: var(--bg-3);
-	color: var(--text-0);
-	border: 0.0625rem solid var(--border-strong);
-}
-
-.display-btn-overlay:hover {
-	background: var(--bg-3-hover);
-}
-
-.display-btn-blank {
-	background: var(--bg-2);
-	color: var(--text-3);
-	border: 0.0625rem solid var(--border);
-}
-
-.display-btn-blank:hover {
-	background: var(--bg-2-hover);
-	color: var(--text-2);
 }
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF BUTTONS css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
@@ -2666,6 +2640,42 @@ input[type="number"]::-webkit-outer-spin-button {
 .info-grid-message {
 	color: var(--text-3);
 	grid-column: 1 / -1;
+}
+
+/**
+ *  Group Device Settings -- shown under a setting's control on group.html
+ *  when devices in the group disagree on its value (see renderGroupSettings()).
+ */
+.settings-mismatch-item {
+	grid-column: 1 / -1;
+}
+
+.settings-mismatch {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.375rem;
+	margin-top: 0.375rem;
+	padding: 0.625rem 0.75rem;
+	background: color-mix(in srgb, var(--warning) 10%, var(--bg-2));
+	border: 0.0625rem solid color-mix(in srgb, var(--warning) 35%, transparent);
+	border-radius: var(--radius-sm);
+}
+
+.settings-mismatch-message {
+	font-size: 0.75rem;
+	color: var(--warning);
+	font-weight: 600;
+}
+
+.settings-mismatch-list {
+	margin: 0;
+	padding-left: 1.125rem;
+	font-size: 0.75rem;
+	color: var(--text-2);
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
 }
 
 .logo-upload-row {

@@ -245,8 +245,8 @@
 					<div style="margin-top:24px;">
 						<h3 class="section-title">Display Controls</h3>
 						<div class="display-controls">
-							<button onclick="showOverlay()" style="flex:5;" class="display-btn display-btn-overlay">Display Overlay</button>
-							<button onclick="showBlank()" style="flex:2;" class="display-btn display-btn-overlay">Blank Display</button>
+							<label for="noSourceDisplaySelect" class="settings-label">No Source Display</label>
+							<select id="noSourceDisplaySelect" class="mono" onchange="saveSetting('ndpi_status_no_source_display_mode', this.value)"></select>
 
 							<div style="width:-webkit-fill-available;"></div>
 
@@ -258,24 +258,20 @@
 								TV Power |
 								<span style="font-weight: 800;">OFF</span>
 							</button>
-						<button onclick="cecVolumeDown()" style="flex:1;" class="roku-button-power">
-							Volume |
-							<span style="font-weight: 800;">&#8722;</span>
-						</button>
-						<button onclick="cecVolumeUp()" style="flex:1;" class="roku-button-power">
-							Volume |
-							<span style="font-weight: 800;">+</span>
-						</button>
-						<button onclick="cecActiveSource()" style="flex:1;" class="roku-button-power">
-							TV Input |
-							<span style="font-weight: 800;">Switch to This Device</span>
-						</button>
+							<button onclick="cecVolumeDown()" style="flex:1;" class="roku-button-power">
+								Volume |
+								<span style="font-weight: 800;">&#8722;</span>
+							</button>
+							<button onclick="cecVolumeUp()" style="flex:1;" class="roku-button-power">
+								Volume |
+								<span style="font-weight: 800;">+</span>
+							</button>
+							<button onclick="cecActiveSource()" style="flex:1;" class="roku-button-power">
+								TV Input |
+								<span style="font-weight: 800;">Switch to This Device</span>
+							</button>
+						</div>
 					</div>
-					<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
-						<input type="text" id="rawCecCommand" placeholder="Raw CEC command (e.g. 'tx 04:36')" style="flex:1;padding:8px;background:#1a1a1a;border:2px solid #444;border-radius:8px;color:#eee;font-size:13px;" class="mono">
-						<button onclick="sendRawCec()" class="button-subtle">Send</button>
-					</div>
-				</div>
 
 				<!-- Overlay Image -->
 				<div style="margin-top:24px;">
@@ -611,6 +607,7 @@
 				`;
 			}
 
+			renderNoSourceDisplayControl();
 			renderSettings();
 			renderFullStats();
 			updateOverlayPreview();
@@ -621,6 +618,30 @@
 			if (!device || !Array.isArray(device.settings)) return null;
 			const entry = device.settings.find(([k]) => k === key);
 			return entry ? entry[1] : null;
+		}
+
+		// 'No Source Display' -- replaces the old dedicated Display
+		// Overlay/Blank Display buttons. Both used to just write
+		// 'ndpi_status_no_source_display_mode' to 'overlay'/'blank' anyway
+		// (see hub_api_server.js's deviceCommandRoute('overlay'/'blank', ...)),
+		// so this is the same write through the generic saveSetting()
+		// mechanism, with its options sourced from whatever the device
+		// itself reports for that setting rather than hardcoded.
+		function renderNoSourceDisplayControl() {
+			const select = document.getElementById('noSourceDisplaySelect');
+			if (!select) return;
+
+			const setting = getSetting('ndpi_status_no_source_display_mode');
+			if (!setting || !Array.isArray(setting.options) || setting.options.length === 0) {
+				select.innerHTML = '';
+				select.disabled = true;
+				return;
+			}
+
+			select.disabled = !setting.allowEditExternal;
+			select.innerHTML = setting.options.map(([label, value]) =>
+				`<option value="${value}" ${value === setting.value ? 'selected' : ''}>${label}</option>`
+			).join('');
 		}
 
 		/**
@@ -825,9 +846,9 @@
 		}
 
 		/**
-		 *  Additional CEC controls — matches the TV control buttons in
-		 *  Client__v3_1_0/public/system.js (volume, active/inactive source,
-		 *  raw command entry).
+		 *  CEC TV controls — power/volume/input-switch buttons in Display
+		 *  Controls. The raw-command text box that used to sit alongside
+		 *  these was removed, but the button row itself stays.
 		 */
 		async function sendCecCommand(command, successMessage) {
 			try {
@@ -849,66 +870,6 @@
 		function cecVolumeUp() { sendCecCommand('volup'); }
 		function cecVolumeDown() { sendCecCommand('voldown'); }
 		function cecActiveSource() { sendCecCommand('as', 'Switched TV input to this device'); }
-		function cecInactiveSource() { sendCecCommand('is'); }
-
-		function sendRawCec() {
-			const input = document.getElementById('rawCecCommand');
-			const command = input.value.trim();
-			if (!command) return;
-			sendCecCommand(command, 'CEC command sent');
-			input.value = '';
-		}
-
-		async function selectSource(sourceName) {
-			try {
-				const res = await fetch(`/api/device/${device.id}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ currentSource: sourceName })
-				});
-				if (res.ok) {
-					// Update local state immediately for responsive UI
-					device.currentSource = sourceName;
-					renderSources();
-					updateDevice();
-					if (sourceName !== '') {
-						toast.success(`Source set to ${sourceName}`);
-					}
-				} else {
-					toast.error('Failed to assign source');
-				}
-			} catch (e) {
-				toast.error('Error assigning source');
-			}
-		}
-
-		async function showOverlay() {
-			try {
-				selectSource('');
-				const res = await fetch(`/api/device/${device.id}/overlay`, { method: 'POST' });
-				if (res.ok) {
-					toast.success('Overlay displayed');
-				} else {
-					toast.error('Failed to show overlay');
-				}
-			} catch (e) {
-				toast.error('Error showing overlay');
-			}
-		}
-
-		async function showBlank() {
-			try {
-				selectSource('');
-				const res = await fetch(`/api/device/${device.id}/blank`, { method: 'POST' });
-				if (res.ok) {
-					toast.success('Screen blanked');
-				} else {
-					toast.error('Failed to blank screen');
-				}
-			} catch (e) {
-				toast.error('Error blanking screen');
-			}
-		}
 
 		async function cecPowerOn() {
 			try {
@@ -940,6 +901,29 @@
 				}
 			} catch (e) {
 				toast.error('Error Powerering Off - Connected TV');
+			}
+		}
+
+		async function selectSource(sourceName) {
+			try {
+				const res = await fetch(`/api/device/${device.id}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ currentSource: sourceName })
+				});
+				if (res.ok) {
+					// Update local state immediately for responsive UI
+					device.currentSource = sourceName;
+					renderSources();
+					updateDevice();
+					if (sourceName !== '') {
+						toast.success(`Source set to ${sourceName}`);
+					}
+				} else {
+					toast.error('Failed to assign source');
+				}
+			} catch (e) {
+				toast.error('Error assigning source');
 			}
 		}
 

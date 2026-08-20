@@ -280,6 +280,8 @@
 
 			// Update devices list
 			updateDevicesList();
+			renderGroupNoSourceDisplayControl();
+			renderGroupSettings();
 		}
 
 		// `deviceId -> tile refs`, patched in place instead of rebuilding on every update
@@ -565,18 +567,24 @@
 						<h3 class="section-title">Display Controls</h3>
 						<p style="font-size:12px;color:#888;margin-bottom:12px;">These actions apply to all ${group.devices.length} device(s) in this group</p>
 						<div class="display-controls">
-							<button onclick="showGroupOverlay()" style="flex:5;" class="display-btn display-btn-overlay">Display Overlay</button>
-							<button onclick="showGroupBlank()" style="flex:2;" class="display-btn display-btn-overlay">Blank Display</button>
+							<label for="groupNoSourceDisplaySelect" class="settings-label">No Source Display</label>
+							<select id="groupNoSourceDisplaySelect" class="mono" onchange="saveGroupSetting('ndpi_status_no_source_display_mode', this.value)"></select>
 							${rokuActionButtons}
 						</div>
 					</div>
-					
+
 					<div style="margin-top:24px;">
 						<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
 							<h3 class="section-title" style="margin:0 0 0.5rem;">Devices in this Group</h3>
 							${admAddDeviceButtonHtml}
 						</div>
 						<div id="devicesContainer" class="devices-grid"></div>
+					</div>
+
+					<div style="margin-top:24px;">
+						<h3 class="section-title">Device Settings</h3>
+						<p class="settings-hint">Editing a setting here applies it to every device in this group.</p>
+						<div id="groupSettingsGrid" class="info-grid"></div>
 					</div>
 					${admGroupActionGroupHtml}
 				</div>
@@ -627,6 +635,8 @@
 
 			// Populate devices list
 			updateDevicesList();
+			renderGroupNoSourceDisplayControl();
+			renderGroupSettings();
 			startWave();
 		}
 
@@ -773,32 +783,228 @@
 			}
 		}
 
-		async function showGroupOverlay() {
+		/**
+		 *  'No Source Display' -- replaces the old dedicated Display
+		 *  Overlay/Blank Display buttons, which both just wrote
+		 *  'ndpi_status_no_source_display_mode' to 'overlay'/'blank' on
+		 *  every device in the group anyway (see hub_api_server.js's
+		 *  groupCommandRoute('overlay'/'blank', ...)). Options are sourced
+		 *  from whatever any one device in the group reports for that
+		 *  setting (same static schema for every device running the same
+		 *  Client version) rather than hardcoded.
+		 */
+		function renderGroupNoSourceDisplayControl() {
+			const select = document.getElementById('groupNoSourceDisplaySelect');
+			if (!select || !group) return;
+
+			let setting = null;
+			for (const dev of group.devices) {
+				const tuples = getDeviceSettingsTuples(dev.id || dev.deviceId);
+				if (!Array.isArray(tuples)) continue;
+				const entry = tuples.find(([k]) => k === 'ndpi_status_no_source_display_mode');
+				if (entry) { setting = entry[1]; break; }
+			}
+
+			if (!setting || !Array.isArray(setting.options) || setting.options.length === 0) {
+				select.innerHTML = '';
+				select.disabled = true;
+				return;
+			}
+
+			select.disabled = false;
+			select.innerHTML = setting.options.map(([label, value]) =>
+				`<option value="${value}" ${value === setting.value ? 'selected' : ''}>${label}</option>`
+			).join('');
+		}
+
+		/**
+		 *  Group Device Settings -- every `allowEditExternal` setting
+		 *  reported by any device in this group (same fields device.html's
+		 *  own renderSettings() shows for one device), aggregated across
+		 *  every device. Editing a field here writes it to every device in
+		 *  the group (POST /api/v2/group/:groupId/setting, fans out the
+		 *  same 'set-setting' command deviceCommandRoute('setting') sends
+		 *  per-device). When devices disagree on a field's value, the
+		 *  control is left unselected/blank and a warning + per-value
+		 *  breakdown + "Sync" button are shown instead.
+		 */
+		// Fields already covered by dedicated controls elsewhere on this
+		// page (device_name has no per-device rename control here at all;
+		// media_overlay_image is a large per-device image blob with no
+		// group-level control; ndpi_status_no_source_display_mode has the
+		// dedicated dropdown above) -- same exclusion list device.html's
+		// renderSettings() uses, for the same reasons.
+		const GROUP_SETTINGS_EXCLUDED = ['device_name', 'media_overlay_image', 'ndpi_status_no_source_display_mode'];
+
+		// Prefer the live per-device settings relay (devicesSystemRelay,
+		// pushed the instant a device's settings change) over the Hub-relay
+		// snapshot on `dev.settings` (only refreshed on the ~5s client-status
+		// cadence / whenever /ws devices-update fires), falling back to the
+		// latter when the relay hasn't delivered anything for a device yet.
+		function getDeviceSettingsTuples(deviceId) {
+			const relayed = devicesSystemRelay && devicesSystemRelay.cache[deviceId];
+			if (Array.isArray(relayed)) return relayed;
+			const dev = group.devices.find(d => (d.id || d.deviceId) === deviceId);
+			return (dev && Array.isArray(dev.settings)) ? dev.settings : null;
+		}
+
+		// key -> { obj: <setting definition, incl. group/options>, perDevice: Map<deviceId, {name, value}> }
+		function collectGroupSettings() {
+			const fieldMap = new Map();
+			(group.devices || []).forEach(dev => {
+				const deviceId = dev.id || dev.deviceId;
+				const tuples = getDeviceSettingsTuples(deviceId);
+				if (!Array.isArray(tuples)) return;
+				tuples.forEach(([key, obj]) => {
+					if (!obj || !obj.allowEditExternal) return;
+					if (GROUP_SETTINGS_EXCLUDED.includes(key)) return;
+					if (!fieldMap.has(key)) { fieldMap.set(key, { obj, perDevice: new Map() }); }
+					fieldMap.get(key).perDevice.set(deviceId, { name: dev.name, value: obj.value });
+				});
+			});
+			return fieldMap;
+		}
+
+		function formatSettingValue(obj, value) {
+			if (Array.isArray(obj.options)) {
+				const match = obj.options.find(([, v]) => v === value);
+				if (match) return match[0];
+			}
+			return (value === '' || value === undefined || value === null) ? '(empty)' : String(value);
+		}
+
+		let lastRenderedGroupSettingsJSON = null;
+
+		function renderGroupSettings() {
+			const grid = document.getElementById('groupSettingsGrid');
+			if (!grid || !group) return;
+
+			const fieldMap = collectGroupSettings();
+
+			// Skip rebuilding when nothing actually changed (mirrors
+			// device.html's own lastRenderedSettingsJSON guard) so an
+			// in-progress edit isn't wiped out by an unrelated relay tick.
+			const snapshotJSON = JSON.stringify(Array.from(fieldMap.entries()).map(([key, { obj, perDevice }]) =>
+				[key, obj.group, obj.options, Array.from(perDevice.entries())]
+			));
+			if (snapshotJSON === lastRenderedGroupSettingsJSON) return;
+			lastRenderedGroupSettingsJSON = snapshotJSON;
+
+			if (fieldMap.size === 0) {
+				grid.innerHTML = '<p class="info-grid-message">No editable settings reported by devices in this group yet.</p>';
+				return;
+			}
+
+			const groupLabel = (name) => name.split('_').join(' ').replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
+			// Same field-grouping-by-obj.group convention device.html's
+			// renderSettings() uses.
+			const byGroup = new Map();
+			fieldMap.forEach((entry, key) => {
+				const groupKey = entry.obj.group || 'Other';
+				if (!byGroup.has(groupKey)) { byGroup.set(groupKey, []); }
+				byGroup.get(groupKey).push([key, entry]);
+			});
+
+			grid.innerHTML = Array.from(byGroup.entries()).map(([groupKey, fields]) => {
+				const fieldsHtml = fields.map(([key, { obj, perDevice }]) => {
+					const label = key.split('_').join(' ');
+					const byValue = new Map(); // value -> [deviceName, ...]
+					perDevice.forEach(({ name, value }) => {
+						if (!byValue.has(value)) { byValue.set(value, []); }
+						byValue.get(value).push(name);
+					});
+					const mismatched = byValue.size > 1;
+
+					let control;
+					if (Array.isArray(obj.options) && obj.options.length > 0) {
+						const optionsHtml = obj.options.map(([k, v]) => `<option value="${v}" ${!mismatched && v === obj.value ? 'selected' : ''}>${k}</option>`).join('');
+						control = `<select class="mono" data-setting="${key}" onchange="saveGroupSetting('${key}', this.value)">` +
+							(mismatched ? `<option value="" selected disabled>— Mixed Values —</option>` : '') +
+							optionsHtml +
+							`</select>`;
+					} else {
+						const displayValue = mismatched ? '' : String(obj.value ?? '').replace(/"/g, '&quot;');
+						const placeholder = mismatched ? 'Mixed values -- enter a value to overwrite the whole group' : '';
+						control = `<input type="text" class="mono" data-setting="${key}" value="${displayValue}" placeholder="${placeholder}" onchange="saveGroupSetting('${key}', this.value)">`;
+					}
+
+					let warningHtml = '';
+					if (mismatched) {
+						// Grouped by distinct value, not by device -- a
+						// majority sharing one value plus a single outlier
+						// only lists that outlier's value once, instead of
+						// the shared value repeated per device that has it.
+						const listHtml = Array.from(byValue.entries()).map(([value, names]) =>
+							`<li><span class="mono">${formatSettingValue(obj, value)}</span> — ${names.join(', ')}</li>`
+						).join('');
+						warningHtml = `
+							<div class="settings-mismatch">
+								<div class="settings-mismatch-message">This setting doesn't match across all devices in the group.</div>
+								<ul class="settings-mismatch-list">${listHtml}</ul>
+								<button type="button" class="button-subtle" onclick="syncGroupSetting('${key}')">Sync</button>
+							</div>
+						`;
+					}
+
+					return `
+						<div class="info-item${mismatched ? ' settings-mismatch-item' : ''}">
+							<span class="info-label">${label}</span>
+							<span class="info-value">${control}</span>
+							${warningHtml}
+						</div>
+					`;
+				}).join('');
+
+				return `
+					<div style="grid-column:1/-1;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#888;margin-top:12px;">${groupLabel(groupKey)}</div>
+					${fieldsHtml}
+				`;
+			}).join('');
+		}
+
+		async function saveGroupSetting(name, value) {
 			try {
-				selectSource('');
-				const res = await fetch(`/api/group/${group.id}/overlay`, { method: 'POST' });
+				const res = await fetch(`/api/v2/group/${group.id}/setting`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ name, value })
+				});
 				if (res.ok) {
-					toast.info('Showing overlay on all devices');
+					toast.success(`Updated ${name.split('_').join(' ')} for all devices in this group`);
 				} else {
-					toast.error('Failed to show overlay');
+					toast.error(`Failed to update ${name.split('_').join(' ')}`);
 				}
 			} catch (e) {
-				toast.error('Error showing overlay');
+				toast.error('Error updating setting');
 			}
 		}
 
-		async function showGroupBlank() {
-			try {
-				selectSource('');
-				const res = await fetch(`/api/group/${group.id}/blank`, { method: 'POST' });
-				if (res.ok) {
-					toast.info('Blanking all devices');
-				} else {
-					toast.error('Failed to blank displays');
-				}
-			} catch (e) {
-				toast.error('Error blanking displays');
-			}
+		// "Sync" -- lets the admin pick one of the currently differing
+		// values (labeled with which device(s) already have it, mirroring
+		// addDevicesToGroup()'s own device-picker modal.select() usage) and
+		// applies it to every device in the group.
+		async function syncGroupSetting(key) {
+			const fieldMap = collectGroupSettings();
+			const entry = fieldMap.get(key);
+			if (!entry) return;
+
+			const byValue = new Map();
+			entry.perDevice.forEach(({ name, value }) => {
+				if (!byValue.has(value)) { byValue.set(value, []); }
+				byValue.get(value).push(name);
+			});
+
+			const options = Array.from(byValue.entries()).map(([value, names]) => ({
+				value,
+				label: `${formatSettingValue(entry.obj, value)} (${names.join(', ')})`
+			}));
+
+			const label = key.split('_').join(' ');
+			const chosen = await modal.select(`Select the value to sync "${label}" to across all devices in this group:`, options, null, 'Sync Setting');
+			if (chosen === null || chosen === undefined) return;
+
+			await saveGroupSetting(key, chosen);
 		}
 
 		async function shutdownGroup() {
@@ -1081,14 +1287,26 @@
 			if (!group) return;
 			const idsToApply = changedIds === null ? Object.keys(cache) : changedIds;
 			let changed = false;
+			let groupDeviceTouched = false;
 			idsToApply.forEach((id) => {
 				const dev = group.devices.find(d => (d.id || d.deviceId) === id);
+				if (!dev) return;
+				groupDeviceTouched = true;
 				const currentSource = getRelayedSetting(cache[id], 'ndpi_status_ndi_source_target');
-				if (dev && currentSource) { dev.currentSource = currentSource.value || 'None'; changed = true; }
+				if (currentSource) { dev.currentSource = currentSource.value || 'None'; changed = true; }
 			});
-			if (!changed) return;
-			if (changedIds === null) { updateDevicesList(); }
-			else { changedIds.forEach(patchGroupDeviceTile); }
+			if (changed) {
+				if (changedIds === null) { updateDevicesList(); }
+				else { changedIds.forEach(patchGroupDeviceTile); }
+			}
+			// Every relayed settings tuple (not just currentSource) feeds the
+			// No Source Display dropdown + Device Settings grid -- both have
+			// their own no-op guard, so it's safe to call on every tick that
+			// touched a device in this group.
+			if (groupDeviceTouched) {
+				renderGroupNoSourceDisplayControl();
+				renderGroupSettings();
+			}
 		});
 
 		window.addEventListener('beforeunload', () => {
