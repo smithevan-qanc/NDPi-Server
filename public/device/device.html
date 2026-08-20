@@ -77,6 +77,7 @@
 			</div>
 		</nav>
 		<div class="main">
+
 			<div class="topbar">
 				<div class="back-btn" onclick="history.back()">
 					<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrow-left-circle"
@@ -89,14 +90,30 @@
 				<div class="topbar-spacer"></div>
 				<code class="topbar-title" id="sys-time" style="text-align: end;"></code>
 			</div>
+
 			<div class="content">
+
 				<div class="card">
-							<div style="display:flex;align-items:center;gap:0.75rem;">
-								<h2 id="deviceName" style="font-size:1.7rem; margin:0; text-transform: none;">Loading...</h2>
-								<div id="changeName"></div>
-							</div>
+					<!-- DEVICE NAME -->
+					<div style="
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						gap: 1rem;
+					">
+						<h2 id="deviceName" style="font-size:1.7rem; margin:0;">Loading...</h2>
+						<div id="changeName"></div>
+					</div>
+
+					<!-- MAIN CONTENT -->
 					<div class="card-content">
-						<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
+						<div style="
+							display: flex;
+							flex-direction: column;
+							align-items: center;
+							gap: 1rem;
+							margin-bottom: 1rem;
+						">
 							<div id="systemStatsHeader" class="stats-page-header"></div>
 						</div>
 						<div id="deviceContent">
@@ -104,7 +121,9 @@
 						</div>
 					</div>
 				</div>
+
 			</div>
+
 		</div>
 	</div>
 	<script src="/scripts/functions.js"></script>
