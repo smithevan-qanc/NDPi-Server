@@ -2110,7 +2110,7 @@ button:disabled {
 }
 
 select:disabled {
-    background: var(--bg-2);
+    background: var(--bg-2) !important;
     color: var(--text-3);
     cursor: not-allowed;
     /* pointer-events: none; */
@@ -2292,8 +2292,8 @@ select {
 
 input:disabled {
 	cursor: not-allowed;
-	background-color: rgba(110, 110, 110, 0.05);
-	border-color: rgba(96, 96, 96, 0.2)
+	background-color: rgba(110, 110, 110, 0.05) !important;
+	border-color: rgba(96, 96, 96, 0.2) !important;
 }
 
 input[type="date"],
