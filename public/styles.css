@@ -2304,6 +2304,7 @@ input[type="number"],
 input[type="date"],
 input[type="time"],
 input[type="text"],
+input[type="checkbox"],
 /* input, */
 select {
 	/* padding: 0.5rem 0.625rem; */
@@ -2827,10 +2828,10 @@ input[type="number"]::-webkit-outer-spin-button {
 	display: flex;
 	align-items: center;
 	gap: 0.25rem;
-	font-size: 0.6875rem;
+	/* font-size: 0.6875rem; */
 	color: var(--text-1);
 	cursor: pointer;
-	padding: 0.25rem 0.5rem;
+	padding: 0.35rem 0.5rem;
 	background: var(--bg-3);
 	border-radius: var(--radius-sm);
 }
