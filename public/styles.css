@@ -1338,19 +1338,19 @@ label {
 	font-size: 0.8438rem;
 }
 
+.info-item {
+	display: flex;
+	/* flex-direction: column; */
+	gap: 0.5rem;
+	justify-content: space-between;
+	align-items: center;
+}
+
 .info-label {
 	color: var(--text-3);
 	font-size: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.0312rem;
-}
-
-.info-item {
-	display: flex;
-	/* flex-direction: column; */
-	gap: 0.1875rem;
-	justify-content: space-between;
-	align-items: center;
 }
 
 .info-value {
