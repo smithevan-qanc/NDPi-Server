@@ -261,7 +261,7 @@
 					</div>
 				
 					<!-- Display Controls -->
-					<div style="margin-top:24px;">
+					<div style="margin-top: 1.5rem; gap: 0.5rem; display: flex; flex-direction: column;">
 						<h3 class="section-title">Display Controls</h3>
 						<div class="display-controls">
 							<label for="noSourceDisplaySelect" class="settings-label">No Source Display</label>
@@ -293,7 +293,7 @@
 					</div>
 
 				<!-- Overlay Image -->
-				<div style="margin-top:24px;">
+				<div style="margin-top: 1.5rem; gap: 0.5rem; display: flex; flex-direction: column;">
 					<h3 class="section-title">Overlay Image</h3>
 					<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
 						<img id="overlayPreview" style="max-width:160px;max-height:90px;border-radius:8px;background:rgba(255,255,255,0.05);object-fit:contain;">
@@ -308,25 +308,25 @@
 				</div>
 				
 				<!-- Device Status Information -->
-				<div style="margin-top:24px;">
+				<div style="margin-top: 1.5rem; gap: 0.5rem; display: flex; flex-direction: column;">
 					<h3 class="section-title">Device Information</h3>
 					<div id="infoGrid" class="info-grid"></div>
 				</div>
 
 				<!-- Full System Stats -->
-				<div style="margin-top:24px;">
+				<div style="margin-top: 1.5rem; gap: 0.5rem; display: flex; flex-direction: column;">
 					<h3 class="section-title">System Stats</h3>
 					<div id="fullStatsGrid" class="info-grid"></div>
 				</div>
 
 				<!-- Device Settings -->
-				<div style="margin-top:24px;">
+				<div style="margin-top: 1.5rem; gap: 0.5rem; display: flex; flex-direction: column;">
 					<h3 class="section-title">Device Settings</h3>
 					<div id="deviceSettingsGrid" class="info-grid"></div>
 				</div>
 
 				<!-- Software Update -->
-				<div style="margin-top:24px;">
+				<div style="margin-top: 1.5rem; gap: 0.5rem; display: flex; flex-direction: column;">
 					<h3 class="section-title">Software Update</h3>
 					<div style="display:flex;gap:10px;flex-wrap:wrap;">
 						<button onclick="checkForDeviceUpdate()" class="button-subtle">Check for Update</button>
@@ -404,7 +404,7 @@
 						</div>
 					</div>
 				`;
-			}).join('') : '<p style="color:#888;grid-column:1/-1;">No NDI sources found on network</p>';
+			}).join('') : '<p style="color:#888;grid-column:1/-1;"></p>';
 
 			sourceGrid.innerHTML = noneCard + sourceCards;
 		}
