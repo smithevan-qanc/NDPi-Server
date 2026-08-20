@@ -1336,7 +1336,8 @@ label {
 
 .info-label {
 	color: var(--text-3);
-	font-size: 0.6562rem;
+	font-size: 0.75rem;
+	padding-left: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.0312rem;
 }
