@@ -680,13 +680,14 @@ html.sidebar-collapsed .nav-btn {
 
 .card h2 {
 	padding: 0.75rem 1rem 0.625rem;
-	font-size: 0.875rem;
+	font-size: 1rem;
+	/* font-size: 0.875rem; */
 	font-weight: 700;
 	letter-spacing: 0.0125rem;
 	flex-shrink: 0;
 	margin: 0;
 	border-bottom: 0.0625rem solid var(--border);
-	color: var(--text-0);
+	color: var(--text-1);
 }
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF CARD css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
