@@ -171,7 +171,7 @@
 							<div class="settings-row">
 								<div class="button-row" style="margin-bottom: 0.5rem;">
 									<button id="checkUpdateBtn" type="button" class="button-primary">Check for Update</button>
-									<button id="installHubUpdateBtn" type="button" class="button-primary" disabled hidden>Install Update</button>
+									<button id="installHubUpdateBtn" type="button" class="button-primary" style="display: none;" disabled>Install Update</button>
 								</div>
 								<div id="hubVersionInfo" class="settings-hint"></div>
 							</div>
@@ -843,11 +843,9 @@
 					const installBtn = document.getElementById('installHubUpdateBtn');
 					if (installBtn && entry) {
 						const hasUpdate = String(entry[1].value) === 'true';
+						hasUpdate ? installBtn.style.removeProperty('display') : installBtn.style.display = 'none';
 						installBtn.hidden = !hasUpdate;
 						installBtn.disabled = !hasUpdate;
-					} else {
-						installBtn.hidden = true;
-						installBtn.disabled = true;
 					}
 
 					renderVersionInfo('hubVersionInfo', tuples);
