@@ -2599,8 +2599,8 @@ input[type="number"]::-webkit-outer-spin-button {
  *  replacement, so the change can be seen before committing it.
  */
 .logo-preview-box {
-	width: 4rem;
-	height: 4rem;
+	width: 10rem;
+	height: 6rem;
 	flex: none;
 	border-radius: var(--radius-md);
 	border: 0.0625rem solid var(--border-strong);
