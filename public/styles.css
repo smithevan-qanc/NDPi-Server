@@ -1635,7 +1635,7 @@ label {
 	padding: 0.875rem 1.5rem;
 	font-size: 1rem;
 	font-weight: 500;
-	border: 0.0625rem solid transparent;
+	/* border: 0.0625rem solid transparent; */
 	border-radius: var(--radius-md);
 	cursor: pointer;
 	font-family: inherit;
@@ -2058,7 +2058,7 @@ select, button {
 	padding: 0.5rem 1.1rem;
 	background: var(--bg-3);
 	color: var(--text-1);
-	border: 0.0625rem solid var(--border-strong);
+	/* border: 0.0625rem solid var(--border-strong); */
 	border-radius: var(--radius-md);
 	font-size: 0.8438rem;
 	font-family: inherit;
@@ -2091,6 +2091,7 @@ button {
     gap: 0.5rem;
     justify-content: center;
 	align-items: center;
+	border: none;
 }
 
 /**
