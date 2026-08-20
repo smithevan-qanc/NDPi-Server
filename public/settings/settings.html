@@ -103,7 +103,6 @@
 							<!-- SCREEN - SAVER -->
 							<div class="settings-row">
 								<div class="settings-label">Screen Saver</div>
-								<!-- <div class="screensaver-wait"> -->
 									<div class="screensaver-wait-row">
 										<p>Start screensaver after...</p>
 										<input type="number" max="120" min="0.5" step="0.5" id="screenSaverWait" class="mono" style="
@@ -113,19 +112,16 @@
 										">
 										<p>minutes.</p>
 									</div>
-								<!-- </div> -->
 								<div class="settings-label">Block Screen Saver</div>
 								<p class="settings-hint">Screen saver won't activate during these times:</p>
-								<!-- <div class="settings-list-wrap"> -->
-									<div id="scheduleList" class="settings-list"></div>
-									<button id="addScheduleBtn" type="button" class="button-transparent">
-										<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-											<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-											<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
-										</svg>
-										<span>Add Block Period</span>
-									</button>
-								<!-- </div> -->
+								<div id="scheduleList" class="settings-list"></div>
+								<button id="addScheduleBtn" type="button" class="button-transparent">
+									<svg xmlns="http://www.w3.org/2000/svg" class="button-svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+										<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+										<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+									</svg>
+									<span>Add Block Period</span>
+								</button>
 							</div>
 						</div>
 					</div>
@@ -135,12 +131,20 @@
 							<h2>Appearance</h2>
 							<!-- THEME -->
 							<div class="settings-row">
-								<div class="theme-swatches" id="themeSwatches"></div>
 								<div class="settings-label">Theme Color</div>
 								<p>Saved to this Hub and applied on every device that opens it.</p>
+								<div class="theme-swatches" id="themeSwatches"></div>
 							</div>
 							<!-- LOGO -->
 							<div class="settings-row">
+								<input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none;">
+								<div class="settings-label">Logo</div>
+								<p>PNG, JPEG, WEBP, GIF, or SVG. 2MB max. Applies to the sidebar and sign-in logo on every device.</p>
+								<div class="logo-actions">
+									<button type="button" class="button-subtle" id="chooseLogoBtn">Choose Image...</button>
+									<button type="button" class="button-primary" id="saveLogoBtn" disabled>Save Logo</button>
+									<button type="button" class="button-danger" id="resetLogoBtn">Clear Logo</button>
+								</div>
 								<div class="logo-upload-row">
 									<div class="logo-preview-item">
 										<div class="logo-preview-box"><img id="currentLogoPreview" src="/api/v2/logo" alt="Current logo"></div>
@@ -149,14 +153,6 @@
 										<div class="logo-preview-box" id="newLogoPreviewBox" style="display:none;"><img id="newLogoPreview" alt="New logo preview"></div>
 										<span class="info-label" id="newLogoLabel" style="display:none;">New (unsaved)</span>
 									</div>
-								</div>
-								<input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none;">
-								<div class="settings-label">Logo</div>
-								<p>PNG, JPEG, WEBP, GIF, or SVG. 2MB max. Applies to the sidebar and sign-in logo on every device.</p>
-								<div class="logo-actions">
-									<button type="button" class="button-subtle" id="chooseLogoBtn">Choose Image...</button>
-									<button type="button" class="button-primary" id="saveLogoBtn" disabled>Save Logo</button>
-									<button type="button" class="button-danger" id="resetLogoBtn">Clear Logo</button>
 								</div>
 							</div>
 						</div>
