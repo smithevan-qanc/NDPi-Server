@@ -39,6 +39,7 @@ function deriveDeviceStats(raw) {
 		},
 		temperature: (raw.thermal && raw.thermal.thermal_zone0) || 0,
 		uptime: typeof raw.osUptime === 'number' ? raw.osUptime : 0,
+		fan: (raw.thermal && typeof raw.thermal.fan1_input === 'number') ? raw.thermal.fan1_input : null,
 	};
 }
 
@@ -51,6 +52,33 @@ function getRelayedSetting(tuples, key) {
 	if (!Array.isArray(tuples)) return null;
 	const entry = tuples.find(([k]) => k === key);
 	return entry ? entry[1] : null;
+}
+
+/**
+ * Pulls the handful of device-card display fields (physical display
+ * manufacturer/model, current resolution, NDI stream status, installed
+ * version) out of a cached settings-relay tuple array in one shot --
+ * shared by every page that renders a device card (devices.html,
+ * dashboard.html, group.html) so the same key names/formatting aren't
+ * triplicated.
+ */
+function getDeviceCardFields(tuples) {
+	if (!Array.isArray(tuples)) return null;
+
+	const manufacturer = getRelayedSetting(tuples, 'output_display_manufacturer');
+	const model = getRelayedSetting(tuples, 'output_display_model');
+	const resolution = getRelayedSetting(tuples, 'output_display_resolution_current');
+	const ndiStatus = getRelayedSetting(tuples, 'ndpi_status_ndi_status');
+	const version = getRelayedSetting(tuples, 'ndpi_version');
+
+	const display = [manufacturer && manufacturer.value, model && model.value].filter(Boolean).join(' ');
+
+	return {
+		display: display || null,
+		resolution: (resolution && resolution.value) || null,
+		ndiStatus: (ndiStatus && ndiStatus.value) || null,
+		version: (version && version.value) || null,
+	};
 }
 
 class NDPiDevicesRelay {

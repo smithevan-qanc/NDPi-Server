@@ -105,6 +105,7 @@ function deriveSystemStatsFromRaw(raw) {
         },
         temperature: (raw.thermal && raw.thermal.thermal_zone0) || 0,
         uptime: raw.osUptime || 0,
+        fan: (raw.thermal && typeof raw.thermal.fan1_input === 'number') ? raw.thermal.fan1_input : null,
     };
 }
 

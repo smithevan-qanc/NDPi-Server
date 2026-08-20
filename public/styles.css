@@ -991,22 +991,32 @@ html.sidebar-collapsed .nav-btn {
 .device-card-actions {
 	display: flex;
 	gap: 0.5rem;
+	flex-wrap: wrap;
 	justify-content: flex-end;
 }
 
+/**
+ *  Icon + visible text label (not just an icon relying on a hover-only
+ *  `title` tooltip, which doesn't work on touch and isn't visible at a
+ *  glance) -- auto-width instead of a fixed square to make room for the
+ *  label.
+ */
 .device-card-icon-btn {
 	flex: none;
-	width: 1.875rem;
 	height: 1.875rem;
+	padding: 0 0.625rem;
 	display: flex;
 	align-items: center;
-	justify-content: center;
+	gap: 0.375rem;
 	border-radius: var(--radius-sm);
 	background: var(--bg-3);
 	border: 0.0625rem solid var(--border);
 	color: var(--text-2);
 	cursor: pointer;
 	transition: all 0.15s ease;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	white-space: nowrap;
 }
 
 .device-card-icon-btn:hover {
@@ -1024,6 +1034,7 @@ html.sidebar-collapsed .nav-btn {
 .device-card-icon-btn svg {
 	width: 0.875rem;
 	height: 0.875rem;
+	flex: none;
 }
 
 .discovery-card {
@@ -1558,6 +1569,7 @@ label {
     justify-content: center;
     align-items: center;
 	animation: modalFadeIn 0.2s ease;
+	touch-action: none;
 }
 
 .modal-overlay {
@@ -1909,6 +1921,7 @@ label {
 	inset: 0;
 	z-index: 10001;
 	transition: backdrop-filter 2000ms ease-in, background-color 2000ms ease-in;
+	touch-action: none;
 }
 
 #logo-container {

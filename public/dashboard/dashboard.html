@@ -313,11 +313,28 @@
 						<span class="device-card-meta-label">Source</span>
 						<span class="device-card-meta-value"></span>
 					</div>
+					<div class="device-card-meta-item wide">
+						<span class="device-card-meta-label">Display</span>
+						<span class="device-card-meta-value"></span>
+					</div>
+					<div class="device-card-meta-item">
+						<span class="device-card-meta-label">Resolution</span>
+						<span class="device-card-meta-value mono"></span>
+					</div>
+					<div class="device-card-meta-item">
+						<span class="device-card-meta-label">NDI Status</span>
+						<span class="device-card-meta-value"></span>
+					</div>
+					<div class="device-card-meta-item">
+						<span class="device-card-meta-label">Version</span>
+						<span class="device-card-meta-value mono"></span>
+					</div>
 				</div>
 				<div class="device-card-stats">
 					<div class="device-card-stat"><span class="device-card-stat-label">CPU</span><span class="device-card-stat-value"></span></div>
 					<div class="device-card-stat"><span class="device-card-stat-label">Temp</span><span class="device-card-stat-value"></span></div>
 					<div class="device-card-stat"><span class="device-card-stat-label">Mem</span><span class="device-card-stat-value"></span></div>
+					<div class="device-card-stat"><span class="device-card-stat-label">Fan</span><span class="device-card-stat-value"></span></div>
 				</div>
 			`;
 			const metaValues = tile.querySelectorAll('.device-card-meta-value');
@@ -330,10 +347,15 @@
 				group: metaValues[0],
 				ip: metaValues[1],
 				source: metaValues[2],
+				display: metaValues[3],
+				resolution: metaValues[4],
+				ndiStatus: metaValues[5],
+				version: metaValues[6],
 				stats: tile.querySelector('.device-card-stats'),
 				cpu: statValues[0],
 				temp: statValues[1],
 				mem: statValues[2],
+				fan: statValues[3],
 			};
 		}
 
@@ -349,6 +371,12 @@
 			refs.source.textContent = sourceText;
 			refs.source.title = sourceText;
 
+			const cardFields = getDeviceCardFields(getDeviceSettingsTuples(dev.id || dev.deviceId)) || {};
+			refs.display.textContent = cardFields.display || 'Unknown';
+			refs.resolution.textContent = cardFields.resolution || 'Unknown';
+			refs.ndiStatus.textContent = cardFields.ndiStatus || 'Unknown';
+			refs.version.textContent = cardFields.version || 'Unknown';
+
 			const showStats = !!(dev.systemStats && dev.status === 'online');
 			refs.stats.style.display = showStats ? '' : 'none';
 			if (showStats) {
@@ -362,9 +390,22 @@
 				refs.temp.style.color = tempColor;
 				refs.mem.textContent = `${dev.systemStats.memory.percent}%`;
 				refs.mem.style.color = memColor;
+				refs.fan.textContent = (typeof dev.systemStats.fan === 'number' && dev.systemStats.fan > 0) ? `${dev.systemStats.fan} RPM` : '—';
 			}
 
 			refs.root.onclick = () => window.location.href = `/device.html?id=${encodeURIComponent(dev.id)}`;
+		}
+
+		// Prefer the live per-device settings relay (devicesSystemRelay,
+		// pushed the instant a device's settings change) over the Hub-relay
+		// snapshot on `dev.settings` (only refreshed on the ~5s client-status
+		// cadence / whenever /ws devices-update fires), falling back to the
+		// latter when the relay hasn't delivered anything for a device yet.
+		function getDeviceSettingsTuples(deviceId) {
+			const relayed = devicesSystemRelay && devicesSystemRelay.cache[deviceId];
+			if (Array.isArray(relayed)) return relayed;
+			const dev = devices.find(d => (d.id || d.deviceId) === deviceId);
+			return (dev && Array.isArray(dev.settings)) ? dev.settings : null;
 		}
 
 		// Patch a single already-rendered tile in place -- used by the relay
@@ -491,13 +532,19 @@
 
 		const devicesSystemRelay = new NDPiDevicesRelay('system', (cache, changedIds) => {
 			const idsToApply = changedIds === null ? Object.keys(cache) : changedIds;
-			let changed = false;
+			let touched = false;
 			idsToApply.forEach((id) => {
 				const dev = devices.find(d => (d.id || d.deviceId) === id);
+				if (!dev) return;
+				touched = true;
 				const currentSource = getRelayedSetting(cache[id], 'ndpi_status_ndi_source_target');
-				if (dev && currentSource) { dev.currentSource = currentSource.value || 'None'; changed = true; }
+				if (currentSource) { dev.currentSource = currentSource.value || 'None'; }
 			});
-			if (!changed) return;
+			// Every relayed settings tuple (not just currentSource) feeds the
+			// card's Display/Resolution/NDI Status/Version fields via
+			// getDeviceSettingsTuples() -- patch whenever a known device's
+			// tuples changed at all, not only when currentSource itself did.
+			if (!touched) return;
 			if (changedIds === null) { renderDevices(); }
 			else { changedIds.forEach(patchDeviceTile); }
 		});
