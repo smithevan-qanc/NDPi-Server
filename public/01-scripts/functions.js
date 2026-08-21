@@ -475,30 +475,30 @@ function addTouchScrollEventListener() {
 
 	list.addEventListener('touchstart', (e) => {
 		document.body.style.cursor = 'none';
-		let dot = document.getElementById(String('drag-ring')) || null;
-		if (!dot) {
-			dot = document.createElement('div');
-			dot.classList.add('touch-dot');
-			dot.id = String('drag-ring');
-			positionDot(e, dot);
-			document.body.appendChild(dot);
-		} else {
-			positionDot(e, dot)
-		}
+		// let dot = document.getElementById(String('drag-ring')) || null;
+		// if (!dot) {
+		// 	dot = document.createElement('div');
+		// 	dot.classList.add('touch-dot');
+		// 	dot.id = String('drag-ring');
+		// 	positionDot(e, dot);
+		// 	document.body.appendChild(dot);
+		// } else {
+		// 	positionDot(e, dot)
+		// }
 	});
 
 	list.addEventListener('touchmove', (e) => {
 		document.body.style.cursor = 'none';
-		let dot = document.getElementById(String('drag-ring')) || null;
-		if (dot) { positionDot(e, dot); }
+		// let dot = document.getElementById(String('drag-ring')) || null;
+		// if (dot) { positionDot(e, dot); }
 	});
 
 	list.addEventListener('touchend', () => {
 		let dot = document.getElementById(String('drag-ring')) || null;
-		if (dot) { dot.remove(); }
-		setTimeout(() => {
-			document.body.style.removeProperty('cursor');
-		}, 100);
+		// if (dot) { dot.remove(); }
+		// setTimeout(() => {
+		// 	document.body.style.removeProperty('cursor');
+		// }, 100);
 	});
 }
 
