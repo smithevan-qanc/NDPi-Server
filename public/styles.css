@@ -2318,15 +2318,16 @@ input[type="text"],
 input[type="checkbox"],
 /* input, */
 select {
-	/* padding: 0.5rem 0.625rem; */
 	padding: 0.5rem 1rem;
-	/* border-radius: var(--radius-sm); */
 	border-radius: 50px;
-	border: 0.0625rem solid var(--border-strong);
-	background: var(--bg-3);
+	/* border: 0.0625rem solid var(--border-strong); */
+	/* background: var(--bg-3); */
 	color: var(--text-0);
 	font-size: 0.8rem;
 	flex: 1;
+	text-align: end;
+	/* padding: 0.5rem 0.625rem; */
+	/* border-radius: var(--radius-sm); */
 }
 
 /**
@@ -2353,8 +2354,9 @@ select {
 
 input:disabled {
 	cursor: not-allowed;
+	color: var(--text-2);
 	background-color: rgba(110, 110, 110, 0.05) !important;
-	border-color: rgba(96, 96, 96, 0.2) !important;
+	/* border-color: rgba(96, 96, 96, 0.2) !important; */
 }
 
 input[type="date"],

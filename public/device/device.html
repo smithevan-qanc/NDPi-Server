@@ -1405,9 +1405,7 @@
 					const tempF = ((raw.thermal.thermal_zone0 * 9 / 5) + 32).toFixed(0);
 					items.push(['Temperature', `${raw.thermal.thermal_zone0.toFixed(1)}°C (${tempF}°F)`]);
 				}
-				if (typeof raw.thermal.fan1_input === 'number' && raw.thermal.fan1_input > 0) {
-					items.push(['Fan Speed', `${raw.thermal.fan1_input} RPM`]);
-				}
+				items.push(['Fan Speed', `${typeof raw.thermal.fan1_input === 'number' ? raw.thermal.fan1_input : 0} RPM`]);
 			}
 			if (raw.networkInterfaces) {
 				const addresses = Object.entries(raw.networkInterfaces)
