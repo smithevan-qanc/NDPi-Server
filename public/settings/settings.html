@@ -963,8 +963,8 @@
 					<span class="info-label">Serial Number</span>
 					<span class="info-value mono">${(serialNumber && serialNumber.value) || 'Unknown'}</span>
 				</div>
-				<div class="info-item">
-					<span class="info-label">Resolution</span>
+				<div class="info-item" style="flex-direction: column;">
+					<span class="info-label">${port.value} Resolution Setting</span>
 					<span class="info-value mono">${
 						(current && current.value) || 'Unknown'
 					}

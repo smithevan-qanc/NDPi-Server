@@ -1398,6 +1398,7 @@ label {
 .info-value input:focus,
 .info-value select:focus {
 	padding: 0.375rem 0rem 0.375rem 0rem !important;
+	border-radius: var(--radius-sm) !important;
 }
 
 /**
