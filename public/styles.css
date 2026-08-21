@@ -535,6 +535,7 @@ html.sidebar-collapsed .nav-btn {
 	flex-direction: column;
 	gap: var(--main-body-padding);
 	scroll-behavior: smooth;
+	touch-action: pan-x;
 }
 
 /*
@@ -671,7 +672,6 @@ html.sidebar-collapsed .nav-btn {
 	margin: 0 auto;
 	width: 100%;
 	min-height: fit-content;
-	touch-action: pan-x;
 	/* height: 100%; */
 	/* padding: 0.25rem; */
 }
