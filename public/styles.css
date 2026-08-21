@@ -1809,11 +1809,11 @@ label {
 	   transient overlay that needs to read clearly over any page content
 	   behind it, unlike --bg-2's card surfaces (which sit against a much
 	   more uniform, mostly-empty content background) */
-	background: rgba(100, 100, 100, 0.7);
+	background: rgba(220, 220, 220, 0.85);
 	backdrop-filter: blur(0.5rem);
 	-webkit-backdrop-filter: blur(0.5rem);
 	border: 0.0625rem solid var(--border-strong);
-	color: var(--text-0);
+	color: #242424;
 	padding: 0.875rem 1.5rem;
 	border-radius: var(--radius-md);
 	font-size: 0.9375rem;
