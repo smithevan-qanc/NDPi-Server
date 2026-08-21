@@ -86,11 +86,9 @@
 		const numpadHtml = NUMPAD_ROWS.map((row) =>{
 			const numKeysHtml = row.map((key) => {
 				const classes = ['osk-key'];
-				if (key === 'backspace') classes.push('osk-key-wide');
-				if (key === 'shift') { classes.push('osk-key-wide', 'osk-key-shift'); }
 				return `<button type="button" class="${classes.join(' ')}" data-key="${key}">${keyLabel(key)}</button>`;
 			}).join('');
-			return `<div class="osk-numpad">${numKeysHtml}</div>`;
+			return `<div class="osk-row">${numKeysHtml}</div>`;
 		}).join('');
 
 		el.innerHTML = `
@@ -109,7 +107,9 @@
 						<button type="button" class="osk-key osk-key-enter" data-key="enter">Enter</button>
 					</div>
 				</div>
-				${numpadHtml}
+				<div class="osk-numpad">
+					${numpadHtml}
+				</div>
 			</div>
 		`;
 
