@@ -1362,6 +1362,10 @@ label {
 	gap: 0.5rem;
 	justify-content: space-between;
 	align-items: center;
+	border: 0.0625rem solid var(--border-strong);
+	background: var(--bg-3);
+	padding-left: 0.5rem;
+	border-radius: var(--radius-md);
 }
 
 .info-label {
