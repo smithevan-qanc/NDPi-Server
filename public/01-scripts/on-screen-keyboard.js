@@ -206,6 +206,8 @@
 				hide(true);
 				return;
 			case 'enter': {
+				console.log('Key', key);
+				console.log(activeInput);
 				const form = activeInput.form;
 				if (form) {
 					if (typeof form.requestSubmit === 'function') { form.requestSubmit(); }
