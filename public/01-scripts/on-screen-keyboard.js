@@ -107,7 +107,7 @@
 						<button type="button" class="osk-key osk-key-enter" data-key="enter">Enter</button>
 					</div>
 				</div>
-				<div class="osk-numpad">
+				<div class="osk-qwerty">
 					${numpadHtml}
 				</div>
 			</div>
