@@ -313,8 +313,12 @@
 						<span class="device-card-meta-label">Source</span>
 						<span class="device-card-meta-value"></span>
 					</div>
-					<div class="device-card-meta-item wide">
-						<span class="device-card-meta-label">Display</span>
+					<div class="device-card-meta-item">
+						<span class="device-card-meta-label">Display Mfr</span>
+						<span class="device-card-meta-value"></span>
+					</div>
+					<div class="device-card-meta-item">
+						<span class="device-card-meta-label">Display Model</span>
 						<span class="device-card-meta-value"></span>
 					</div>
 					<div class="device-card-meta-item">
@@ -347,10 +351,11 @@
 				group: metaValues[0],
 				ip: metaValues[1],
 				source: metaValues[2],
-				display: metaValues[3],
-				resolution: metaValues[4],
-				ndiStatus: metaValues[5],
-				version: metaValues[6],
+				displayMfr: metaValues[3],
+				displayModel: metaValues[4],
+				resolution: metaValues[5],
+				ndiStatus: metaValues[6],
+				version: metaValues[7],
 				stats: tile.querySelector('.device-card-stats'),
 				cpu: statValues[0],
 				temp: statValues[1],
@@ -372,7 +377,8 @@
 			refs.source.title = sourceText;
 
 			const cardFields = getDeviceCardFields(getDeviceSettingsTuples(dev.id || dev.deviceId)) || {};
-			refs.display.textContent = cardFields.display || 'Unknown';
+			refs.displayMfr.textContent = cardFields.manufacturer || 'Unknown';
+			refs.displayModel.textContent = cardFields.model || 'Unknown';
 			refs.resolution.textContent = cardFields.resolution || 'Unknown';
 			refs.ndiStatus.textContent = cardFields.ndiStatus || 'Unknown';
 			refs.version.textContent = cardFields.version || 'Unknown';

@@ -8,6 +8,32 @@ const func = require('./functions.js');
 const { exec, spawn } = require('node:child_process');
 const { setTimeout } = require('node:timers');
 
+// EDID manufacturer (PNP ID -> readable company name) lookup table --
+// edid-decode only ever reports the raw 3-letter PNP ID (e.g. 'SNY'), not
+// a human-readable name. Loaded defensively (readFileSync + JSON.parse
+// wrapped in try/catch, not require()) so a missing/malformed
+// edid_mfr.json just falls back to showing the raw PNP ID everywhere
+// instead of crashing the Hub at boot.
+const edidManufacturerMap = new Map();
+try
+{
+    const edidMfrPath = path.join(__dirname, '..', 'edid_mfr.json');
+    const edidMfrList = JSON.parse(fs.readFileSync(edidMfrPath, 'utf8'));
+    for (const entry of edidMfrList)
+    {
+        const pnpId = String(entry?.PNP_ID || '').trim().toUpperCase();
+        if (pnpId && entry?.Company)
+        { edidManufacturerMap.set(pnpId, entry.Company); }
+    }
+}
+catch (err)
+{ console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] Loading edid_mfr.json`, err); }
+
+function lookupEdidManufacturer(pnpId) {
+    const normalized = String(pnpId || '').trim().toUpperCase();
+    return edidManufacturerMap.get(normalized) || pnpId;
+}
+
 class FileSystemMonitor extends EventEmitter {
 #pgmVersion;
     #pgmVersionDate;
@@ -653,11 +679,11 @@ class FileSystemMonitor extends EventEmitter {
                                 return;
                                 break;
                             case 'manufacturer_hdmi0':
-                                this.put('output_display_manufacturer', splitValue);
+                                this.put('output_display_manufacturer', lookupEdidManufacturer(splitValue));
                                 return;
                                 break;
                             case 'manufacturer_hdmi1':
-                                this.put('output_display_manufacturer', splitValue);
+                                this.put('output_display_manufacturer', lookupEdidManufacturer(splitValue));
                                 return;
                                 break;
                             case 'model_hdmi0':
