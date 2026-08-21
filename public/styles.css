@@ -1395,6 +1395,7 @@ label {
 }
 .info-value select {
 	padding: 0.5rem 0.5rem 0.5rem 0.5rem !important;
+	background-image: none !important;
 }
 
 .info-value input:focus {
