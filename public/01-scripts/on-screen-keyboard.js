@@ -199,9 +199,8 @@
 				if (form) {
 					if (typeof form.requestSubmit === 'function') { form.requestSubmit(); }
 					else { form.submit(); }
-				} else {
-					hide(true);
 				}
+				hide(true);
 				return;
 			}
 			default: {
@@ -288,6 +287,28 @@
 	}
 
 	document.addEventListener('touchstart', (e) => {
+		invokeOsk(e);
+		// if (isMobileMode()) return;
+
+		// if (keyboardEl && e.target.closest('#onScreenKeyboard')) {
+		// 	// Handled by the keyboard's own pointerdown handler -- just
+		// 	// don't let this fall through to the outside-tap dismiss logic.
+		// 	return;
+		// }
+
+		// const input = e.target.closest(TEXT_INPUT_SELECTOR);
+		// if (input) {
+		// 	show(input);
+		// } else if (keyboardEl && keyboardEl.classList.contains('osk-visible')) {
+		// 	hide(true);
+		// }
+	}, { passive: true });
+
+	document.addEventListener('click', (e) => {
+		invokeOsk(e);
+	}, { passive: true });
+	
+	function invokeOsk(e) {
 		if (isMobileMode()) return;
 
 		if (keyboardEl && e.target.closest('#onScreenKeyboard')) {
@@ -302,7 +323,7 @@
 		} else if (keyboardEl && keyboardEl.classList.contains('osk-visible')) {
 			hide(true);
 		}
-	}, { passive: true });
+	}
 
 	window.addEventListener('resize', () => {
 		if (isMobileMode()) { hide(true); return; }
