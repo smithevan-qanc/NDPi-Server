@@ -47,11 +47,12 @@
 		// ['shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', 'backspace'],
 	];
 
-	const NUMPAD_KEYS = [
-		'7', '8', '9',
-		'4', '5', '6',
-		'1', '2', '3',
-		'.', '0', 'numpad-backspace'];
+	const NUMPAD_ROWS = [
+		['7', '8', '9'],
+		['4', '5', '6'],
+		['1', '2', '3'],
+		['.', '0', 'numpad-backspace']
+	];
 
 	function keyLabel(key) {
 		switch (key) {
@@ -76,11 +77,21 @@
 			return `<div class="osk-row">${keysHtml}</div>`;
 		}).join('');
 
-		const numpadHtml = `
-			<div class="osk-numpad">
-				${NUMPAD_KEYS.map((key) => `<button type="button" class="osk-key" data-key="${key}">${keyLabel(key)}</button>`).join('')}
-			</div>
-		`;
+		// const numpadHtml = `
+		// 	<div class="osk-numpad">
+		// 		${NUMPAD_ROWS.map((row) => `<button type="button" class="osk-key" data-key="${key}">${keyLabel(key)}</button>`).join('')}
+		// 	</div>
+		// `;
+
+		const numpadHtml = NUMPAD_ROWS.map((row) =>{
+			const numKeysHtml = row.map((key) => {
+				const classes = ['osk-key'];
+				if (key === 'backspace') classes.push('osk-key-wide');
+				if (key === 'shift') { classes.push('osk-key-wide', 'osk-key-shift'); }
+				return `<button type="button" class="${classes.join(' ')}" data-key="${key}">${keyLabel(key)}</button>`;
+			}).join('');
+			return `<div class="osk-numpad">${numKeysHtml}</div>`;
+		}).join('');
 
 		el.innerHTML = `
 			<div class="osk-header">
