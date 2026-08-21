@@ -2351,6 +2351,7 @@ select {
 	font-size: 0.8rem;
 	flex: 1;
 	text-align: right;
+	text-align-last: end;
 	border: none;
 	background: transparent;
 	user-select: auto;
