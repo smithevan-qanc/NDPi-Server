@@ -776,14 +776,6 @@
 					localStorage.setItem('ndpi_ui_scale', scale);
 				}, 2000);
 			});
-			/*
-			scaleValue.addEventListener('change', function() {
-				const scale = this.value;
-				scaleSlider.value = scale;
-				applyScale(scale);
-				localStorage.setItem('ndpi_ui_scale', scale);
-			});
-			*/
 
 			// Scale Slider Entry Method
 			scaleSlider.addEventListener('input', function () {
@@ -958,13 +950,12 @@
 					<span class="info-value">${[manufacturer && manufacturer.value, model && model.value].filter(Boolean).join(' ') || 'Unknown'}</span>
 				</div>
 				<div class="info-item">
-					<span class="info-label">Current Resolution</span>
+					<span class="info-label">Set Resolution</span>
 					<span class="info-value mono">${
 						(current && current.value) || 'Unknown'
 					}${
 						currentFR &&
-						currentFR.value ? '' : ''
-						// currentFR.value ? ` @ ${currentFR.value}Hz` : ''
+						currentFR.value ? ` ${currentFR.value}` : ''
 					}</span>
 				</div>
 				<!--div class="info-item">
@@ -973,8 +964,7 @@
 						(preferred && preferred.value) || 'Unknown'
 					}${
 						preferredFR &&
-						preferredFR.value ? '' : ''
-						// preferredFR.value ? ` @ ${preferredFR.value}Hz` : ''
+						preferredFR.value ? ` ${preferredFR.value}` : ''
 					}</span>
 				</div-->
 			`;
