@@ -938,6 +938,8 @@
 			const preferredFR = getEntry('output_display_framerate_preferred');
 			const manufacturer = getEntry('output_display_manufacturer');
 			const model = getEntry('output_display_model');
+			const modelNumber = getEntry('output_display_model_number');
+			const serialNumber = getEntry('output_display_serial_number');
 			const pref = getEntry('output_display_resolution_preference');
 
 			infoGrid.innerHTML = `
@@ -948,6 +950,14 @@
 				<div class="info-item">
 					<span class="info-label">Display</span>
 					<span class="info-value">${[manufacturer && manufacturer.value, model && model.value].filter(Boolean).join(' ') || 'Unknown'}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Model Number</span>
+					<span class="info-value mono">${(modelNumber && modelNumber.value) || 'Unknown'}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Serial Number</span>
+					<span class="info-value mono">${(serialNumber && serialNumber.value) || 'Unknown'}</span>
 				</div>
 				<div class="info-item">
 					<span class="info-label">Set Resolution</span>
