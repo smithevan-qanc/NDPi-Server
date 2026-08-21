@@ -76,7 +76,7 @@ function renderVersionInfo(elementId, tuples) {
 	// if (versionDate) { html += ` ${formatTimeAgo(versionDate)}`; }
 
 	if (updateAvailable && updateVersion) {
-		html += `<br>New version available: <strong>${updateVersion}</strong>`;
+		html += `<br><br>New version available: <strong>${updateVersion}</strong>`;
 		if (updateVersionDate) { html += ` ${formatTimeAgo(updateVersionDate)}`; }
 	}
 

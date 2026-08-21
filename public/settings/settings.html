@@ -959,12 +959,24 @@
 				</div>
 				<div class="info-item">
 					<span class="info-label">Current Resolution</span>
-					<span class="info-value mono">${(current && current.value) || 'Unknown'}${currentFR && currentFR.value ? ` @ ${currentFR.value}Hz` : ''}</span>
+					<span class="info-value mono">${
+						(current && current.value) || 'Unknown'
+					}${
+						currentFR &&
+						currentFR.value ? '' : ''
+						// currentFR.value ? ` @ ${currentFR.value}Hz` : ''
+					}</span>
 				</div>
-				<div class="info-item">
+				<!--div class="info-item">
 					<span class="info-label">Preferred Resolution</span>
-					<span class="info-value mono">${(preferred && preferred.value) || 'Unknown'}${preferredFR && preferredFR.value ? ` @ ${preferredFR.value}Hz` : ''}</span>
-				</div>
+					<span class="info-value mono">${
+						(preferred && preferred.value) || 'Unknown'
+					}${
+						preferredFR &&
+						preferredFR.value ? '' : ''
+						// preferredFR.value ? ` @ ${preferredFR.value}Hz` : ''
+					}</span>
+				</div-->
 			`;
 
 			if (pref && Array.isArray(pref.options) && pref.options.length > 0) {
