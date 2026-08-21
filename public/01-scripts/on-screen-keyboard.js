@@ -206,8 +206,12 @@
 				hide(true);
 				return;
 			case 'enter': {
-				console.log('Key', key);
-				console.log(activeInput);
+				console.log(window.location.href);
+				if (window.location.href == '/console.html') {
+					sendCommand();
+					hide(true);
+					return;
+				}
 				const form = activeInput.form;
 				if (form) {
 					if (typeof form.requestSubmit === 'function') { form.requestSubmit(); }
