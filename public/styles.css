@@ -1487,8 +1487,8 @@ label {
 	font-weight: 400;
 	font-size: 0.8rem;
 	padding: 0 0.3125rem 0 0.3125rem;
-	user-select: auto;
-	-webkit-user-select: auto;
+	user-select: auto !important;
+	-webkit-user-select: auto !important;
 	cursor: text;
 	line-height: 130%;
 	align-items: center;
@@ -1509,7 +1509,10 @@ label {
     background: rgba(255, 255, 255, 0) !important;
     color: var(--text-1) !important;
     box-sizing: border-box;
-	text-align: left;
+	text-align: left !important;
+	user-select: auto !important;
+	-webkit-user-select: auto !important;
+	
 	/* font-family: 'SF Mono', 'Courier New', Courier, monospace; */
 	/* letter-spacing: 0.0187rem; */
 }
