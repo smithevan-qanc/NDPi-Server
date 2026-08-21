@@ -53,7 +53,7 @@ class NDPiWebSocket {
             this.ws.onclose = () => {
                 this.isConnected = false;
                 this.onLinePush({
-                    text: 'This session as ended.',
+                    text: 'This session has ended.',
                     color: '#a80000',
                     weight: '600'
                 });

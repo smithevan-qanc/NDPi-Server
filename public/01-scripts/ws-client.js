@@ -1,10 +1,6 @@
 class NDPiWebSocket {
     constructor() {
         this.ws = null;
-        this.pingInterval = null;
-        this.pingStartTimer = null;
-        this.heartbeatTimeout = null;
-        this.heartbeatMaxAge = 30000; // 30 seconds without heartbeat = connection lost
         this.onDevicesUpdate = null;
         this.onServerEvent = null;
         this.currentPage = window.location.pathname + window.location.search;
@@ -18,9 +14,6 @@ class NDPiWebSocket {
             this.ws = new WebSocket(wsUrl);
 
             this.ws.onopen = () => {
-                this.hideOfflineOverlay();
-                this.resetHeartbeatTimeout();
-
                 console.log('Requesting Connection to NDPi Monitor Server');
             };
 
@@ -37,17 +30,19 @@ class NDPiWebSocket {
                 console.error('WebSocket error:', error);
             };
 
-            this.ws.onclose = () => {
-                this.clearHeartbeatTimeout();
-                this.showOfflineOverlay('Server connection has been lost...');
-            };
+            this.ws.onclose = () => { };
 
         } catch (error) {
             console.error('Failed to create WebSocket:', error);
-            this.showOfflineOverlay('Server connection has been lost...');
         }
     }
 
+    // lives in 01-scripts/ws-hub-stats.js now -- /ws/hub-stats pushes on a
+    // steady ~1/sec cadence on every page already, a faster and more
+    // reliable liveness signal than this socket's own close/heartbeat
+    // events. This socket still triggers the overlay directly for the two
+    // cases where it has better information than a generic timeout would:
+    // the server announcing its own imminent shutdown/reboot.
     handleMessage(message) {
         switch (message.type) {
             case 'connected':
@@ -55,27 +50,26 @@ class NDPiWebSocket {
                 break;
 
             case 'heartbeat':
-                this.resetHeartbeatTimeout();
                 break;
-                
+
             case 'devices-update':
                 if (this.onDevicesUpdate) {
                     this.onDevicesUpdate(message.devices);
                 }
                 break;
-                
+
             case 'groups-update':
                 if (this.onGroupsUpdate) {
                     this.onGroupsUpdate(message.groups);
                 }
                 break;
-            
+
             case 'discovered-devices-update':
                 if (this.onDiscoveredDevicesUpdate) {
                     this.onDiscoveredDevicesUpdate(message.devices);
                 }
                 break;
-                
+
             case 'ndi-sources':
                 if (this.onNDISourceUpdate) {
                     this.onNDISourceUpdate(message.sources);
@@ -87,125 +81,19 @@ class NDPiWebSocket {
                 if (this.onServerEvent) {
                     this.onServerEvent(message);
                 }
-                this.showOfflineOverlay(message.type === 'server-shutdown' ? 'Server is shutting down...' : 'Server rebooting...');
+                showOfflineOverlay(message.type === 'server-shutdown' ? 'Server is shutting down...' : 'Server rebooting...');
                 break;
-                
+
             default:
                 console.log('WebSocket message:', message);
         }
     }
-    
-    resetHeartbeatTimeout() {
-        this.hideOfflineOverlay();
-        this.clearHeartbeatTimeout();
-
-        this.heartbeatTimeout = setTimeout(() => {
-            this.showOfflineOverlay('Server connection has been lost...');
-        }, this.heartbeatMaxAge);
-    }
-    
-    clearHeartbeatTimeout() {
-        if (this.heartbeatTimeout) {
-            clearTimeout(this.heartbeatTimeout);
-            this.heartbeatTimeout = null;
-        }
-    }
-
-    /**
-     *  Offline recovery: once the WebSocket is lost (or a heartbeat times
-     *  out, or the server announces its own shutdown/reboot), poll the
-     *  Hub's own /api/v2/ping once/sec rather than silently retrying the
-     *  WebSocket in place -- the Hub going down/coming back is exactly the
-     *  kind of event where a lot of client-side state (settings, device
-     *  lists, sockets) could otherwise drift out of sync, so once the Hub
-     *  is confirmed reachable again the simplest correct recovery is a
-     *  full page reload instead of trying to resume in place.
-     */
-    startPing() {
-        if (this.pingInterval || this.pingStartTimer) return;
-
-        const tryPing = async () => {
-            try {
-                const res = await fetch('/api/v2/ping', { cache: 'no-store' });
-                if (!res.ok) return;
-                const data = await res.json();
-                if (data && data.success) {
-                    this.stopPing();
-                    window.location.reload();
-                }
-            } catch (error) {
-                // Still offline -- keep polling.
-            }
-        };
-
-        // Debounce the first ping by 2s: right as the WS drops (e.g. a
-        // software-update restart), the Hub's HTTP server can still be very
-        // briefly reachable -- old process not fully torn down yet, or the
-        // OS accepting the connection before the new process is actually
-        // listening. Pinging immediately can catch it in that flaky window,
-        // see a 200, and reload straight into a Hub that's still mid-restart
-        // -- which just repeats the whole offline/reload dance a few times
-        // in a row. Waiting 2s first gives the restart time to actually
-        // take the API down before polling starts.
-        this.pingStartTimer = setTimeout(() => {
-            this.pingStartTimer = null;
-            tryPing();
-            this.pingInterval = setInterval(tryPing, 1000);
-        }, 2000);
-    }
-
-    stopPing() {
-        if (this.pingStartTimer) {
-            clearTimeout(this.pingStartTimer);
-            this.pingStartTimer = null;
-        }
-        if (this.pingInterval) {
-            clearInterval(this.pingInterval);
-            this.pingInterval = null;
-        }
-    }
 
     disconnect() {
-        this.stopPing();
-        this.clearHeartbeatTimeout();
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
-    }
-
-    showOfflineOverlay(message = 'Server Offline - Waiting for signal...') {
-        let overlay = document.getElementById('offlineOverlay');
-
-        // Create overlay if it doesn't exist
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'offlineOverlay';
-            overlay.className = 'offline-overlay'
-            overlay.innerHTML = `
-                <div class="offline-modal">
-                    <div class="offline-spinner"></div>
-                    <h2>Lost Server Connection</h2>
-                    <p id="offlineMessage" class="offline-message">${message}</p>
-                </div>
-            `;
-            document.body.appendChild(overlay);
-        } else {
-            // Update message if overlay exists
-            const msgEl = overlay.querySelector('.offline-message');
-            if (msgEl) msgEl.textContent = message;
-        }
-
-        overlay.classList.add('active');
-        this.startPing();
-    }
-
-    hideOfflineOverlay() {
-        const overlay = document.getElementById('offlineOverlay');
-        if (overlay) {
-            overlay.classList.remove('active');
-        }
-        this.stopPing();
     }
 }
 
@@ -227,4 +115,3 @@ function sendMessage(message) {
 document.addEventListener("online", function() {
     console.log('online now');
 });
-

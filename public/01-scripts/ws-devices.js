@@ -39,7 +39,7 @@ function deriveDeviceStats(raw) {
 		},
 		temperature: (raw.thermal && raw.thermal.thermal_zone0) || 0,
 		uptime: typeof raw.osUptime === 'number' ? raw.osUptime : 0,
-		fan: (raw.thermal && typeof raw.thermal.fan1_input === 'number') ? raw.thermal.fan1_input : null,
+		fan: (raw.thermal && typeof raw.thermal.fan1_input === 'number') ? raw.thermal.fan1_input : 0,
 	};
 }
 
