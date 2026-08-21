@@ -296,6 +296,7 @@
 		}
 
 		const input = e.target.closest(TEXT_INPUT_SELECTOR);
+		if (input.disabled) return;
 		if (input) {
 			show(input);
 		} else if (keyboardEl && keyboardEl.classList.contains('osk-visible')) {
