@@ -34,34 +34,61 @@
  */
 const OFFLINE_TIMEOUT_MS = 2000;
 
-let offlinePingInterval = null;
+const OFFLINE_PING_TIMEOUT_MS = 5000;
+
 let offlinePingStartTimer = null;
+let offlinePingActive = false;
+let offlinePingAbortController = null;
+let offlinePingTimeoutTimer = null;
 
 /**
  *  Offline recovery: once the overlay is shown (connection silence,
  *  or the server announcing its own shutdown/reboot), poll the Hub's own
- *  /api/v2/ping once/sec rather than silently retrying the socket in place
- *  -- the Hub going down/coming back is exactly the kind of event where a
- *  lot of client-side state (settings, device lists, sockets) could
- *  otherwise drift out of sync, so once the Hub is confirmed reachable
- *  again the simplest correct recovery is a full page reload instead of
- *  trying to resume in place.
+ *  /api/v2/ping rather than silently retrying the socket in place -- the
+ *  Hub going down/coming back is exactly the kind of event where a lot of
+ *  client-side state (settings, device lists, sockets) could otherwise
+ *  drift out of sync, so once the Hub is confirmed reachable again the
+ *  simplest correct recovery is a full page reload instead of trying to
+ *  resume in place.
+ *
+ *  Each ping waits for that request to settle (response, network error, or
+ *  a OFFLINE_PING_TIMEOUT_MS-second abort) before sending the next one,
+ *  rather than firing on a blind fixed interval -- a plain setInterval
+ *  would keep launching new requests on schedule even while an earlier one
+ *  was still hanging (fetch() has no built-in timeout and a half-open
+ *  connection to a Hub that's mid-restart can sit unresolved far longer
+ *  than 1s), piling up overlapping in-flight requests instead of just
+ *  trying again.
  */
 function startOfflinePing() {
-	if (offlinePingInterval || offlinePingStartTimer) return;
+	if (offlinePingActive || offlinePingStartTimer) return;
 
-	const tryPing = async () => {
+	const sendPing = async () => {
+		if (!offlinePingActive) return;
+
+		offlinePingAbortController = new AbortController();
+		offlinePingTimeoutTimer = setTimeout(() => offlinePingAbortController.abort(), OFFLINE_PING_TIMEOUT_MS);
+
 		try {
-			const res = await fetch('/api/v2/ping', { cache: 'no-store' });
-			if (!res.ok) return;
-			const data = await res.json();
-			if (data && data.success) {
-				stopOfflinePing();
-				window.location.reload();
+			const res = await fetch('/api/v2/ping', { cache: 'no-store', signal: offlinePingAbortController.signal });
+			clearTimeout(offlinePingTimeoutTimer);
+			offlinePingTimeoutTimer = null;
+
+			if (res.ok) {
+				const data = await res.json();
+				if (data && data.success) {
+					stopOfflinePing();
+					window.location.reload();
+					return;
+				}
 			}
 		} catch (error) {
-			// Still offline -- keep polling.
+			// Request failed, or timed out and was aborted above -- still offline.
+			clearTimeout(offlinePingTimeoutTimer);
+			offlinePingTimeoutTimer = null;
 		}
+
+		if (offlinePingActive) { sendPing(); }
 	};
 
 	// Debounce the first ping by 2s: right as the connection drops (e.g. a
@@ -75,8 +102,8 @@ function startOfflinePing() {
 	// API down before polling starts.
 	offlinePingStartTimer = setTimeout(() => {
 		offlinePingStartTimer = null;
-		tryPing();
-		offlinePingInterval = setInterval(tryPing, 1000);
+		offlinePingActive = true;
+		sendPing();
 	}, 2000);
 }
 
@@ -85,9 +112,14 @@ function stopOfflinePing() {
 		clearTimeout(offlinePingStartTimer);
 		offlinePingStartTimer = null;
 	}
-	if (offlinePingInterval) {
-		clearInterval(offlinePingInterval);
-		offlinePingInterval = null;
+	offlinePingActive = false;
+	if (offlinePingTimeoutTimer) {
+		clearTimeout(offlinePingTimeoutTimer);
+		offlinePingTimeoutTimer = null;
+	}
+	if (offlinePingAbortController) {
+		offlinePingAbortController.abort();
+		offlinePingAbortController = null;
 	}
 }
 
