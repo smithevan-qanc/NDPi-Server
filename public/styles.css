@@ -1366,6 +1366,7 @@ label {
 	/* border: 0.0625rem solid var(--border-strong); */
 	background: var(--bg-3);
 	padding-left: 0.5rem;
+	padding-right: 0.5rem;
 	border-radius: var(--radius-md);
 }
 
@@ -1387,6 +1388,16 @@ label {
     align-items: center;
 	user-select: all;
 	-webkit-user-select: all;
+}
+
+.info-value input,
+.info-value select {
+	padding: 0.5rem 0rem 0.5rem 0rem !important;
+}
+
+.info-value input:focus,
+.info-value select:focus {
+	padding: 0.375rem 0rem 0.375rem 0rem !important;
 }
 
 /**
@@ -2337,9 +2348,9 @@ select {
 	background: transparent;
 	user-select: auto;
 	-webkit-user-select: auto;
+	padding: 0.5rem 0.625rem 0.5rem 0.625;
 	/* border: 0.0625rem solid var(--border-strong); */
 	/* background: var(--bg-3); */
-	/* padding: 0.5rem 0.625rem; */
 	/* border-radius: var(--radius-sm); */
 }
 
@@ -2411,7 +2422,7 @@ input[type="text"]:focus,
 input:focus,
 select:focus {
 	outline: none;
-	padding: 0.375rem 1rem;
+	padding: 0.375rem 0.625rem 0.375rem 0.625rem;
 	font-size: max(16px, 1rem) !important;
 	background: transparent;
 	/* border-style: ridge; */
