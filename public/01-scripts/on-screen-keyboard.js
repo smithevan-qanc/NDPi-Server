@@ -305,23 +305,10 @@
 
 	document.addEventListener('touchstart', (e) => {
 		invokeOsk(e);
-		// if (isMobileMode()) return;
-
-		// if (keyboardEl && e.target.closest('#onScreenKeyboard')) {
-		// 	// Handled by the keyboard's own pointerdown handler -- just
-		// 	// don't let this fall through to the outside-tap dismiss logic.
-		// 	return;
-		// }
-
-		// const input = e.target.closest(TEXT_INPUT_SELECTOR);
-		// if (input) {
-		// 	show(input);
-		// } else if (keyboardEl && keyboardEl.classList.contains('osk-visible')) {
-		// 	hide(true);
-		// }
 	}, { passive: true });
 
 	document.addEventListener('click', (e) => {
+		return; // Deactivated On Click
 		invokeOsk(e);
 	}, { passive: true });
 	
