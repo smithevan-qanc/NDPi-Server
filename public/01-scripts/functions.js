@@ -352,7 +352,31 @@ initHoverReset();
 
 	fetchAndApplyThemeColor();
 
-	if (typeof initPage === 'function') { initPage(account); }
+	// A page's own initPage() (if it defines one) is declared inline near
+	// the bottom of its <script> block, which loads/executes after this
+	// file's <script> tag -- normally already finished by the time
+	// loadUserAccount()'s fetch resolves, since a real network round trip
+	// dwarfs the time to parse a couple more <script> tags. But this page
+	// is fetched from the Hub's own kiosk browser over http://localhost,
+	// where that round trip can occasionally be fast enough (especially
+	// with the later scripts served from browser cache) to win the race --
+	// leaving initPage undefined here and silently skipped by the `typeof`
+	// guard below, which exists to avoid a ReferenceError, not to signal
+	// anything went wrong. That's a silent partial page failure with
+	// nothing in the console to explain it: whatever that page's initPage
+	// was supposed to wire up (button handlers, admin-only sections,
+	// saved settings) just never runs. Waiting for DOMContentLoaded when
+	// the document isn't already parsed guarantees every synchronous
+	// <script> tag -- including wherever the page defines initPage -- has
+	// run first.
+	const callInitPage = () => {
+		if (typeof initPage === 'function') { initPage(account); }
+	};
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', callInitPage);
+	} else {
+		callInitPage();
+	}
 })();
 
 
