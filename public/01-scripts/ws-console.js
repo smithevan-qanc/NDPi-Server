@@ -92,7 +92,7 @@ class NDPiWebSocket {
         newLine.scrollIntoView();
     }
     
-    handleMessage(message) {
+    async handleMessage(message) {
         const formatted_directory = `${this.pwd}`.replace('/home/ndpi-server/ndpi', '~');
 
         switch (message.type) {
@@ -144,9 +144,7 @@ class NDPiWebSocket {
                                 weight: response.font.weight || '400',
                                 isResponse: true,
                             });
-                            return new Promise((resolve) => {
-                                setTimeout(() => { resolve(); }, 10);
-                            });
+                            await new Promise((resolve) => { setTimeout(() => { resolve(); }, 10); });
                         }
                     }
                     // message.data.forEach((response) => {
