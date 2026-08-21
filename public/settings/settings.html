@@ -948,8 +948,12 @@
 					<span class="info-value mono">${port.value}</span>
 				</div>
 				<div class="info-item">
-					<span class="info-label">Display</span>
-					<span class="info-value">${[manufacturer && manufacturer.value, model && model.value].filter(Boolean).join(' ') || 'Unknown'}</span>
+					<span class="info-label">Display Mfr</span>
+					<span class="info-value">${(manufacturer && manufacturer.value) || 'Unknown'}</span>
+				</div>
+				<div class="info-item">
+					<span class="info-label">Display Model</span>
+					<span class="info-value">${(model && model.value) || 'Unknown'}</span>
 				</div>
 				<div class="info-item">
 					<span class="info-label">Model Number</span>
