@@ -1374,12 +1374,14 @@ label {
 
 .info-value {
 	display: flex;
+    flex: 1;
 	font-size: 0.8438rem;
 	color: var(--text-1);
 	justify-content: right;
     text-align: end;
-    flex: 1;
     align-items: center;
+	user-select: all;
+	-webkit-user-select: all;
 }
 
 /**
