@@ -422,7 +422,7 @@
 				refs.temp.style.color = tempColor;
 				refs.mem.textContent = `${dev.systemStats.memory.percent}%`;
 				refs.mem.style.color = memColor;
-				refs.fan.textContent = (typeof dev.systemStats.fan === 'number' && dev.systemStats.fan > 0) ? `${dev.systemStats.fan} RPM` : '—';
+				refs.fan.textContent = (typeof dev.systemStats.fan === 'number' && dev.systemStats.fan > 0) ? `${dev.systemStats.fan} RPM` : '0 RPM';
 			}
 
 			if (account.isAdmin) {
