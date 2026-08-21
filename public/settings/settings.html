@@ -201,7 +201,7 @@
 									<p class="info-grid-message">Loading display info...</p>
 								</div>
 								<div class="resolution-controls">
-									<label for="resolutionPreferenceSelect" class="settings-label">Resolution</label>
+									<label for="resolutionPreferenceSelect" class="settings-label" style="flex-direction: column;"></label>
 									<select id="resolutionPreferenceSelect" class="mono" disabled></select>
 								</div>
 							</div>
@@ -963,8 +963,8 @@
 					<span class="info-label">Serial Number</span>
 					<span class="info-value mono">${(serialNumber && serialNumber.value) || 'Unknown'}</span>
 				</div>
-				<div class="info-item" style="flex-direction: column;">
-					<span class="info-label">${port.value} Resolution Setting</span>
+				<div class="info-item">
+					<span class="info-label">Resolution</span>
 					<span class="info-value mono">${
 						(current && current.value) || 'Unknown'
 					}
@@ -985,7 +985,10 @@
 					}</span>
 				</div-->
 			`;
-
+			//resolutionPreferenceSelect
+			document.querySelector(`label[for="resolutionPreferenceSelect"]`)
+				.textContent = `${port.value} Resolution Setting`;
+			
 			if (pref && Array.isArray(pref.options) && pref.options.length > 0) {
 				select.disabled = false;
 				select.innerHTML = pref.options.map(([label, value]) =>
