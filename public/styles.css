@@ -2170,8 +2170,9 @@ select option {
 
 .button-transparent {
 	background: transparent;
-	border: none;
+	border-width: 0;
 	color: var(--text-2);
+	border-radius: var(--radius-md);
 	font-size: 0.8438rem;
 	cursor: pointer;
 	padding: 0.5rem;
