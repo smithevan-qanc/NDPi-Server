@@ -67,11 +67,12 @@ function getDeviceCardFields(tuples) {
 
 	const manufacturer = getRelayedSetting(tuples, 'output_display_manufacturer');
 	const model = getRelayedSetting(tuples, 'output_display_model');
+	const display = model.value;
+	// const display = [manufacturer && manufacturer.value, model && model.value].filter(Boolean).join(' ');
+	
 	const resolution = getRelayedSetting(tuples, 'output_display_resolution_current');
 	const ndiStatus = getRelayedSetting(tuples, 'ndpi_status_ndi_status');
 	const version = getRelayedSetting(tuples, 'ndpi_version');
-
-	const display = [manufacturer && manufacturer.value, model && model.value].filter(Boolean).join(' ');
 
 	return {
 		display: display || null,
