@@ -289,6 +289,20 @@ class FileSystemMonitor extends EventEmitter {
                 allowEditInternal: true,
                 allowEditExternal: false,
             },
+            {
+                key: "output_display_model_number",
+                value: ``,
+                group: `Display_Resolution`,
+                allowEditInternal: true,
+                allowEditExternal: false,
+            },
+            {
+                key: "output_display_serial_number",
+                value: ``,
+                group: `Display_Resolution`,
+                allowEditInternal: true,
+                allowEditExternal: false,
+            },
         ];
         // Files that will NOT initialize with the previously stored value.
         const retainDefaultValue = [
@@ -628,6 +642,8 @@ class FileSystemMonitor extends EventEmitter {
             this.put('output_display_framerate_preferred', '');
             this.put('output_display_manufacturer', '');
             this.put('output_display_model', '');
+            this.put('output_display_model_number', '');
+            this.put('output_display_serial_number', '');
             this.emit('drm');
         }
         else
@@ -679,19 +695,23 @@ class FileSystemMonitor extends EventEmitter {
                                 return;
                                 break;
                             case 'manufacturer_hdmi0':
-                                this.put('output_display_manufacturer', lookupEdidManufacturer(splitValue));
-                                return;
-                                break;
                             case 'manufacturer_hdmi1':
                                 this.put('output_display_manufacturer', lookupEdidManufacturer(splitValue));
                                 return;
                                 break;
-                            case 'model_hdmi0':
+                            case 'model_name_hdmi0':
+                            case 'model_name_hdmi1':
                                 this.put('output_display_model', splitValue);
                                 return;
                                 break;
-                            case 'model_hdmi1':
-                                this.put('output_display_model', splitValue);
+                            case 'model_number_hdmi0':
+                            case 'model_number_hdmi1':
+                                this.put('output_display_model_number', splitValue);
+                                return;
+                                break;
+                            case 'sn_hdmi0':
+                            case 'sn_hdmi1':
+                                this.put('output_display_serial_number', splitValue);
                                 return;
                                 break;
                             case 'list_resolutions':

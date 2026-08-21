@@ -34,10 +34,39 @@ echo "preferred_framerate : $FRAMERATE_PREF"
 #
 
 # EDID
-echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | grep -wF 'Manufacturer:' | awk '{print "manufacturer_hmdi0 :", $2}')"
-echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | grep -wF 'Display Product Name:' | tr -d "'" | awk '{print "model_hdmi0 :", $4}')"
-echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | grep -wF 'Manufacturer:' | awk '{print "manufacturer_hmdi1 :", $2}')"
-echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | grep -wF 'Display Product Name:' | tr -d "'" | awk '{print "model_hdmi1 :", $4}')"
+  # HDMI - 1
+  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | \
+    grep -wF 'Manufacturer:' | tr -d "'" | \
+    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "manufacturer_hdmi0 : " $2}')"
+
+  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | \
+    grep -wF 'Display Product Name:' | tr -d "'" | \
+    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "model_name_hdmi0 : " $2}')"
+
+  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | \
+    grep -wF 'Model:' | tr -d "'" | \
+    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "model_number_hdmi0 : " $2}')"
+
+  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | \
+    grep -wF 'Display Product Serial Number:' | tr -d "'" | \
+    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "sn_hdmi0 : " $2}')"
+
+  # HDMI - 2
+  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | \
+    grep -wF 'Manufacturer:' | tr -d "'" | \
+    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "manufacturer_hdmi1 : " $2}')"
+
+  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | \
+    grep -wF 'Display Product Name:' | tr -d "'" | \
+    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "model_name_hdmi1 : " $2}')"
+
+  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | \
+    grep -wF 'Model:' | tr -d "'" | \
+    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "model_number_hdmi1 : " $2}')"
+    
+  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | \
+    grep -wF 'Display Product Serial Number:' | tr -d "'" | \
+    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "sn_hdmi1 : " $2}')"
 #
 
 # List Resolutions
