@@ -2835,10 +2835,9 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .resolution-controls {
 	display: flex;
-	align-items: center;
+	align-items: stretch;
 	gap: 0.625rem;
 	margin-top: 1rem;
-	margin-left: 0.5rem;
 	flex-wrap: wrap;
 }
 
