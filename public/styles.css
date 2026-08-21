@@ -2320,12 +2320,14 @@ input[type="checkbox"],
 select {
 	padding: 0.5rem 1rem;
 	border-radius: 50px;
-	/* border: 0.0625rem solid var(--border-strong); */
-	/* background: var(--bg-3); */
 	color: var(--text-0);
 	font-size: 0.8rem;
 	flex: 1;
 	text-align: end;
+	border: none;
+	background: transparent;
+	/* border: 0.0625rem solid var(--border-strong); */
+	/* background: var(--bg-3); */
 	/* padding: 0.5rem 0.625rem; */
 	/* border-radius: var(--radius-sm); */
 }
