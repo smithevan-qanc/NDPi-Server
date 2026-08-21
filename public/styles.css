@@ -1498,7 +1498,7 @@ label {
 	font-family: monospace;
 	border-color: transparent !important;
 	box-shadow: none !important;
-	padding: 0 0 0 0 !important;
+	/* padding: 0 0 0 0 !important; */
 	border-radius: 0 !important;
 	text-decoration-line: none;
 	flex: 2;
