@@ -266,6 +266,7 @@
 	}
 
 	function show(input) {
+		if (input.disabled == true) return;
 		if (!keyboardEl) { keyboardEl = buildKeyboard(); }
 		activeInput = input;
 		shiftActive = false;
@@ -296,7 +297,6 @@
 		}
 
 		const input = e.target.closest(TEXT_INPUT_SELECTOR);
-		if (input.disabled) return;
 		if (input) {
 			show(input);
 		} else if (keyboardEl && keyboardEl.classList.contains('osk-visible')) {
