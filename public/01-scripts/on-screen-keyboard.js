@@ -206,8 +206,8 @@
 				hide(true);
 				return;
 			case 'enter': {
-				console.log(window.location.href);
-				if (window.location.href == '/console.html') {
+				console.log(window.location);
+				if (window.location.pathname == '/console.html') {
 					sendCommand();
 					hide(true);
 					return;
