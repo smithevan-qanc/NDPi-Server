@@ -2925,13 +2925,14 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .osk-row {
 	display: flex;
-	gap: 0.375rem;
+	justify-content: center;
 }
 
 .osk-key {
 	margin: 0.175rem;
-	flex: 1;
+	/* flex: 1; */
 	height: 2.75rem;
+	width: 2.75rem;
 	display: flex;
 	align-items: center;
 	justify-content: center;
