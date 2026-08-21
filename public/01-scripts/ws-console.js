@@ -136,7 +136,7 @@ class NDPiWebSocket {
                 
             case 'response':
                 if (Array.isArray(message.data)) {
-                    message.data.forEach((response) => {
+                    for (const response of message.data) {
                         if (response.message !== null) {
                             this.onLinePush({
                                 text: response.message || '',
@@ -144,8 +144,21 @@ class NDPiWebSocket {
                                 weight: response.font.weight || '400',
                                 isResponse: true,
                             });
+                            return new Promise((resolve) => {
+                                setTimeout(() => { resolve(); }, 10);
+                            });
                         }
-                    });
+                    }
+                    // message.data.forEach((response) => {
+                    //     if (response.message !== null) {
+                    //         this.onLinePush({
+                    //             text: response.message || '',
+                    //             color: response.font.color || '#e1e1e1',
+                    //             weight: response.font.weight || '400',
+                    //             isResponse: true,
+                    //         });
+                    //     }
+                    // });
                 }
                 if (!message.keepOpen) {
                     document.getElementById('promptIn').disabled = false;
