@@ -99,13 +99,23 @@
 
 					<!-- MAIN CONTENT -->
 					<div class="card-content">
-						<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;margin-bottom:1rem;">
+						<div style="display:flex;flex-direction:column;align-items:center;gap:1rem;">
 							<div id="groupStats" class="stats-page-header"></div>
 						</div>
-						<div id="groupContent">
-							<p style="color: #888; padding: 1.25rem;">Loading group...</p>
-						</div>
 					</div>
+				</div>
+
+				<!-- Jumps to the matching card below via scrollIntoView() -- see initSectionNav() -->
+				<nav class="page-section-nav" id="pageSectionNav" style="max-width:75rem;margin:0 auto;width:100%;">
+					<button type="button" class="page-section-nav-btn" data-target="card-sources">Sources</button>
+					<button type="button" class="page-section-nav-btn" data-target="card-display">Display</button>
+					<button type="button" class="page-section-nav-btn" data-target="card-devices">Devices</button>
+					<button type="button" class="page-section-nav-btn" data-target="card-settings">Settings</button>
+					<button type="button" class="page-section-nav-btn" id="navBtnActions" data-target="card-actions" hidden>Actions</button>
+				</nav>
+
+				<div id="groupContent" style="max-width:75rem;margin:0 auto;width:100%;">
+					<p style="color: #888; padding: 1.25rem;">Loading group...</p>
 				</div>
 
 			</div>
@@ -119,7 +129,44 @@
 		(() => {
 			applyActiveNav('navGroups');
 			initGlobalHubStats();
+			initSectionNav();
 		})();
+
+		// Nav pills at the top of the content area jump straight to their
+		// matching card via scrollIntoView() -- .content already has
+		// scroll-behavior:smooth, so this animates for free. Delegated on
+		// the container since its buttons exist from first paint (unlike
+		// the cards themselves, which are only built once loadGroup()
+		// resolves).
+		function initSectionNav() {
+			const nav = document.getElementById('pageSectionNav');
+			if (!nav) return;
+			nav.addEventListener('click', (e) => {
+				const btn = e.target.closest('.page-section-nav-btn');
+				if (!btn) return;
+				const target = document.getElementById(btn.dataset.target);
+				if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+			});
+		}
+
+		// Highlights whichever card is currently in view -- run once the
+		// cards actually exist in the DOM (renderGroup() builds them from a
+		// template string, so this can't be set up until after that call).
+		function initSectionNavObserver() {
+			const nav = document.getElementById('pageSectionNav');
+			const contentEl = document.querySelector('.content');
+			if (!nav || !contentEl) return;
+			const buttons = Array.from(nav.querySelectorAll('.page-section-nav-btn'));
+			const sections = buttons.map((btn) => document.getElementById(btn.dataset.target)).filter(Boolean);
+			if (sections.length === 0) return;
+			const observer = new IntersectionObserver((entries) => {
+				entries.forEach((entry) => {
+					const btn = buttons.find((b) => b.dataset.target === entry.target.id);
+					if (btn) { btn.classList.toggle('active', entry.isIntersecting); }
+				});
+			}, { root: contentEl, rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+			sections.forEach((sec) => observer.observe(sec));
+		}
 
 		let group = null;
 		let sources = [];
@@ -532,11 +579,15 @@
 			if (account.isAdmin) {
 				admAddDeviceButtonHtml = '<button onclick="addDevicesToGroup()" class="button-subtle">+ Add Device</button>';
 				admGroupActionGroupHtml = `
-				<div class="group-spacer"></div>
-				<div class="group-actions">
-					<button onclick="rebootGroup()" class="button-danger">Reboot All</button>
-					<button onclick="shutdownGroup()" class="button-danger">Shutdown All</button>
-					<button onclick="deleteGroup()" class="button-danger">Delete Group</button>
+				<div class="card" id="card-actions">
+					<h2 class="section-title">Group Actions</h2>
+					<div class="card-content">
+						<div class="group-actions">
+							<button onclick="rebootGroup()" class="button-danger">Reboot All</button>
+							<button onclick="shutdownGroup()" class="button-danger">Shutdown All</button>
+							<button onclick="deleteGroup()" class="button-danger">Delete Group</button>
+						</div>
+					</div>
 				</div>`;
 				document.getElementById('changeName').innerHTML = `
 				<button
@@ -571,68 +622,76 @@
 
 			document.getElementById('groupContent').innerHTML = `
 				<div class="group-page-container">
-					<div>
-						<h3 class="section-title">Select NDI Source</h3>
-						<div id="groupSourceGrid" class="source-grid">
-							<div>
-								<div class="source-card ${isNoSource(curSource) ? 'selected' : ''}" data-source="" onclick="selectSource('')">
-									<div class="source-name">None</div>
-									<div class="source-host">No source assigned</div>
-									<div class="source-info">
-										<div style="display:flex; flex-direction:row;">
-											<div class="n-src-a">░░░</div>
-											<div class="n-src-b">░░░</div>
-											<div class="n-src-c">░░░</div>
-											<div class="n-src-a">░░░</div>
-											<div class="n-src-b">░░░</div>
-											<div class="n-src-c">░░░</div>
-											<div class="n-src-a">░░░</div>
-											<div class="n-src-b">░░░</div>
-											<div class="n-src-c">░░░</div>
-											<div class="n-src-a">░░░</div>
+					<div class="card" id="card-sources">
+						<h2 class="section-title">Select NDI Source</h2>
+						<div class="card-content">
+							<div id="groupSourceGrid" class="source-grid">
+								<div>
+									<div class="source-card ${isNoSource(curSource) ? 'selected' : ''}" data-source="" onclick="selectSource('')">
+										<div class="source-name">None</div>
+										<div class="source-host">No source assigned</div>
+										<div class="source-info">
+											<div style="display:flex; flex-direction:row;">
+												<div class="n-src-a">░░░</div>
+												<div class="n-src-b">░░░</div>
+												<div class="n-src-c">░░░</div>
+												<div class="n-src-a">░░░</div>
+												<div class="n-src-b">░░░</div>
+												<div class="n-src-c">░░░</div>
+												<div class="n-src-a">░░░</div>
+												<div class="n-src-b">░░░</div>
+												<div class="n-src-c">░░░</div>
+												<div class="n-src-a">░░░</div>
+											</div>
+											<div style="display:flex; flex-direction:row;">
+												<div class="n-src-b">░░░</div>
+												<div class="n-src-c">░░░</div>
+												<div class="n-src-a">░░░</div>
+												<div class="n-src-b">░░░</div>
+												<div class="n-src-c">░░░</div>
+												<div class="n-src-a">░░░</div>
+												<div class="n-src-b">░░░</div>
+												<div class="n-src-c">░░░</div>
+												<div class="n-src-a">░░░</div>
+												<div class="n-src-b">░░░</div>
+											</div>
 										</div>
-										<div style="display:flex; flex-direction:row;">
-											<div class="n-src-b">░░░</div>
-											<div class="n-src-c">░░░</div>
-											<div class="n-src-a">░░░</div>
-											<div class="n-src-b">░░░</div>
-											<div class="n-src-c">░░░</div>
-											<div class="n-src-a">░░░</div>
-											<div class="n-src-b">░░░</div>
-											<div class="n-src-c">░░░</div>
-											<div class="n-src-a">░░░</div>
-											<div class="n-src-b">░░░</div>
-										</div>
+										${isNoSource(curSource) ? '<div class="source-selected-badge" style="background:#666;">Current</div>' : ''}
 									</div>
-									${isNoSource(curSource) ? '<div class="source-selected-badge" style="background:#666;">Current</div>' : ''}
 								</div>
+								<!-- $ {sourceGrid} -->
 							</div>
-							<!-- $ {sourceGrid} -->
-						</div>
-					</div>
-					
-					<div style="margin-top:24px;">
-						<h3 class="section-title">Display Controls</h3>
-						<p style="font-size:12px;color:#888;margin-bottom:12px;">These actions apply to all ${group.devices.length} device(s) in this group</p>
-						<div class="display-controls">
-							<label for="groupNoSourceDisplaySelect" class="settings-label">No Source Display</label>
-							<select id="groupNoSourceDisplaySelect" class="mono" onchange="saveGroupSetting('ndpi_status_no_source_display_mode', this.value)"></select>
-							${rokuActionButtons}
 						</div>
 					</div>
 
-					<div style="margin-top:24px;">
-						<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-							<h3 class="section-title" style="margin:0 0 0.5rem;">Devices in this Group</h3>
+					<div class="card" id="card-display">
+						<h2 class="section-title">Display Controls</h2>
+						<div class="card-content">
+							<p style="font-size:12px;color:#888;margin-bottom:12px;">These actions apply to all ${group.devices.length} device(s) in this group</p>
+							<div class="display-controls">
+								<label for="groupNoSourceDisplaySelect" class="settings-label">No Source Display</label>
+								<select id="groupNoSourceDisplaySelect" class="mono" onchange="saveGroupSetting('ndpi_status_no_source_display_mode', this.value)"></select>
+								${rokuActionButtons}
+							</div>
+						</div>
+					</div>
+
+					<div class="card" id="card-devices">
+						<h2 class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+							<span>Devices in this Group</span>
 							${admAddDeviceButtonHtml}
+						</h2>
+						<div class="card-content">
+							<div id="devicesContainer" class="devices-grid"></div>
 						</div>
-						<div id="devicesContainer" class="devices-grid"></div>
 					</div>
 
-					<div style="margin-top:24px;">
-						<h3 class="section-title">Device Settings</h3>
-						<p class="settings-hint">Editing a setting here applies it to every device in this group.</p>
-						<div id="groupSettingsGrid" class="info-grid"></div>
+					<div class="card" id="card-settings">
+						<h2 class="section-title">Device Settings</h2>
+						<div class="card-content">
+							<p class="settings-hint">Editing a setting here applies it to every device in this group.</p>
+							<div id="groupSettingsGrid" class="info-grid"></div>
+						</div>
 					</div>
 					${admGroupActionGroupHtml}
 				</div>
@@ -686,6 +745,10 @@
 			renderGroupNoSourceDisplayControl();
 			renderGroupSettings();
 			startWave();
+
+			const navBtnActions = document.getElementById('navBtnActions');
+			if (navBtnActions) { navBtnActions.hidden = !account.isAdmin; }
+			initSectionNavObserver();
 		}
 
 		let waveStarted = false;

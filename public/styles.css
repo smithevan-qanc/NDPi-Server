@@ -725,13 +725,58 @@ html.sidebar-collapsed .nav-btn {
 .group-page-container {
 	display: flex;
 	flex-direction: column;
+	gap: var(--main-body-padding);
 	min-height: 100%;
 }
 
 .device-page-container {
 	display: flex;
 	flex-direction: column;
+	gap: var(--main-body-padding);
 	min-height: 100%;
+}
+
+/**
+ *  Section-jump nav pill row -- device.html/group.html only, since those
+ *  are the two pages long enough (7-8 cards) to benefit from a jump menu.
+ *  Sticks just below the fixed topbar (.content already reserves that
+ *  space via padding-top, so `top: 0` sticks right at the scrollable
+ *  area's own top edge) so it stays reachable on a long scroll.
+ */
+.page-section-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	background: var(--bg-1);
+	padding: 0.5rem;
+}
+
+.page-section-nav-btn {
+	background: var(--bg-2);
+	border: 0.0625rem solid var(--border);
+	border-radius: var(--radius-md);
+	color: var(--text-2);
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.02rem;
+	padding: 0.4rem 0.875rem;
+	white-space: nowrap;
+	transition: background 0.15s ease-in-out, color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+.page-section-nav-btn:where(:hover) {
+	background: var(--bg-2-hover);
+	color: var(--text-0);
+}
+
+.page-section-nav-btn.active {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #0a0b0d;
 }
 
 .welcome-message {
@@ -2888,6 +2933,82 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF SETTINGS PAGE css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
+
+/* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ GRID-TEMPLATE-AREAS EXPERIMENT (settings.html only) ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
+/**
+ *  A second, alternate card-grid layout, tried out on settings.html only
+ *  for now -- built with named `grid-template-areas` instead of
+ *  `.dashboard`'s uniform `repeat(auto-fit, minmax(...))` columns, so
+ *  specific cards (e.g. "Browser Preferences" below) can span extra
+ *  columns/rows instead of every card being forced to the same size.
+ *  Entirely new classes -- `.dashboard`/`.card`/`.card-content` above are
+ *  untouched, and every other page using `.dashboard` is unaffected.
+ *
+ *  To tweak the layout: edit the quoted rows in `.grid-areas`'s
+ *  `grid-template-areas` (each row = one grid row, each word = which
+ *  named area occupies that cell; repeat a name across cells to span it)
+ *  and move the matching `grid-area: <name>` line to whichever `.card`
+ *  you want in that slot. Column count comes from `grid-template-columns`
+ *  (currently 4) and must match the number of words per quoted row.
+ *
+ *  A named area with no visible child (e.g. an admin-only card still
+ *  `hidden` for a non-admin viewer) simply leaves that grid cell blank --
+ *  if an entire row ends up with nothing in it, the row's auto height
+ *  collapses to 0 and no gap is left behind.
+ */
+.grid-areas {
+	display: grid;
+	gap: inherit;
+	grid-template-columns: repeat(4, 1fr);
+	grid-template-areas:
+		"prefs      prefs      appearance appearance"
+		"prefs      prefs      server     display"
+		"system     client     admin      roku";
+}
+
+/* Belt-and-suspenders: guarantees a `hidden` card inside this grid stays
+   hidden even if something with equal-or-higher specificity elsewhere
+   sets `display` on it (a plain `.card{display:flex}` rule and the
+   `[hidden]` user-agent default are the same specificity, and origin
+   rules mean author CSS normally wins that tie) -- scoped to this new
+   grid only, doesn't touch `.card`'s own rule. */
+.grid-areas [hidden] {
+	display: none !important;
+}
+
+.grid-area-prefs { grid-area: prefs; }
+.grid-area-appearance { grid-area: appearance; }
+.grid-area-server { grid-area: server; }
+.grid-area-display { grid-area: display; }
+.grid-area-system { grid-area: system; }
+.grid-area-client { grid-area: client; }
+.grid-area-admin { grid-area: admin; }
+.grid-area-roku { grid-area: roku; }
+
+@media (max-width: 53.75rem) {
+	/* Same viewport this app's sidebar/topbar already collapse to a
+	   mobile layout at. Below it, named areas stop making sense (not
+	   enough width for 4 columns), so fall back to exactly the same
+	   single-column auto-fit flow `.dashboard` already uses at every
+	   width on every other page -- "the standard grid format." */
+	.grid-areas {
+		grid-template-columns: repeat(auto-fit, minmax(clamp(18.75rem, 25rem, 100%), 1fr));
+		grid-template-areas: none;
+	}
+
+	.grid-area-prefs,
+	.grid-area-appearance,
+	.grid-area-server,
+	.grid-area-display,
+	.grid-area-system,
+	.grid-area-client,
+	.grid-area-admin,
+	.grid-area-roku {
+		grid-area: auto;
+	}
+}
+
+/* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF GRID-TEMPLATE-AREAS EXPERIMENT css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ ON-SCREEN KEYBOARD ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
 /**
