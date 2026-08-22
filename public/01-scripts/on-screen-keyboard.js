@@ -282,7 +282,10 @@
 	}
 
 	function show(input) {
-		if (input.disabled == true) return;
+		if (input.disabled == true) {
+			hide(false);
+			return;
+		}
 		if (!keyboardEl) { keyboardEl = buildKeyboard(); }
 		activeInput = input;
 		shiftActive = false;
