@@ -2431,7 +2431,7 @@ select {
 
 input:disabled {
 	cursor: not-allowed;
-	color: var(--text-1);
+	color: var(--text-2);
 	background-color: transparent !important;
 	/* border-color: rgba(96, 96, 96, 0.2) !important; */
 }

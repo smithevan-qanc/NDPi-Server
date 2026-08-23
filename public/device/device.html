@@ -351,14 +351,14 @@
 						<h2 class="section-title">Overlay Image</h2>
 						<div class="card-content">
 							<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-								<img id="overlayPreview" style="max-width:160px;max-height:90px;border-radius:8px;background:rgba(255,255,255,0.05);object-fit:contain;">
 								<div style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:220px;">
-									<input type="file" id="overlayUpload" accept="image/*">
+									<input type="file" id="overlayUpload" accept="image/*" style="text-align-last:start;">
 									<div style="display:flex;gap:8px;">
 										<button onclick="saveOverlay()" id="saveOverlayBtn" class="button-primary" disabled>Set Overlay</button>
 										<button onclick="resetOverlay()" class="button-subtle">Reset Overlay</button>
 									</div>
 								</div>
+								<img id="overlayPreview" style="max-width:160px;max-height:90px;border-radius:8px;background:rgba(255,255,255,0.05);object-fit:contain;">
 							</div>
 						</div>
 					</div>
