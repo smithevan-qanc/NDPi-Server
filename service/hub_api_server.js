@@ -122,9 +122,9 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_ndi_streams = null;
         this.ws_conn_ndi_streams = new Map();
         // 'development'
-        this.cacheControl = String(process.env.NODE_ENV || 'development').toLowerCase() === 'production' ?
-                            'public, max-age=86400, immutable' :
-                            'no-store, no-cache, must-revalidate, private';
+        this.cacheControl = String(process.env.NODE_ENV || 'PRODUCTION') === 'PRODUCTION' ?
+            'public, max-age=86400, immutable' :
+            'no-store, no-cache, must-revalidate, private';
 
         this.pythonBackendUrl = 'http://127.0.0.1:5000';
 

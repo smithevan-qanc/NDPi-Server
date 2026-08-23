@@ -50,11 +50,13 @@ class FileSystemMonitor extends EventEmitter {
         this.defaultDeviceName = 'NDPi';
 
         this.#ipPoll = null;
-        this.ipPollInterval = 1000;
+        this.ipPollInterval = (5 * 60) * 1000;
         this.ipPollEnable = true;
 
         this.#updatePoll = null;
-        this.#updatePollInterval = (10 * 60) * 1000;
+        this.#updatePollInterval = String(process.env.NODE_ENV || 'PRODUCTION') === 'PRODUCTION' ?
+            (1440 * 60) * 1000 :
+            (5 * 60) * 1000;
         this.updatePollEnable = true;
 
         this.dataDir = process.env.DATA_NDPI_PATH;
@@ -228,7 +230,7 @@ class FileSystemMonitor extends EventEmitter {
                 key: "ui_theme_color",
                 value: `#81c127`,
                 group: `Display`,
-                options: ['#81c127', '#4f8ff7', '#22c1c3', '#f2994a', '#e0555c', '#a855f7'],
+                options: ['#81c127', '#4f8ff7', '#22c1c3', '#f2994a', '#e0555c', '#003cff'],
                 allowEditInternal: true,
                 allowEditExternal: true,
             },
@@ -480,7 +482,7 @@ class FileSystemMonitor extends EventEmitter {
         });
     }
 
-    drmEvent(debounceMs = 500) {
+    drmEvent(debounceMs = 800) {
         if (this.debounceTimerDrmEvents)
         {
             clearTimeout(this.debounceTimerDrmEvents);
