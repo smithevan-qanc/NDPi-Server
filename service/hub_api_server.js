@@ -393,7 +393,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         const discoveryPath = path.join(__dirname, '..', 'ndi_receiver_v3__NDI6');
         const programName = './ndpi_discover';
 
-        console.info(`[ ${path.basename(__filename).split('.')[0]} ] Starting NDI Source Discovery.`);
+        console.info(`[ ${path.basename(__filename).split('.')[0]} ] Starting NDI® Source Discovery.`);
 
         this.discoveryExec = null;
 
@@ -412,7 +412,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         }
         catch (error)
         {
-            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] NDI Discovery ('${programName}') failed to start.`, error.message);
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ] NDI® Discovery ('${programName}') failed to start.`, error.message);
             this.discoveryExec = null;
             return;
         }

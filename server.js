@@ -271,7 +271,7 @@ class NDPi {
             });
 
             this.pythonBackend = pythonProcess;
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ] Python Backend (NDI) started successfully`);
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ] Python Backend (NDI®) started successfully`);
         } catch (err) {
             console.error(`[ ${path.basename(__filename).split('.')[0]} ] Failed to start Python Backend: ${err.message}`);
         }
