@@ -325,7 +325,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_ndi_streams = new WebSocket.Server({ noServer: true });
         this.ws_serv_ndi_streams.on('connection', (ws, request) =>{
             const streamId = request.url.split('/').pop();
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDI Stream [${streamId}] WebSocket connection ADDED.`);
+            // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDI Stream [${streamId}] WebSocket connection ADDED.`);
 
             let stream = this.ws_conn_ndi_streams.get(streamId);
 
@@ -348,7 +348,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             ws.onclose = () => {
                 stream.removeClient(ws);
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDI Stream [${streamId}] WebSocket connection REMOVED.`);
+                // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `NDI Stream [${streamId}] WebSocket connection REMOVED.`);
             };
         });
     }
@@ -361,7 +361,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_conn_sources = new Set();
 
         this.ws_serv_sources.on('connection', (ws) =>{
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'NDI Source WebSocket connection ADDED.');
+            // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'NDI Source WebSocket connection ADDED.');
 
             this.ws_conn_sources.add(ws);
 
@@ -378,7 +378,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             ws.onclose = async () => {
                 this.ws_conn_sources.delete(ws);
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'NDI Source WebSocket connection REMOVED.');
+                // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'NDI Source WebSocket connection REMOVED.');
             };
         });
     }
@@ -484,7 +484,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_gui = new WebSocket.Server({ noServer: true });
 
         this.ws_serv_gui.on('connection', (ws) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GUI WebSocket connection ADDED.');
+            // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GUI WebSocket connection ADDED.');
 
             this.ws_conn_gui.add(ws);
 
@@ -505,7 +505,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             ws.onclose = () => {
                 this.ws_conn_gui.delete(ws);
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GUI WebSocket connection REMOVED.');
+                // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GUI WebSocket connection REMOVED.');
             };
         });
     }
@@ -561,7 +561,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_hub_system = new WebSocket.Server({ noServer: true });
 
         this.ws_serv_hub_system.on('connection', (ws) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub System WebSocket connection ADDED.');
+            // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub System WebSocket connection ADDED.');
 
             this.ws_conn_hub_system.add(ws);
             ws.send(JSON.stringify(Array.from(this.settings.fileMap)));
@@ -572,7 +572,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             ws.onclose = () => {
                 this.ws_conn_hub_system.delete(ws);
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub System WebSocket connection REMOVED.');
+                // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub System WebSocket connection REMOVED.');
             };
         });
     }
@@ -639,7 +639,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_hub_stats = new WebSocket.Server({ noServer: true });
 
         this.ws_serv_hub_stats.on('connection', (ws) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub Stats WebSocket connection ADDED.');
+            // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub Stats WebSocket connection ADDED.');
 
             this.ws_conn_hub_stats.add(ws);
             ws.send(JSON.stringify(this.getHubRawSystemStats()));
@@ -651,7 +651,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             ws.onclose = () => {
                 this.ws_conn_hub_stats.delete(ws);
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub Stats WebSocket connection REMOVED.');
+                // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Hub Stats WebSocket connection REMOVED.');
             };
         });
     }
@@ -693,7 +693,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             let workingDir = await __printWorkingDirectory.call(this);
 
             this.consoleSessions.set(socketID, ws);
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `Console WebSocket connection ADDED. Active: ${this.consoleSessions.size}`);
+            // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `Console WebSocket connection ADDED. Active: ${this.consoleSessions.size}`);
 
             const CRLFArray = (string = '') => string.split(/\r?\n/);
 
@@ -849,7 +849,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             ws.onclose = () => {
                 __killChildProcess();
                 this.consoleSessions.delete(socketID);
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `Console WebSocket connection REMOVED. Active: ${this.consoleSessions.size}`);
+                // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `Console WebSocket connection REMOVED. Active: ${this.consoleSessions.size}`);
             };
         });
     }
@@ -871,7 +871,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_devices_system = new WebSocket.Server({ noServer: true });
 
         this.ws_serv_devices_system.on('connection', (ws) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices System Relay WebSocket connection ADDED.');
+            // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices System Relay WebSocket connection ADDED.');
 
             this.ws_conn_devices_system.add(ws);
 
@@ -886,7 +886,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             ws.onclose = () => {
                 this.ws_conn_devices_system.delete(ws);
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices System Relay WebSocket connection REMOVED.');
+                // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices System Relay WebSocket connection REMOVED.');
             };
         });
     }
@@ -898,7 +898,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_devices_stats = new WebSocket.Server({ noServer: true });
 
         this.ws_serv_devices_stats.on('connection', (ws) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices Stats Relay WebSocket connection ADDED.');
+            // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices Stats Relay WebSocket connection ADDED.');
 
             this.ws_conn_devices_stats.add(ws);
 
@@ -913,7 +913,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             ws.onclose = () => {
                 this.ws_conn_devices_stats.delete(ws);
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices Stats Relay WebSocket connection REMOVED.');
+                // console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Devices Stats Relay WebSocket connection REMOVED.');
             };
         });
     }
