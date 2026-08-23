@@ -20,15 +20,22 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     chmod +x ./sh/*
 fi
 
-NEWEST_VERSION="$(head -n 1 version/current)"
-NEWEST_VERSION_DATE="$(head -n 1 version/current-date)"
+if [ "$NODE_ENV" == "PRODUCTION" ]; then
+    NEWEST_VERSION="$(head -n 1 version/stable)"
+    NEWEST_VERSION_DATE="$(head -n 1 version/stable-date)"
+    USING_VERSION="STABLE"
+else
+    NEWEST_VERSION="$(head -n 1 version/current)"
+    NEWEST_VERSION_DATE="$(head -n 1 version/current-date)"
+    USING_VERSION="CURRENT"
+fi
 
 if [ "$CURRENT_VERSION" != "$NEWEST_VERSION" ]; then
     UPDATE_AVAILABLE=true
 fi
 
 printf "{
-    \"environment\": \"$NODE_ENV\",
+    \"versionFrom\": \"$USING_VERSION\",
     \"update_available\": ${UPDATE_AVAILABLE},
     \"newest_version\": {
         \"ndpi\": \"$NEWEST_VERSION\",

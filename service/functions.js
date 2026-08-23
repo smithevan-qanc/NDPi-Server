@@ -121,7 +121,7 @@ async function checkForUpdate() {
                 try
                 {
                     const update = JSON.parse(output);
-                    console.log(`Node Environment: ${update.environment || 'Not Defined'}`);
+                    console.log(`Selected Version Type: ${update.versionFrom || 'Not Defined'}`);
                     if (update.update_available)
                     { fs.writeFileSync(path.join(process.env.DATA_NDPI_PATH, 'ndpi_version_update_available'), String(update.update_available), 'utf8'); }
                     if (update.newest_version?.ndpi)
