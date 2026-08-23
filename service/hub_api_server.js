@@ -20,8 +20,13 @@ const NDI_SERVER_URL = `http://${NDI_SERVER_HOST}:${NDI_SERVER_PORT}`;
 
 // Network error codes that just mean "the device isn't reachable right now"
 // (powered off, unplugged, sleeping, etc) -- expected/routine on a 5s relay
-// reconnect loop, not worth logging as an error every retry.
-const DEVICE_OFFLINE_ERROR_CODES = new Set(['ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT', 'ECONNRESET']);
+// reconnect loop, not worth logging as an error every retry. ENOTFOUND/
+// EAI_AGAIN are included because they're the normal result of trying a
+// device's hostname before it (or the LAN's mDNS resolver) is ready --
+// see the mDNS 'up' handler in startMdnsDiscovery(), which is the only
+// place a device's hostname is ever learned -- not a sign of anything
+// actually wrong.
+const DEVICE_OFFLINE_ERROR_CODES = new Set(['ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN']);
 
 /**
  *  Client__v3_1_0 no longer has a clientServer_websocket.js pushing
@@ -931,21 +936,25 @@ class NDPiCommandServer_Client extends EventEmitter {
 
     /**
      *      Ensure the Hub has (or is retrying) outbound connections to a
-     *      device's own /ws/system and /ws/stats, using the ip/port most
-     *      recently known for it. Safe/cheap to call repeatedly — only
-     *      (re)connects when there's no live connection yet or the ip/port
-     *      changed since the last one was opened.
+     *      device's own /ws/system and /ws/stats, using the ip/port/hostname
+     *      most recently known for it. `hostname` is whatever the device's
+     *      own mDNS advertisement reported as its host (see the 'up' handler
+     *      in startMdnsDiscovery()) -- never guessed/constructed here -- and
+     *      may be null for a device that hasn't been (re)discovered yet, in
+     *      which case connections just use `ip`. Safe/cheap to call
+     *      repeatedly — only (re)connects when there's no live connection
+     *      yet or the ip/port/hostname changed since the last one was opened.
      */
-    ensureDeviceRelayConnections(deviceId, ip, port) {
+    ensureDeviceRelayConnections(deviceId, ip, port, hostname = null) {
         if (!ip || !port) return;
 
         const currentSystem = this.deviceSystemSockets.get(deviceId);
-        if (!currentSystem || currentSystem.ip !== ip || currentSystem.port !== port || currentSystem.ws.readyState > WebSocket.OPEN)
-        { this.connectDeviceSystemRelay(deviceId, ip, port); }
+        if (!currentSystem || currentSystem.ip !== ip || currentSystem.port !== port || currentSystem.hostname !== hostname || currentSystem.ws.readyState > WebSocket.OPEN)
+        { this.connectDeviceSystemRelay(deviceId, ip, port, hostname); }
 
         const currentStats = this.deviceStatsSockets.get(deviceId);
-        if (!currentStats || currentStats.ip !== ip || currentStats.port !== port || currentStats.ws.readyState > WebSocket.OPEN)
-        { this.connectDeviceStatsRelay(deviceId, ip, port); }
+        if (!currentStats || currentStats.ip !== ip || currentStats.port !== port || currentStats.hostname !== hostname || currentStats.ws.readyState > WebSocket.OPEN)
+        { this.connectDeviceStatsRelay(deviceId, ip, port, hostname); }
     }
 
     /**
@@ -977,7 +986,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         { this.settings.upsertClient(deviceId, { status: 'offline' }); }
     }
 
-    connectDeviceSystemRelay(deviceId, ip, port) {
+    connectDeviceSystemRelay(deviceId, ip, port, hostname = null, useIp = false) {
         const previous = this.deviceSystemSockets.get(deviceId);
         if (previous)
         {
@@ -985,9 +994,14 @@ class NDPiCommandServer_Client extends EventEmitter {
             try { previous.ws.removeAllListeners(); previous.ws.close(); } catch {}
         }
 
-        const ws = new WebSocket(`ws://${ip}:${port}/ws/system`);
-        const entry = { ws, ip, port, reconnectTimer: null };
+        const target = (!useIp && hostname) ? hostname : ip;
+
+        const ws = new WebSocket(`ws://${target}:${port}/ws/system`);
+        const entry = { ws, ip, port, hostname, reconnectTimer: null };
         this.deviceSystemSockets.set(deviceId, entry);
+
+        let opened = false;
+        ws.once('open', () => { opened = true; });
 
         ws.on('message', (data) => {
             let parsed;
@@ -1024,7 +1038,7 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         ws.on('error', (error) => {
             if (DEVICE_OFFLINE_ERROR_CODES.has(error.code)) return;
-            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `Device system relay (${deviceId} @ ${ip}:${port})`, error.message);
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `Device system relay (${deviceId} @ ${target}:${port})`, error.message);
         });
 
         ws.on('close', () => {
@@ -1035,11 +1049,22 @@ class NDPiCommandServer_Client extends EventEmitter {
             // fresh client-status with a changed ip/port) may have already
             // superseded it.
             if (this.deviceSystemSockets.get(deviceId) === entry)
-            { entry.reconnectTimer = setTimeout(() => { this.connectDeviceSystemRelay(deviceId, ip, port); }, 5000); }
+            {
+                // The hostname attempt never actually connected -- fall
+                // straight back to the last-known ip instead of waiting out
+                // the full 5s reconnect delay. Hostname is preferred again
+                // on every subsequent reconnect (useIp defaults back to
+                // false), so this only costs one extra round trip whenever
+                // it fails.
+                if (!useIp && hostname && !opened && ip && ip !== hostname)
+                { entry.reconnectTimer = setTimeout(() => { this.connectDeviceSystemRelay(deviceId, ip, port, hostname, true); }, 250); }
+                else
+                { entry.reconnectTimer = setTimeout(() => { this.connectDeviceSystemRelay(deviceId, ip, port, hostname); }, 5000); }
+            }
         });
     }
 
-    connectDeviceStatsRelay(deviceId, ip, port) {
+    connectDeviceStatsRelay(deviceId, ip, port, hostname = null, useIp = false) {
         const previous = this.deviceStatsSockets.get(deviceId);
         if (previous)
         {
@@ -1047,9 +1072,14 @@ class NDPiCommandServer_Client extends EventEmitter {
             try { previous.ws.removeAllListeners(); previous.ws.close(); } catch {}
         }
 
-        const ws = new WebSocket(`ws://${ip}:${port}/ws/stats`);
-        const entry = { ws, ip, port, reconnectTimer: null };
+        const target = (!useIp && hostname) ? hostname : ip;
+
+        const ws = new WebSocket(`ws://${target}:${port}/ws/stats`);
+        const entry = { ws, ip, port, hostname, reconnectTimer: null };
         this.deviceStatsSockets.set(deviceId, entry);
+
+        let opened = false;
+        ws.once('open', () => { opened = true; });
 
         ws.on('message', (data) => {
             let parsed;
@@ -1082,14 +1112,19 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         ws.on('error', (error) => {
             if (DEVICE_OFFLINE_ERROR_CODES.has(error.code)) return;
-            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `Device stats relay (${deviceId} @ ${ip}:${port})`, error.message);
+            console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, `Device stats relay (${deviceId} @ ${target}:${port})`, error.message);
         });
 
         ws.on('close', () => {
             if (this.closing) return;
             this.markDeviceOfflineIfBothRelaysDown(deviceId);
             if (this.deviceStatsSockets.get(deviceId) === entry)
-            { entry.reconnectTimer = setTimeout(() => { this.connectDeviceStatsRelay(deviceId, ip, port); }, 5000); }
+            {
+                if (!useIp && hostname && !opened && ip && ip !== hostname)
+                { entry.reconnectTimer = setTimeout(() => { this.connectDeviceStatsRelay(deviceId, ip, port, hostname, true); }, 250); }
+                else
+                { entry.reconnectTimer = setTimeout(() => { this.connectDeviceStatsRelay(deviceId, ip, port, hostname); }, 5000); }
+            }
         });
     }
 
@@ -1127,7 +1162,7 @@ class NDPiCommandServer_Client extends EventEmitter {
     reconnectAllDeviceRelays() {
         this.settings.getClients().forEach((client) => {
             if (client.ip && client.apiPort)
-            { this.ensureDeviceRelayConnections(client.deviceId, client.ip, client.apiPort); }
+            { this.ensureDeviceRelayConnections(client.deviceId, client.ip, client.apiPort, client.hostname || null); }
         });
     }
 
@@ -1191,17 +1226,33 @@ class NDPiCommandServer_Client extends EventEmitter {
      * success/failure. Matching the Client's own already-working code
      * path here avoids needing to touch Client__v3_1_0 at all.
      */
-    sendRestCommandToClient(deviceId, command = {}) {
+    async sendRestCommandToClient(deviceId, command = {}) {
         const client = this.settings.getClient(deviceId);
         if (!client || !client.ip || !client.apiPort)
-        { return Promise.reject(new Error('Device ip/apiPort not known')); }
+        { throw new Error('Device ip/apiPort not known'); }
 
+        // Prefer the device's mDNS-reported hostname (client.hostname, set
+        // in startMdnsDiscovery()'s 'up' handler -- never guessed here) and
+        // fall back to its last-known ip if that doesn't connect -- same
+        // reasoning as the relay sockets above.
+        const hosts = client.hostname ? [client.hostname, client.ip] : [client.ip];
+
+        let lastError;
+        for (const host of hosts)
+        {
+            try { return await this._sendRestCommand(host, client.apiPort, command); }
+            catch (error) { lastError = error; }
+        }
+        throw lastError;
+    }
+
+    _sendRestCommand(host, port, command) {
         return new Promise((resolve, reject) => {
             const postData = JSON.stringify(command);
 
             const req = http.request({
-                hostname: client.ip,
-                port: client.apiPort,
+                hostname: host,
+                port,
                 path: '/api/v1/rpc',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
@@ -1259,6 +1310,13 @@ class NDPiCommandServer_Client extends EventEmitter {
             const deviceName = service.txt?.deviceName || service.txt?.devicename || this._extractMdnsTxtField(service, 'devicename') || 'NDPi Client';
             const ip = service.txt?.ip || this._extractMdnsTxtField(service, 'ip') || service.addresses?.[0] || service.host;
             const commandPort = service.txt?.commandPort || service.txt?.commandport || this._extractMdnsTxtField(service, 'commandport') || service.port;
+            // The device's actual OS hostname, exactly as its own mDNS
+            // advertisement reports it -- never assumed/constructed here.
+            // Client__v3_1_0's client_fs.js sets this to NDPi-Client-{deviceId}
+            // once the device ID is known, so it becomes resolvable on the
+            // LAN as `service.host` (already `.local`-suffixed by avahi)
+            // without needing anything in the TXT record for it.
+            const hostname = service.host || null;
 
             if (!deviceId)
             {
@@ -1279,6 +1337,7 @@ class NDPiCommandServer_Client extends EventEmitter {
                 deviceName,
                 ip,
                 commandPort,
+                hostname,
                 lastSeen: new Date().toISOString(),
             });
 
@@ -1304,21 +1363,23 @@ class NDPiCommandServer_Client extends EventEmitter {
             {
                 this.settings.upsertClient(deviceId, {
                     ip,
+                    hostname,
                     status: 'online',
                     lastSeen: new Date().toISOString(),
                 });
             }
 
             // mDNS is now the only per-device signal that can tell the Hub
-            // "this device exists, here's its current ip/port" without
-            // waiting for a Hub restart or a manual re-adopt (previously
-            // every client-status message did this too). (Re)establishing
-            // relay connections is already a no-op when the current ones
-            // are healthy and unchanged (see ensureDeviceRelayConnections()),
-            // so this is safe to call on every mDNS re-announce, including
-            // the routine ~60s republish cycle mentioned above.
+            // "this device exists, here's its current ip/port/hostname"
+            // without waiting for a Hub restart or a manual re-adopt
+            // (previously every client-status message did this too).
+            // (Re)establishing relay connections is already a no-op when the
+            // current ones are healthy and unchanged (see
+            // ensureDeviceRelayConnections()), so this is safe to call on
+            // every mDNS re-announce, including the routine ~60s republish
+            // cycle mentioned above.
             if (existingClient && ip && commandPort)
-            { this.ensureDeviceRelayConnections(deviceId, ip, commandPort); }
+            { this.ensureDeviceRelayConnections(deviceId, ip, commandPort, hostname); }
         });
 
         this.bonjourBrowser.on('down', (service) => {
@@ -2021,10 +2082,15 @@ class NDPiCommandServer_Client extends EventEmitter {
             const existing = this.settings.getClient(deviceId) || {};
             const discovered = this.settings.getDiscoveredClient(deviceId);
             const resolvedIp = ip || existing.ip || discovered?.ip;
+            // hostname is only ever what mDNS discovery itself reported for
+            // this device (see startMdnsDiscovery()'s 'up' handler) — never
+            // guessed from the deviceId.
+            const resolvedHostname = existing.hostname || discovered?.hostname || null;
 
             const client = this.settings.upsertClient(deviceId, {
                 deviceName: deviceName || name || existing.deviceName || deviceId,
                 ip: resolvedIp,
+                hostname: resolvedHostname,
                 status: existing.status || 'offline',
                 lastSeen: new Date().toISOString(),
             });
@@ -2047,7 +2113,7 @@ class NDPiCommandServer_Client extends EventEmitter {
                 // mDNS re-announce (or that relay's own message handler,
                 // once connected) will correct the port if the device's
                 // real API port differs from the mDNS commandPort.
-                this.ensureDeviceRelayConnections(deviceId, resolvedIp, discovered.commandPort);
+                this.ensureDeviceRelayConnections(deviceId, resolvedIp, discovered.commandPort, resolvedHostname);
             }
 
             res.json({ success: true, device: client, hubConfigured });
