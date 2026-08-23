@@ -28,6 +28,7 @@ if [ "$CURRENT_VERSION" != "$NEWEST_VERSION" ]; then
 fi
 
 printf "{
+    \"environment\": \"$NODE_ENV\",
     \"update_available\": ${UPDATE_AVAILABLE},
     \"newest_version\": {
         \"ndpi\": \"$NEWEST_VERSION\",
