@@ -317,6 +317,7 @@ class FileSystemMonitor extends EventEmitter {
             'device_ip',
             'local_port_number_bonjour',
             'local_port_number_api',
+            'ui_theme_color'
         ];
 
         for (const file of files)
