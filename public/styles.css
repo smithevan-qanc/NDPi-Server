@@ -2988,7 +2988,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .grid-area-client { grid-area: client; }
 .grid-area-admin { grid-area: admin; }
 .grid-area-roku { grid-area: roku; }
-.grid-area-space { grid-area: space; }
+.grid-area-space { grid-area: space; opacity: 0 !important; }
 
 @media (max-width: 53.75rem) {
 	/* Same viewport this app's sidebar/topbar already collapse to a
