@@ -162,7 +162,7 @@
 				const btn = e.target.closest('.page-section-nav-btn');
 				if (!btn) return;
 				const target = document.getElementById(btn.dataset.target);
-				if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+				if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
 			});
 		}
 
