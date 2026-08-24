@@ -1368,12 +1368,18 @@
 			if (getValue('ndpi_status_no_source_display_mode') !== undefined) { device.displayMode = getValue('ndpi_status_no_source_display_mode') || 'overlay'; }
 			if (getValue('ndpi_status_ndi_status') !== undefined) { device.streamStatus = getValue('ndpi_status_ndi_status') || 'idle'; }
 
+			// Both HDMI outputs mirror the same content on a Client device --
+			// prefer whichever port is actually connected (HDMI-1 first) as
+			// the representative display info for this summary.
+			const displayPort = getValue('output_display_hdmi1_connected') === 'true' ? 'hdmi1' :
+				getValue('output_display_hdmi2_connected') === 'true' ? 'hdmi2' : 'hdmi1';
+
 			const connectedTime = getValue('ndpi_status_ndi_source_connected_time') || '';
 			device.ndiInfo = {
 				resolution: getValue('ndpi_status_ndi_source_resolution') || '',
 				framerate: parseFloat(getValue('ndpi_status_ndi_source_framerate')) || 0,
-				displayName: getValue('output_display_model') || getValue('output_display_manufacturer') || '',
-				displayResolution: getValue('output_display_resolution_current') || '',
+				displayName: getValue(`output_display_${displayPort}_model`) || getValue(`output_display_${displayPort}_manufacturer`) || '',
+				displayResolution: getValue(`output_display_${displayPort}_resolution_current`) || '',
 				uptime: connectedTime ? Math.max(0, Math.floor((Date.now() - new Date(connectedTime).getTime()) / 1000)) : 0,
 			};
 

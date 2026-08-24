@@ -1,12 +1,16 @@
 [Unit]
-Description=AirPlay to NDI Bridge - captures virtual display :1 (+ audio) and re-broadcasts as NDI
+Description=AirPlay to NDI Bridge - captures Zaphod screen :0.1 (HDMI-2, + audio) and re-broadcasts as NDI
 Documentation=file:///home/ndpi-server/ndpi/BUILD_AND_SETUP.md
-After=uxplay-xvfb.service uxplay-audio-setup.service uxplay-airplay.service network-online.target
+After=lightdm.service uxplay-audio-setup.service uxplay-airplay.service network-online.target
 Wants=network-online.target
-# Only Xvfb is a hard dependency -- this keeps broadcasting (a black frame)
-# even if uxplay itself isn't currently running/mirroring anything.
-Requires=uxplay-xvfb.service
-BindsTo=uxplay-xvfb.service
+# uxplay itself is not a hard dependency -- this keeps broadcasting
+# (whatever's currently on screen :0.1, black if nothing's mirroring) even
+# if uxplay-airplay.service isn't currently running/mirroring anything.
+# There's no dedicated "screen :0.1 is up" unit to depend on (it's a Zaphod
+# screen of the same Xorg process LightDM starts on :0.0, not a separate
+# service) -- After=lightdm.service is ordering only, not a hard Requires,
+# since this program's own startup retry loop (see uxplay_ndi_sender.cpp)
+# already tolerates the display not being ready yet on a cold boot race.
 
 [Service]
 Type=simple
@@ -15,11 +19,17 @@ Group=ndpi-server
 EnvironmentFile=/etc/ndpi/.env
 WorkingDirectory=/home/ndpi-server/ndpi/ndi_receiver_v3__NDI6
 
-# Edit --width/--height here to match uxplay-xvfb.service's Xvfb screen size
-# if you change it. --audio-device must match the sink_name used by
-# uxplay-audio-setup.sh (default "uxplay_ndi_audio" -> ".monitor").
+# --width/--height must match HDMI-2's actual negotiated resolution (the
+# Hub's own 'output_display_hdmi2_resolution_preference' setting, default
+# 1920x1080 -- see hub_fs.js/settings.html's "Display Resolution -- HDMI-2"
+# card). Unlike the old headless-Xvfb setup, HDMI-2 is now a real monitor
+# output whose resolution an admin can change at runtime -- if you change
+# it away from the default, update these flags (and re-`systemctl restart
+# uxplay-ndi-sender`) to match, or the capture will be cropped/padded
+# against the actual screen size. --audio-device must match the sink_name
+# used by uxplay-audio-setup.sh (default "uxplay_ndi_audio" -> ".monitor").
 ExecStart=/home/ndpi-server/ndpi/ndi_receiver_v3__NDI6/uxplay_ndi_sender \
-    --name "NDPi AirPlay" --display :1 --width 1920 --height 1080 --fps 30 \
+    --name "NDPi AirPlay" --display :0.1 --width 1920 --height 1080 --fps 30 \
     --audio-device uxplay_ndi_audio.monitor
 
 # Auto-restart on failure (crash, lost X connection, pipeline error, etc.)

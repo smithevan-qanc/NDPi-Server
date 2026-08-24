@@ -1,95 +1,83 @@
 #!/usr/bin/env bash
 
-# xrandr
-
-# xrandr --listactivemonitors
-
-# Get Current Framerate
-# xrandr | grep -oP '[0-9.]+(?=\*)'
-
-# Get Prefered Framerate
-# xrandr | grep -oP '[0-9.]+(?=\*\+)'
-# xrandr | grep -oP '[0-9.]+(?=\s\+)'
-
-export DISPLAY=:0
-
-# List Connected Display
-#   -F (Fixed Strings): Searches for 'connected' as a single string
-#   -w (Whole Word): Searches for 'connected' as a complete word (disregarding 'disconnected')
-echo "$(xrandr | grep -Fw 'connected' | awk '{print "current_output :", $1}')"
+# Reports per-port display/resolution state for the Hub's two independent
+# physical outputs:
+#   HDMI-1 -> DISPLAY=:0.0 (the Hub's own kiosk dashboard, config/kiosk.service)
+#   HDMI-2 -> DISPLAY=:0.1 (a second, independent "Zaphod mode" screen on
+#             the SAME Xorg process, showing the AirPlay-to-NDI mirror --
+#             see config/systemd/uxplay-*.service /
+#             config/xorg/10-hdmi-zaphod.conf)
 #
-
-# Current Resolution
-echo "$(xrandr | grep '*' | awk '{print "current_resolution :", $1}')"
-echo "$(xrandr | grep -oP '[0-9.]+(?=\*)' | awk '{print "current_framerate :", $1}')"
+# Every line is emitted as "<key> : <PORT> :: <value>" (list_resolutions'
+# own value additionally embeds a second ' :: ' separating a human-readable
+# label from the raw mode string) -- hub_fs.js's updateOutputDisplayFiles()
+# parses this tagged format directly into each port's own
+# output_display_hdmi1_*/output_display_hdmi2_* keys.
 #
+# Each DISPLAY (:0.0 / :0.1) is queried and parsed independently (rather
+# than trusting whatever output name xrandr itself reports) since each
+# Zaphod screen is constrained to exactly one physical connector, so
+# "whichever output is connected under this screen" IS that port, by
+# construction.
 
-# Preferred Resolution
-FRAMERATE_PREF="$(xrandr | grep -oP '[0-9.]+(?=\*\+)')"
-if [[ -z "$FRAMERATE_PREF" ]]; then
-    FRAMERATE_PREF="$(xrandr | grep -oP '[0-9.]+(?=\s\+)')"
-fi
-echo "$(xrandr | grep -F '+ ' | awk '{print "preferred_resolution :", $1}')"
-echo "preferred_framerate : $FRAMERATE_PREF"
-#
+parse_xrandr_for_port() {
+    local port="$1"
+    local xrandr_output="$2"
 
-# EDID
-  # HDMI - 1
-  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | \
-    grep -wF 'Manufacturer:' | tr -d "'" | \
-    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "manufacturer_hdmi0 : " $2}')"
+    echo "$xrandr_output" | awk -v port="$port" '
+        /^[^ ]/ {
+            active = 0;
+            if ($0 ~ / connected/) {
+                active = 1;
+                print "current_output : " port " :: " port;
+            }
+            next;
+        }
+        active && /^[ \t]/ {
+            mode = $1;
+            print "list_resolutions : " port " :: " mode " " $2 " :: " mode;
+            for (i = 2; i <= NF; i++) {
+                if ($i ~ /\*/) {
+                    rate = $i; gsub(/[*+]/, "", rate);
+                    print "current_resolution : " port " :: " mode;
+                    print "current_framerate : " port " :: " rate;
+                }
+                if ($i ~ /\+/) {
+                    rate = $i; gsub(/[*+]/, "", rate);
+                    print "preferred_resolution : " port " :: " mode;
+                    print "preferred_framerate : " port " :: " rate;
+                }
+            }
+        }
+    '
+}
 
-  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | \
-    grep -wF 'Display Product Name:' | tr -d "'" | \
-    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "model_name_hdmi0 : " $2}')"
+XRANDR_HDMI1="$(DISPLAY=:0.0 xrandr 2>/dev/null)"
+parse_xrandr_for_port "HDMI-1" "$XRANDR_HDMI1"
 
-  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | \
-    grep -wF 'Model:' | tr -d "'" | \
-    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "model_number_hdmi0 : " $2}')"
+XRANDR_HDMI2="$(DISPLAY=:0.1 xrandr 2>/dev/null)"
+parse_xrandr_for_port "HDMI-2" "$XRANDR_HDMI2"
 
-  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-1/edid | \
-    grep -wF 'Display Product Serial Number:' | tr -d "'" | \
-    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "sn_hdmi0 : " $2}')"
+# EDID (per physical connector -- card1-HDMI-A-1 = HDMI-1, card1-HDMI-A-2 = HDMI-2)
+for entry in "HDMI-1:card1-HDMI-A-1" "HDMI-2:card1-HDMI-A-2"; do
+    PORT="${entry%%:*}"
+    CARD="${entry##*:}"
 
-  # HDMI - 2
-  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | \
-    grep -wF 'Manufacturer:' | tr -d "'" | \
-    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "manufacturer_hdmi1 : " $2}')"
+    echo "$(edid-decode /sys/class/drm/${CARD}/edid | \
+        grep -wF 'Manufacturer:' | tr -d "'" | \
+        awk -F ':' -v p="$PORT" '{gsub(/^ +| +$/, "", $2); print "manufacturer : " p " :: " $2}')"
 
-  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | \
-    grep -wF 'Display Product Name:' | tr -d "'" | \
-    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "model_name_hdmi1 : " $2}')"
+    echo "$(edid-decode /sys/class/drm/${CARD}/edid | \
+        grep -wF 'Display Product Name:' | tr -d "'" | \
+        awk -F ':' -v p="$PORT" '{gsub(/^ +| +$/, "", $2); print "model_name : " p " :: " $2}')"
 
-  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | \
-    grep -wF 'Model:' | tr -d "'" | \
-    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "model_number_hdmi1 : " $2}')"
-    
-  echo "$(edid-decode /sys/class/drm/card1-HDMI-A-2/edid | \
-    grep -wF 'Display Product Serial Number:' | tr -d "'" | \
-    awk -F ':' '{gsub(/^ +| +$/, "", $2); print "sn_hdmi1 : " $2}')"
-#
+    echo "$(edid-decode /sys/class/drm/${CARD}/edid | \
+        grep -wF 'Model:' | tr -d "'" | \
+        awk -F ':' -v p="$PORT" '{gsub(/^ +| +$/, "", $2); print "model_number : " p " :: " $2}')"
 
-# List Resolutions
-#   -v (Invert Match): Removes lines containg the letter 'm'
-echo "$(xrandr | grep -v 'm' | tr -d "*" | tr -d "+" | awk '{print "list_resolutions :", $1, $2, "::", $1}')"
-
-# echo "$(xrandr | grep -v 'm' | tr -d "*" | tr -d "+" | awk '{print "list_resolutions :", $1, "::", "--mode", $1, "--rate", $2}')"
-  # Example Return:
-    # list_resolutions : 1920x1080 :: --mode 1920x1080 --rate 60.00*+
-    # list_resolutions : 1680x1050 :: --mode 1680x1050 --rate 59.88
-    # list_resolutions : 1600x900  :: --mode 1600x900  --rate 60.00
-    # list_resolutions : 1280x1024 :: --mode 1280x1024 --rate 60.02
-    # list_resolutions : 1440x900  :: --mode 1440x900  --rate 59.90
-    # list_resolutions : 1366x768  :: --mode 1366x768  --rate 59.96
-    # list_resolutions : 1280x800  :: --mode 1280x800  --rate 59.91
-    # list_resolutions : 1152x864  :: --mode 1152x864  --rate 59.97
-    # list_resolutions : 1280x720  :: --mode 1280x720  --rate 60.00
-    # list_resolutions : 1024x768  :: --mode 1024x768  --rate 60.00
-    # list_resolutions : 800x600   :: --mode 800x600   --rate 60.32
-    # list_resolutions : 720x576   :: --mode 720x576   --rate 50.00
-    # list_resolutions : 720x480   :: --mode 720x480   --rate 60.00
-    # list_resolutions : 640x480   :: --mode 640x480   --rate 60.00
-#
-
+    echo "$(edid-decode /sys/class/drm/${CARD}/edid | \
+        grep -wF 'Display Product Serial Number:' | tr -d "'" | \
+        awk -F ':' -v p="$PORT" '{gsub(/^ +| +$/, "", $2); print "sn : " p " :: " $2}')"
+done
 
 exit 0

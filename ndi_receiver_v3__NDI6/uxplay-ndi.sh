@@ -1,8 +1,10 @@
 #!/bin/bash
 
 # AirPlay to NDI Bridge - CLI Management Script
-# Manages the 3-service stack: uxplay-xvfb -> uxplay-audio-setup ->
-# uxplay-airplay -> uxplay-ndi-sender.
+# Manages the 3-service stack: uxplay-audio-setup -> uxplay-airplay ->
+# uxplay-ndi-sender. HDMI-2 (screen :0.1) itself is provided by the Hub's
+# own kiosk Xorg process (see ../config/xorg/10-hdmi-zaphod.conf), not a
+# service this script manages.
 #
 # Usage: ./uxplay-ndi.sh {build|start|stop|restart|status|logs|install-service}
 
@@ -15,7 +17,7 @@ LOG_FILE="/var/log/uxplay-ndi.log"
 PID_FILE="/tmp/uxplay-ndi.pid"
 
 # Services in dependency order (start order; stop uses this reversed).
-SERVICES=(uxplay-xvfb uxplay-audio-setup uxplay-airplay uxplay-ndi-sender)
+SERVICES=(uxplay-audio-setup uxplay-airplay uxplay-ndi-sender)
 
 # Colors for output
 RED='\033[0;31m'
@@ -89,9 +91,10 @@ start() {
         return 0
     fi
 
-    print_warning "systemd services not installed -- run './uxplay-ndi.sh install-service' for the full stack (Xvfb + audio + uxplay + NDI)."
-    print_warning "Falling back to running $APP_NAME directly. This assumes DISPLAY=:1 already has"
-    print_warning "an X server running and, for audio, a PulseAudio null-sink already set up manually."
+    print_warning "systemd services not installed -- run './uxplay-ndi.sh install-service' for the full stack (audio + uxplay + NDI)."
+    print_warning "Falling back to running $APP_NAME directly. This assumes screen :0.1 (HDMI-2,"
+    print_warning "see ../config/xorg/10-hdmi-zaphod.conf) is already up and, for audio, a"
+    print_warning "PulseAudio null-sink already set up manually."
 
     if [ ! -f "$APP_PATH" ]; then
         print_error "Application not found: $APP_PATH"
@@ -99,7 +102,7 @@ start() {
         return 1
     fi
 
-    nohup "$APP_PATH" --name "uxplay-airplay" --display :1 --width 1920 --height 1080 --fps 30 >> "$LOG_FILE" 2>&1 &
+    nohup "$APP_PATH" --name "uxplay-airplay" --display :0.1 --width 1920 --height 1080 --fps 30 >> "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
     print_info "Started directly (PID: $(cat "$PID_FILE"))"
 }
@@ -163,7 +166,7 @@ status() {
     fi
 }
 
-# Install all 4 systemd service files and enable them
+# Install all 3 systemd service files and enable them
 install_service() {
     print_info "Installing systemd services..."
 
@@ -184,7 +187,7 @@ install_service() {
         sudo systemctl enable "$svc"
     done
 
-    print_info "All 4 services installed and enabled: ${SERVICES[*]}"
+    print_info "All 3 services installed and enabled: ${SERVICES[*]}"
     print_info "Start with: ./uxplay-ndi.sh start"
 }
 
@@ -197,11 +200,11 @@ Usage: $0 {command} [options]
 
 Commands:
   build              Compile uxplay_ndi_sender
-  start              Start the full stack (Xvfb, audio setup, uxplay, NDI sender)
+  start              Start the full stack (audio setup, uxplay, NDI sender)
   stop               Stop the full stack
   restart            Restart the full stack
   status             Check status of every service in the stack
-  install-service    Install and enable all 4 systemd services (requires sudo)
+  install-service    Install and enable all 3 systemd services (requires sudo)
   logs               Show recent logs from every service
   help               Show this help message
 

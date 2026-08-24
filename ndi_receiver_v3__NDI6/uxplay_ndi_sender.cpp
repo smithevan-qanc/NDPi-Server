@@ -1,10 +1,12 @@
 /**
  * AirPlay (uxplay) to NDI Bridge v2
  *
- * Captures a dedicated X11 display (intended to be a headless Xvfb display
- * that `uxplay` renders to, fullscreen, kept separate from any real/kiosk
- * display on the same machine) and its PulseAudio monitor, and re-broadcasts
- * both as a single discoverable NDI source.
+ * Captures a dedicated X11 screen (intended to be an independent "Zaphod
+ * mode" screen of the Hub's own Xorg process -- see
+ * config/xorg/10-hdmi-zaphod.conf -- that `uxplay` renders to, fullscreen,
+ * kept separate from the real kiosk screen on the same machine) and its
+ * PulseAudio monitor, and re-broadcasts both as a single discoverable NDI
+ * source.
  *
  * This is a display+audio-device capture bridge only. It does NOT launch or
  * manage uxplay itself -- uxplay, the Xvfb display it renders to, and this
@@ -27,7 +29,7 @@
  *        -I"include" -ldl -pthread -std=c++11
  *
  * Usage:
- *    ./uxplay_ndi_sender [--name "uxplay-airplay"] [--display :1]
+ *    ./uxplay_ndi_sender [--name "uxplay-airplay"] [--display :0.1]
  *                        [--width 1920] [--height 1080] [--fps 30]
  *                        [--audio-device uxplay_ndi_audio.monitor] [--no-audio]
  *
@@ -39,9 +41,9 @@
  *      executable's own path, not the working directory) -- never from a
  *      system-wide install, so there's no ambiguity about which SDK build
  *      this binary is actually running against.
- *    - An X11 display to capture (see uxplay-xvfb.service) and, for audio,
- *      a PulseAudio/PipeWire-pulse null-sink named to match --audio-device
- *      (see uxplay-audio-setup.sh)
+ *    - An X11 screen to capture (see config/xorg/10-hdmi-zaphod.conf) and,
+ *      for audio, a PulseAudio/PipeWire-pulse null-sink named to match
+ *      --audio-device (see uxplay-audio-setup.sh)
  */
 
 #include <iostream>
@@ -533,7 +535,7 @@ void printUsage(const char* prog) {
               << "Usage: " << prog << " [options]\n"
               << "Options:\n"
               << "  --name <name>          NDI source name (default: uxplay-airplay)\n"
-              << "  --display <:N>         X display to capture, e.g. :1 (default: :1)\n"
+              << "  --display <:N>         X display/screen to capture, e.g. :0.1 (default: :0.1)\n"
               << "  --width <px>           Capture width, must match the X display's own\n"
               << "                         resolution (default: 1920)\n"
               << "  --height <px>          Capture height, ditto (default: 1080)\n"
@@ -546,7 +548,7 @@ void printUsage(const char* prog) {
 
 int main(int argc, char* argv[]) {
     std::string ndi_name = "uxplay-airplay";
-    std::string x_display = ":1";
+    std::string x_display = ":0.1";
     std::string audio_device = "uxplay_ndi_audio.monitor";
     int width = 1920;
     int height = 1080;

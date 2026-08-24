@@ -24,7 +24,12 @@ auto_initramfs=1
 
 # Enable DRM VC4 V3D driver
 dtoverlay=vc4-kms-v3d
-max_framebuffers=1
+# 2, not 1: the Hub drives both HDMI outputs independently (HDMI-1 = kiosk
+# dashboard, HDMI-2 = AirPlay-to-NDI mirror, see config/xorg/10-hdmi-zaphod.conf)
+# -- with max_framebuffers=1 the KMS driver only ever exposes one usable
+# CRTC/pipeline, so HDMI-2 could never work as a real independent output
+# regardless of any Xorg/xrandr configuration on top of it.
+max_framebuffers=2
 
 # Enable SPI for LCD Screen
 # dtparam=spi=on

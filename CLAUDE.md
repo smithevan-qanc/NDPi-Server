@@ -2434,6 +2434,204 @@ environment; the touch-vs-mouse distinction, live positioning/scroll
 behavior, and cursor-splice correctness are the parts most worth checking
 by hand on the real kiosk display before trusting this fully.
 
+### Per-HDMI-port display settings (Hub + Client) + HDMI-2 becomes a real second output
+
+User request: `output_display_*` settings in both `hub_fs.js` and
+`client_fs.js` were one shared/universal key set for "whichever HDMI port
+a display happens to be plugged into" (`output_display_port` picked the
+target) — asked to split them so both HDMI-1 and HDMI-2 get their own
+independent resolution settings on both the Hub and the Client. Follow-up
+requirements: on the Client, both outputs should keep showing identical
+content (single NDI-receiver design, just mirrored across two ports); on
+the Hub, HDMI-2 should become the AirPlay-to-NDI bridge's real output
+(previously a headless Xvfb, invisible on any physical screen) rather than
+just a resolution-tracking placeholder — explicitly confirmed with the
+user via AskUserQuestion before building this (the alternative, keeping
+HDMI-2 virtual-only, was the lower-risk option; the user chose the real
+second output).
+
+**Settings layer** (`hub_fs.js` / `client_fs.js`): the ~10 shared
+`output_display_*` keys (resolution/framerate current/preferred/
+preference, manufacturer/model/model_number/serial_number, plus the old
+disambiguating `output_display_port`) became `output_display_hdmi1_*` /
+`output_display_hdmi2_*`, generated via one `['hdmi1','hdmi2'].flatMap()`
+block in each file's `files` array so both ports stay in lockstep. Added
+a new `output_display_hdmiN_connected` boolean per port (didn't exist
+before — needed now that there's no single `output_display_port` value to
+check for "is anything plugged in"). `output_display_port` itself is
+gone entirely: previously it existed to disambiguate which literal xrandr
+output name a single shared setting applied to; now both ports are always
+addressed by their fixed real names (`HDMI-1`/`HDMI-2`), so there's
+nothing left to disambiguate. The Hub's set also gained
+`output_display_hdmiN_framerate_preference` (a real, user-editable
+setting) — previously only the Client had this; the Hub's own
+`setDisplayResolution()` referenced a same-named key that was never
+actually in its fileMap, a pre-existing latent gap fixed as a side effect
+of this rewrite. **CEC keys were deliberately left as a single shared set,
+not split per port** — scoped out since the user's ask was specifically
+about resolution, and it's genuinely unknown whether this hardware's CEC
+adapter can address two independent HDMI connectors at all (unlike
+resolution, which xrandr trivially handles per-output).
+
+**`sh/current-resolution` rewritten in both repos** to tag every emitted
+line with its port (`<key> : <PORT> :: <value>`, list_resolutions
+additionally nesting a second ` :: ` for its label/value pair) instead of
+producing one anonymous stream that only ever captured "whichever HDMI
+line came last" into a single key set. The Client's version queries one
+`xrandr` call on its single DISPLAY=:0 (both real outputs already appear
+in one call, each in its own block — parsed via an awk state machine that
+tracks the current unindented "PORT connected ..." header) and kept its
+Client-only `allowed_framerates` feature, now computed per port. The
+Hub's version queries `DISPLAY=:0.0` and `DISPLAY=:0.1` **separately**
+(see Zaphod-mode note below) and passes a fixed label into the same awk
+parser rather than trusting xrandr's own reported connector name, since
+each screen is hard-constrained to exactly one connector by construction.
+Both scripts' EDID section (unchanged sysfs paths, `card1-HDMI-A-1`/`-2`)
+now tags its output with the real port name directly instead of the old
+`_hdmi0`/`_hdmi1` key suffixes. `updateOutputDisplayFiles()` in both
+`hub_fs.js`/`client_fs.js` rewritten to parse this tagged format into
+each port's own keys, tracking resolution/framerate dropdown options
+per-port instead of one shared list.
+
+**`setDisplayResolution()` rewritten in both repos' `functions.js`**:
+the Client now issues one `xrandr` call configuring both HDMI-1 and
+HDMI-2 from their own preference settings, then mirrors HDMI-2 onto
+HDMI-1 via `--same-as` (plus `--scale-from` when their preferred
+resolutions actually differ, so mirroring still looks correct at each
+port's own native resolution rather than just overlapping canvases of
+different sizes). The Hub configures each port with its own **separate**
+`xrandr` invocation against its own `DISPLAY` env override, since (per the
+Zaphod design below) they're independent screens with independent
+content, not a mirrored pair — no `--same-as` on the Hub side.
+`server.js`/`index.js`'s old `output_display_port`/
+`output_display_resolution_preference` change listeners (2 each) became 4
+each (`output_display_hdmi{1,2}_{resolution,framerate}_preference`), all
+just re-invoking the same `setDisplayResolution()`, which now internally
+handles both ports in one call.
+
+**HDMI-2 architecture on the Hub — "Zaphod mode," not a second Xorg
+process.** The original plan (confirmed with the user) was two fully
+independent X servers (:0 for HDMI-1, a new :1 for HDMI-2, replacing the
+uxplay bridge's old headless Xvfb). Switched to a different, more
+reliable implementation of the same requirement after finding
+`config/boot_config/config.txt` had `max_framebuffers=1` — meaning the
+VC4/KMS driver was only ever exposing one usable output pipeline in the
+first place, unrelated to any Xorg-level configuration on top of it (now
+`max_framebuffers=2`, required either way, needs a reboot to take
+effect). Two separate Xorg processes each trying to become DRM master of
+the same `/dev/dri/card1` concurrently is a real, unresolved risk (most
+setups only allow one DRM master per card without lease-based hand-off);
+**Zaphod mode** — one Xorg process (the one LightDM already starts for
+the kiosk on :0), split into two independent screens via a
+`ServerLayout`/two `Device`+`Screen` sections in a new
+`config/xorg/10-hdmi-zaphod.conf` (`Option "ZaphodHeads" "HDMI-1"` /
+`"HDMI-2"`, both against `kmsdev /dev/dri/card1`) — is the standard,
+documented way to get two screens with completely independent content
+from one GPU under one DRM master, and needs no new systemd unit at all:
+HDMI-2 becomes `:0.1` (a second **screen** on the same X **display**
+number, not a separate display number) the moment LightDM's Xorg starts.
+**This substitutes `:0.1` everywhere the user said "`:1`"** — functionally
+equivalent for uxplay/GStreamer's purposes (any DISPLAY string, `:0.1`
+included, works the same as a literal `:1` would have for connecting a
+client to a specific screen), just a different, more hardware-reliable X11
+mechanism than what was literally asked for. `uxplay-xvfb.service` was
+deleted outright (no longer needed — HDMI-2 now exists the instant
+LightDM's Xorg starts, same lifecycle as the kiosk dashboard itself, not
+a separately-managed virtual display); `uxplay-airplay.service` and
+`uxplay-ndi-sender.service` now target `DISPLAY=:0.1`, depend on
+`lightdm.service` (ordering only, not a hard `Requires=`/`BindsTo=` the
+way they depended on the deleted Xvfb unit) instead of the deleted unit,
+and `git-hub-deploy-server`'s `install_uxplay_ndi_bridge`/`UXPLAY_SERVICES`
+dropped from 4 services to 3. New `config_xorg()` deploy step (mirrors
+`config_boot_config()`'s absolute-destination pattern) installs the
+Zaphod conf to `/etc/X11/xorg.conf.d/` and warns a reboot is required.
+`uxplay-ndi.sh` (the manual CLI wrapper) and `BUILD_AND_SETUP.md` updated
+to match throughout (3-service stack, `:0.1`, the reboot requirement, a
+new troubleshooting row for Zaphod/connector-name mismatches).
+**⚠️ This entire Zaphod xorg.conf approach is unverified against real
+hardware** (no X11/DRM available in this dev environment) — it's the
+textbook-documented recipe for the X.Org `modesetting` driver, but the
+connector names (`HDMI-1`/`HDMI-2`) and `kmsdev` path (`/dev/dri/card1`)
+should be double-checked against the actual device (`xrandr
+--listmonitors`, `ls /dev/dri`) if Xorg fails to start after deploying it
+— check `journalctl -u lightdm` / the Xorg log for the specific error
+first, rather than assuming the whole approach is wrong.
+
+**Root-caused (as best as possible without hardware/logs) the two AirPlay
+bridge bugs the user reported from real testing**:
+1. *"showed the airplay feed on DISPLAY=:0"* — under the old
+   architecture this should have been structurally impossible (Xvfb :1
+   was a fully separate, headless X server with no path to the real
+   screen), which points at either a stale/pre-fix deployment (the
+   `EnvironmentFile`+`Environment` override ordering was already correct
+   in the files as they existed) or a manual test run that didn't
+   actually go through the systemd units (inheriting an ambient DISPLAY
+   from the SSH session instead). Not independently reproducible without
+   the user's real device/logs — flagged rather than guessed further.
+2. *"froze as soon as I stopped AirPlay"* — root-caused with higher
+   confidence: `uxplay-airplay.service`'s `-nc` flag was added in an
+   earlier session specifically to keep uxplay's render surface from
+   being torn down on client disconnect, but its actual effect is that
+   uxplay's last frame stays on screen **indefinitely** across sessions —
+   contradicting `uxplay_ndi_sender.cpp`'s own doc comment claiming the
+   bridge "keeps broadcasting a black frame" between sessions (aspirational,
+   not actually true with `-nc` set). Removed `-nc` from
+   `uxplay-airplay.service` so the window actually closes on disconnect,
+   matching the documented/intended behavior.
+3. *"wasn't able to see the NDI source"* — `g_ndi.send_create()` runs
+   before pipeline creation in `main()`, so the NDI source name should
+   register (discoverable) even if the GStreamer pipeline itself never
+   comes up — meaning this symptom most likely means the
+   `uxplay-ndi-sender` service didn't survive startup at all (missing
+   GStreamer plugin, `/dev/dri` permission issue, etc.), not a partial
+   failure. Not diagnosable further without `journalctl -u
+   uxplay-ndi-sender -u uxplay-airplay -u uxplay-audio-setup` output from
+   the real device.
+
+**Frontend updates**: `settings.html`'s single "Display Resolution" card
+split into two ("— HDMI-1" / "— HDMI-2"), `renderDisplayResolutionInfo()`/
+`saveResolutionPreference()` parameterized by port instead of hardcoding
+one set of element ids; gates on the new `_connected` key instead of the
+removed `_port` value. `device.html`'s `applyDeviceSettingsTuples()`,
+`hub_api_server.js`'s `deriveStatusFieldsFromSettings()`, and
+`01-scripts/ws-devices.js`'s `getDeviceCardFields()` (all three read a
+**Client device's** display info for status tiles) now pick whichever
+port is actually connected (HDMI-1 first) as the representative value,
+since a Client's two outputs always mirror the same content. `group.html`
+needed no changes (already excludes the whole `output_display_` prefix
+from its generic per-device settings grid). **Found and fixed a real
+regression before it shipped**: Client's own local `system.html` renders
+generic settings into a container looked up by literal `getElementById(
+group)` — the old flat `id="Display_Resolution"` div would have made
+every `output_display_hdmi{1,2}_*` setting throw on render (null
+`.appendChild`) with the new per-port group names, since that container
+no longer existed for either group. Added matching
+`id="Display_Resolution_HDMI1"`/`"_HDMI2"` containers (mirrors the CEC
+container's existing pattern) instead.
+
+**Verified**: booted both the Hub and Client locally (`DATA_NDPI_PATH=...
+PORT_API=... node server.js` / `node index.js`), confirmed all 26
+`output_display_hdmi{1,2}_*` files are created correctly on both,
+round-tripped `POST`/`GET /api/v2/setting` for
+`output_display_hdmi2_resolution_preference` end-to-end (confirmed the
+500ms fs-watch debounce, then the value landing in the in-memory
+fileMap), confirmed the change fired `setDisplayResolution()` again via a
+second "Resolution Set (HDMI-2)" log line, confirmed both `xrandr` calls
+attempt the correct `--output`/`DISPLAY` combination each (fails
+gracefully on macOS, expected, matches this repo's standing pattern for
+Linux-only tooling), a full Hub page-route sweep (all 200s), `node
+--check` on every modified `.js` file in both repos, `bash -n` on both
+rewritten `sh/current-resolution` scripts and `git-hub-deploy-server`, an
+HTML tag-balance check on `settings.html`/Client's `system.html` (clean,
+modulo one pre-existing unrelated `<meta>` quirk confirmed present before
+this change too), and a brace/paren/bracket balance check on
+`uxplay_ndi_sender.cpp` (its `--display` default and help text updated to
+`:0.1` to match, cannot be compiled/tested in this environment — no
+GStreamer/NDI toolchain on macOS). **Not tested against real hardware at
+all** — this is the largest unverified surface in this pass: the Zaphod
+xorg.conf, the `max_framebuffers` bump, and both uxplay bug fixes all
+need a real deploy + reboot to confirm.
+
 ## Priority order for remaining work
 
 1. Fix routing bug (#1 above) — nothing else matters until navigation works.

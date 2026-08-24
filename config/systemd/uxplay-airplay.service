@@ -1,35 +1,41 @@
 [Unit]
-Description=uxplay AirPlay receiver (renders to virtual display :1 for NDI capture)
+Description=uxplay AirPlay receiver (renders to Zaphod screen :0.1 -> HDMI-2, for NDI capture)
 Documentation=file:///home/ndpi-server/ndpi/BUILD_AND_SETUP.md
-After=uxplay-xvfb.service uxplay-audio-setup.service network-online.target
+After=lightdm.service uxplay-audio-setup.service network-online.target
 Wants=network-online.target
-Requires=uxplay-xvfb.service uxplay-audio-setup.service
-BindsTo=uxplay-xvfb.service
+Requires=uxplay-audio-setup.service
 
 [Service]
 Type=simple
 User=ndpi-server
 Group=ndpi-server
 EnvironmentFile=/etc/ndpi/.env
-# Overrides the shared .env's DISPLAY=:0 (the Hub's own kiosk display) --
-# must come after EnvironmentFile= above so this wins.
-Environment="DISPLAY=:1"
+# Overrides the shared .env's DISPLAY=:0 (the Hub's own kiosk display,
+# Zaphod screen 0) -- must come after EnvironmentFile= above so this wins.
+# :0.1 is the second independent Zaphod screen (HDMI-2), defined in
+# ../xorg/10-hdmi-zaphod.conf, NOT a separate X server/display number.
+Environment="DISPLAY=:0.1"
 
-# -fs           : fullscreen on :1, so the video sink fills the entire
-#                 virtual display and uxplay_ndi_sender can capture the
-#                 whole screen with no window-hunting logic needed.
+# -fs           : fullscreen on :0.1, so the video sink fills the entire
+#                 screen and uxplay_ndi_sender can capture the whole thing
+#                 with no window-hunting logic needed.
 # -vs ximagesink: explicit X11 videosink (rather than autovideosink) so the
 #                 rendered output is always something ximagesrc can read.
 # -as autoaudiosink : default GStreamer audiosink -> pulsesink on Linux ->
 #                 routed to the null-sink uxplay-audio-setup.service just
 #                 made the default Pulse/PipeWire sink.
-# -nc           : don't force-close the video window when a client
-#                 disconnects, so reconnecting doesn't tear down/recreate
-#                 the render surface uxplay_ndi_sender is capturing.
+#
+# Deliberately NOT passing -nc here (an earlier version of this file did):
+# -nc keeps uxplay's video window/last frame on screen indefinitely after
+# an AirPlay session ends instead of closing it, which is what caused the
+# mirror (and therefore the NDI feed) to visibly freeze on the last frame
+# after stopping AirPlay instead of clearing between sessions. Without
+# -nc, uxplay closes its window on disconnect and ximagesrc goes back to
+# capturing the plain Zaphod screen background between sessions.
 #
 # NOTE: verify these flags against your installed uxplay version with
 # `uxplay -h` -- CLI options have changed across releases.
-ExecStart=/usr/bin/uxplay -n "NDPi AirPlay" -fs -vs ximagesink -as autoaudiosink -nc
+ExecStart=/usr/bin/uxplay -n "NDPi AirPlay" -fs -vs ximagesink -as autoaudiosink
 
 Restart=on-failure
 RestartSec=3
