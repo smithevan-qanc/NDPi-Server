@@ -91,9 +91,9 @@
 				<code class="topbar-title" id="sys-time" style="text-align: end;"></code>
 			</div>
 
-			<div class="content" style="padding-top: var(--live-topbar-height);">
+			<div class="content" style="padding-top: var(--live-topbar-height); gap: 0;">
 
-				<div class="card" style="margin-top: var(--main-body-padding);">
+				<div class="card" style="margin-top: var(--main-body-padding); margin-bottom: var(--main-body-padding);">
 					<!-- DEVICE NAME -->
 					<div style="
 						display: flex;
@@ -162,7 +162,7 @@
 				const btn = e.target.closest('.page-section-nav-btn');
 				if (!btn) return;
 				const target = document.getElementById(btn.dataset.target);
-				if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+				if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 			});
 		}
 
@@ -268,7 +268,7 @@
 
 			if (account.isAdmin) {
 				admDeviceActionsHtml = `
-				<div class="card" id="card-actions">
+				<div class="card" style="margin-top: var(--main-body-padding);" id="card-actions">
 					<h2 class="section-title">Device Actions</h2>
 					<div class="card-content">
 						<div class="device-actions">
@@ -305,7 +305,7 @@
 			document.getElementById('deviceContent').innerHTML = `
 				<div class="device-page-container">
 					<!-- NDI Source Selection -->
-					<div class="card" id="card-sources">
+					<div class="card" style="margin-top: var(--main-body-padding);" id="card-sources">
 						<h2 class="section-title">Select NDI Source</h2>
 						<div class="card-content">
 							<div id="deviceSourceGrid" class="source-grid"></div>
@@ -313,7 +313,7 @@
 					</div>
 
 					<!-- Display Controls -->
-					<div class="card" id="card-display">
+					<div class="card" style="margin-top: var(--main-body-padding);" id="card-display">
 						<h2 class="section-title">Display Controls</h2>
 						<div class="card-content">
 							<div class="display-controls">
@@ -347,7 +347,7 @@
 					</div>
 
 					<!-- Overlay Image -->
-					<div class="card" id="card-overlay">
+					<div class="card" style="margin-top: var(--main-body-padding);" id="card-overlay">
 						<h2 class="section-title">Overlay Image</h2>
 						<div class="card-content">
 							<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
@@ -364,7 +364,7 @@
 					</div>
 
 					<!-- Device Status Information -->
-					<div class="card" id="card-info">
+					<div class="card" style="margin-top: var(--main-body-padding);" id="card-info">
 						<h2 class="section-title">Device Information</h2>
 						<div class="card-content">
 							<div id="infoGrid" class="info-grid"></div>
@@ -372,7 +372,7 @@
 					</div>
 
 					<!-- Full System Stats -->
-					<div class="card" id="card-stats">
+					<div class="card" style="margin-top: var(--main-body-padding);" id="card-stats">
 						<h2 class="section-title">System Stats</h2>
 						<div class="card-content">
 							<div id="fullStatsGrid" class="info-grid"></div>
@@ -380,7 +380,7 @@
 					</div>
 
 					<!-- Device Settings -->
-					<div class="card" id="card-settings">
+					<div class="card" style="margin-top: var(--main-body-padding);" id="card-settings">
 						<h2 class="section-title">Device Settings</h2>
 						<div class="card-content">
 							<div id="deviceSettingsGrid" class="info-grid"></div>
@@ -388,7 +388,7 @@
 					</div>
 
 					<!-- Software Update -->
-					<div class="card" id="card-update">
+					<div class="card" style="margin-top: var(--main-body-padding);" id="card-update">
 						<h2 class="section-title">Software Update</h2>
 						<div class="card-content">
 							<div style="display:flex;gap:10px;flex-wrap:wrap;">
