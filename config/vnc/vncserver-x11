@@ -1,7 +1,7 @@
-# RealVNC Custom Settings NDPi Monitor - CLIENT 
+# RealVNC Custom Settings NDPi Monitor - HUB 
 # Revised:
 #       Evan Smith
-#       2026-05-27
+#       2026-08-23
 
 RecordNotifyDuration=0
 ConnNotifyTimeout=0

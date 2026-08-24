@@ -104,7 +104,7 @@
 					${rowsHtml}
 					<div class="osk-row osk-row-bottom">
 						<button type="button" class="osk-key osk-key-space" data-key="space">Space</button>
-						<button type="button" class="osk-key osk-key-enter" data-key="enter">Enter</button>
+						<button type="button" class="osk-key osk-key-enter" data-key="enter">Done</button>
 					</div>
 				</div>
 				<div class="osk-qwerty">
@@ -212,11 +212,11 @@
 					hide(true);
 					return;
 				}
-				const form = activeInput.form;
-				if (form) {
-					if (typeof form.requestSubmit === 'function') { form.requestSubmit(); }
-					else { form.submit(); }
-				}
+				// const form = activeInput.form;
+				// if (form) {
+				// 	if (typeof form.requestSubmit === 'function') { form.requestSubmit(); }
+				// 	else { form.submit(); }
+				// }
 				hide(true);
 				return;
 			}
