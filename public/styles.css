@@ -2966,9 +2966,9 @@ input[type="number"]::-webkit-outer-spin-button {
 		"system     client     admin      roku"; */
 	grid-template-areas:
 		"display display server admin"
-		"prefs 	prefs  client system "
-		"appearance appearance space space"
-		"roku roku  space space";
+		"roku 	roku  client system "
+		"prefs prefs  space space"
+		"appearance appearance space space";
 }
 
 /* Belt-and-suspenders: guarantees a `hidden` card inside this grid stays
