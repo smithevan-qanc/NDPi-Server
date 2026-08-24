@@ -2960,10 +2960,14 @@ input[type="number"]::-webkit-outer-spin-button {
 	display: grid;
 	gap: inherit;
 	grid-template-columns: repeat(4, 1fr);
-	grid-template-areas:
+	/* grid-template-areas:
 		"prefs      prefs      appearance appearance"
 		"prefs      prefs      server     display"
-		"system     client     admin      roku";
+		"system     client     admin      roku"; */
+	grid-template-areas:
+		"appearance	appearance	display	display"
+		"server 	admin 		prefs 	prefs"
+		"client 	system 		roku 	roku";
 }
 
 /* Belt-and-suspenders: guarantees a `hidden` card inside this grid stays
