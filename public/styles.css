@@ -2967,7 +2967,7 @@ input[type="number"]::-webkit-outer-spin-button {
 	grid-template-areas:
 		"display	display server 	admin"
 		"prefs 	prefs  client 	system "
-		"roku 	roku";
+		"roku 	roku  space space";
 }
 
 /* Belt-and-suspenders: guarantees a `hidden` card inside this grid stays
