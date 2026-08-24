@@ -752,6 +752,7 @@ html.sidebar-collapsed .nav-btn {
 	z-index: 5;
 	background: var(--bg-1);
 	padding: 0.5rem;
+	justify-content: center;
 }
 
 .page-section-nav-btn {
