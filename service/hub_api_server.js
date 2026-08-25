@@ -64,12 +64,6 @@ function deriveStatusFieldsFromSettings(tuples) {
     const connectedTime = getSettingValue(tuples, 'ndpi_status_ndi_source_connected_time', '');
     const uptime = connectedTime ? Math.max(0, Math.floor((Date.now() - new Date(connectedTime).getTime()) / 1000)) : 0;
 
-    // Both of a Client device's HDMI outputs mirror the same content --
-    // prefer whichever port is actually connected (HDMI-1 first) as the
-    // representative display info for this summary.
-    const displayPort = getSettingValue(tuples, 'output_display_hdmi1_connected', '') === 'true' ? 'hdmi1' :
-        getSettingValue(tuples, 'output_display_hdmi2_connected', '') === 'true' ? 'hdmi2' : 'hdmi1';
-
     return {
         deviceName: getSettingValue(tuples, 'device_name', ''),
         ip: getSettingValue(tuples, 'device_ip', ''),
@@ -83,8 +77,8 @@ function deriveStatusFieldsFromSettings(tuples) {
         ndiInfo: {
             resolution: getSettingValue(tuples, 'ndpi_status_ndi_source_resolution', ''),
             framerate: parseFloat(getSettingValue(tuples, 'ndpi_status_ndi_source_framerate', '0')) || 0,
-            displayName: getSettingValue(tuples, `output_display_${displayPort}_model`, '') || getSettingValue(tuples, `output_display_${displayPort}_manufacturer`, ''),
-            displayResolution: getSettingValue(tuples, `output_display_${displayPort}_resolution_current`, ''),
+            displayName: getSettingValue(tuples, 'output_display_model', '') || getSettingValue(tuples, 'output_display_manufacturer', ''),
+            displayResolution: getSettingValue(tuples, 'output_display_resolution_current', ''),
             uptime,
         },
     };
@@ -2480,13 +2474,12 @@ class NDPiCommandServer_Client extends EventEmitter {
         // deliberately just as permissive: like the Client's own
         // updateSetting(), this only checks that the key exists, it doesn't
         // enforce allowEditExternal server-side (that flag is UI-only).
-        // Currently used for output_display_hdmi1_resolution_preference /
-        // output_display_hdmi2_resolution_preference (Display Resolution
-        // cards on settings.html) -- writing either triggers the existing
-        // this.settings.on('output_display_hdmiN_resolution_preference', ...)
-        // listeners in server.js, which call func.setDisplayResolution()
-        // (xrandr per-port + openbox restart for HDMI-1), exactly mirroring
-        // how the Client applies its own output_display_hdmiN_* changes.
+        // Currently used for output_display_resolution_preference (Display
+        // Resolution on settings.html) -- writing it triggers the existing
+        // this.settings.on('output_display_resolution_preference', ...)
+        // listener in server.js, which calls func.setDisplayResolution()
+        // (xrandr + openbox restart), exactly mirroring how the Client
+        // applies its own output_display_resolution_preference changes.
         // Single-setting read, mirroring the write route below. Lets a page
         // apply a Hub-wide setting (e.g. ui_theme_color) on load with one
         // small GET instead of opening /ws/system just to read one value.

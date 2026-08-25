@@ -165,12 +165,16 @@ class NDPi {
             }, 1000);
         });
 
-        //  HDMI-1 / HDMI-2 Resolution + Framerate (independent physical
-        //  outputs -- see hub_fs.js/functions.js)
-        this.settings.on('output_display_hdmi1_resolution_preference', () => { func.setDisplayResolution(); });
-        this.settings.on('output_display_hdmi1_framerate_preference', () => { func.setDisplayResolution(); });
-        this.settings.on('output_display_hdmi2_resolution_preference', () => { func.setDisplayResolution(); });
-        this.settings.on('output_display_hdmi2_framerate_preference', () => { func.setDisplayResolution(); });
+        //  HDMI Port
+        this.settings.on('output_display_port', async (data) => {
+            const output = String(data || '').trim() || null;
+            if (output) { await func.setDisplayResolution(); }
+        });
+
+        //  HDMI Resolution
+        this.settings.on('output_display_resolution_preference', (data) => {
+            func.setDisplayResolution();
+        });
 
         // //  ApirPlay PIN
         // this.settings.on('ndpi_airplay_server_pin', () => {

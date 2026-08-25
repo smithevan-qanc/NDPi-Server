@@ -49,69 +49,62 @@ async function waitForNetwork({ host = '8.8.8.8', port = 53, retryMs = 1000 } = 
 }
 
 /**
- * Set the Hub's two independent physical output resolutions via xrandr:
- * HDMI-1 on DISPLAY=:0.0 (the kiosk dashboard, config/kiosk.service) and
- * HDMI-2 on DISPLAY=:0.1 (the AirPlay-to-NDI mirror, see
- * config/systemd/uxplay-*.service and config/xorg/10-hdmi-zaphod.conf --
- * both are independent "Zaphod mode" screens on the SAME Xorg process/DRM
- * master, not separate X servers), each read from its own
- * 'output_display_hdmiN_resolution_preference' /
- * 'output_display_hdmiN_framerate_preference' settings. Unlike the Client
- * (one screen, both outputs mirrored), these two screens show independent
- * content, so each is configured with its own `xrandr` invocation against
- * its own DISPLAY -- no `--same-as`. A port with no resolution preference
- * on disk yet is left untouched (`--auto`).
+ * Set the Hub's own attached-display (kiosk screen) output resolution via
+ * xrandr, using the 'output_display_port' / 'output_display_resolution_preference'
+ * settings. No-op if no display port is configured.
  */
 async function setDisplayResolution() {
-    const ports = [
-        { xrandrName: 'HDMI-1', display: ':0.0', keyPrefix: 'output_display_hdmi1', restartOpenbox: true },
-        { xrandrName: 'HDMI-2', display: ':0.1', keyPrefix: 'output_display_hdmi2', restartOpenbox: false },
-    ];
+    let config = {
+        displayPort: 'HDMI-1',
+        resolution: null,
+        framerate: null,
+    };
 
-    for (const port of ports)
-    {
-        let resolution = null;
-        let framerate = null;
+    try { config.displayPort = fs.readFileSync(path.join(process.env.DATA_NDPI_PATH, 'output_display_port'), 'utf8').trim() }
+    catch {}
 
-        try { resolution = fs.readFileSync(path.join(process.env.DATA_NDPI_PATH, `${port.keyPrefix}_resolution_preference`), 'utf8').trim() }
-        catch {}
+    try { config.resolution = fs.readFileSync(path.join(process.env.DATA_NDPI_PATH, 'output_display_resolution_preference'), 'utf8').trim() }
+    catch {}
 
-        try { framerate = fs.readFileSync(path.join(process.env.DATA_NDPI_PATH, `${port.keyPrefix}_framerate_preference`), 'utf8').trim() }
-        catch {}
+    try { config.framerate = fs.readFileSync(path.join(process.env.DATA_NDPI_PATH, 'output_display_framerate_preference'), 'utf8').trim() }
+    catch {}
 
-        await new Promise((resolve) => {
-            exec(`xrandr \
-                --output ${port.xrandrName} \
-                ${resolution ? `--mode ${resolution}` : '--auto'} \
-                ${framerate ? `--rate ${framerate}` : ''} \
-            `, {
-                env: { ...process.env, DISPLAY: port.display }
-            }, (error, stderr) => {
-                if (error)
-                {
-                    console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ setDisplayResolution() ][ ERROR ] Resolution Set (${port.xrandrName}):`, { resolution, framerate }, stderr);
-                    resolve();
-                    return;
-                }
-                else if (port.restartOpenbox)
-                {
-                    exec('openbox --restart', {
-                        env: { ...process.env, DISPLAY: port.display }
-                    }, (error, stdout, stderr) => {
-                        if (error)
-                        { console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ setDisplayResolution() ][ ERROR ] Openbox Restart (${port.xrandrName}): ${stderr.toString()}`); }
+    return await new Promise((resolve) => {
+        if (config.displayPort == '')
+        {
+            resolve();
+            return;
+        }
+        exec(`xrandr \
+            --output ${config.displayPort} \
+            ${config.resolution ? `--mode ${config.resolution}` : '--auto'} \
+            ${config.framerate ? `--rate ${config.framerate}` : ''} \
+        `, {
+            env: { ...process.env }
+        }, (error, stderr) => {
+            if (error)
+            {
+                console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ setDisplayResolution() ][ ERROR ] Resolution Set:`, config, stderr);
+                resolve();
+                return;
+            }
+            else
+            {
+                exec('openbox --restart', {
+                    env: { ...process.env }
+                }, (error, stdout, stderr) => {
+                    if (error)
+                    {
+                        console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ setDisplayResolution() ][ ERROR ] Openbox Restart: ${stderr.toString()}`);
                         resolve();
                         return;
-                    });
-                }
-                else
-                {
-                    resolve();
+                    }
+                    resolve('');
                     return;
-                }
-            });
+                });
+            }
         });
-    }
+    });
 }
 
 async function checkForUpdate() {

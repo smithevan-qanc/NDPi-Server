@@ -191,34 +191,18 @@
 							</div>
 						</div>
 					</div>
-					<!-- DISPLAY - RESOLUTION - HDMI-1 (kiosk dashboard, DISPLAY=:0) -->
+					<!-- DISPLAY - RESOLUTION -->
 					<div class="card grid-area-display">
 						<div class="card-content flush">
-							<h2>Display Resolution &mdash; HDMI-1</h2>
+							<h2>Display Resolution</h2>
 							<!-- CONNECTED - DISPLAY -->
 							<div class="settings-row">
-								<div class="info-grid" id="displayResolutionInfo_hdmi1">
+								<div class="info-grid" id="displayResolutionInfo">
 									<p class="info-grid-message">Loading display info...</p>
 								</div>
 								<div class="resolution-controls" style="flex-direction: column;">
-									<label for="resolutionPreferenceSelect_hdmi1" class="settings-label"></label>
-									<select id="resolutionPreferenceSelect_hdmi1" class="mono" disabled></select>
-								</div>
-							</div>
-						</div>
-					</div>
-					<!-- DISPLAY - RESOLUTION - HDMI-2 (AirPlay-to-NDI mirror, DISPLAY=:1) -->
-					<div class="card grid-area-display">
-						<div class="card-content flush">
-							<h2>Display Resolution &mdash; HDMI-2</h2>
-							<!-- CONNECTED - DISPLAY -->
-							<div class="settings-row">
-								<div class="info-grid" id="displayResolutionInfo_hdmi2">
-									<p class="info-grid-message">Loading display info...</p>
-								</div>
-								<div class="resolution-controls" style="flex-direction: column;">
-									<label for="resolutionPreferenceSelect_hdmi2" class="settings-label"></label>
-									<select id="resolutionPreferenceSelect_hdmi2" class="mono" disabled></select>
+									<label for="resolutionPreferenceSelect" class="settings-label"></label>
+									<select id="resolutionPreferenceSelect" class="mono" disabled></select>
 								</div>
 							</div>
 						</div>
@@ -345,8 +329,7 @@
 			document.getElementById('restartServerBtn').addEventListener('click', restartServer);
 			document.getElementById('checkUpdateBtn').addEventListener('click', checkForHubUpdate);
 			document.getElementById('installHubUpdateBtn').addEventListener('click', installHubUpdate);
-			document.getElementById('resolutionPreferenceSelect_hdmi1').addEventListener('change', (e) => saveResolutionPreference('hdmi1', e.target.value));
-			document.getElementById('resolutionPreferenceSelect_hdmi2').addEventListener('change', (e) => saveResolutionPreference('hdmi2', e.target.value));
+			document.getElementById('resolutionPreferenceSelect').addEventListener('change', (e) => saveResolutionPreference(e.target.value));
 			document.getElementById('rebootBtn').addEventListener('click', rebootSystem);
 			document.getElementById('shutdownBtn').addEventListener('click', shutdownSystem);
 			document.getElementById('forgetAllBtn').addEventListener('click', forgetAllDevices);
@@ -873,8 +856,7 @@
 					}
 
 					renderVersionInfo('hubVersionInfo', tuples);
-					renderDisplayResolutionInfo(tuples, 'hdmi1');
-					renderDisplayResolutionInfo(tuples, 'hdmi2');
+					renderDisplayResolutionInfo(tuples);
 				} catch (e) {
 					console.error('Invalid /ws/system message:', e);
 				}
@@ -924,23 +906,18 @@
 		/**
 		 *  Display Resolution -- backend works exactly like the Client's own
 		 *  handling of its output display (Client__v3_1_0/service/client_fs.js
-		 *  + index.js): output_display_hdmiN_* is a normal fileMap setting
-		 *  group per port, DRM-detected and kept current by hub_fs.js's
-		 *  updateOutputDisplayFiles(), and writing
-		 *  output_display_hdmiN_resolution_preference triggers the server.js
-		 *  listener that already calls func.setDisplayResolution() (xrandr +
-		 *  openbox restart, per-port) -- same mechanism Client's index.js
-		 *  uses for itself. This UI just reads/writes those settings
-		 *  generically over /ws/system + POST /api/v2/setting, the same
-		 *  pattern device.html uses for a remote device's settings.
-		 *
-		 *  HDMI-1 (DISPLAY=:0) is the Hub's own kiosk dashboard; HDMI-2
-		 *  (DISPLAY=:1) is the AirPlay-to-NDI mirror output -- both are real,
-		 *  independent physical outputs, so each gets its own card/select.
+		 *  + index.js): output_display_* is a normal fileMap setting group,
+		 *  DRM-detected and kept current by hub_fs.js's updateOutputDisplayFiles(),
+		 *  and writing output_display_resolution_preference triggers the
+		 *  server.js listener that already calls func.setDisplayResolution()
+		 *  (xrandr + openbox restart) -- same mechanism Client's index.js uses
+		 *  for itself. This UI just reads/writes that setting generically over
+		 *  /ws/system + POST /api/v2/setting, the same pattern device.html uses
+		 *  for a remote device's settings.
 		 */
-		function renderDisplayResolutionInfo(tuples, port) {
-			const infoGrid = document.getElementById(`displayResolutionInfo_${port}`);
-			const select = document.getElementById(`resolutionPreferenceSelect_${port}`);
+		function renderDisplayResolutionInfo(tuples) {
+			const infoGrid = document.getElementById('displayResolutionInfo');
+			const select = document.getElementById('resolutionPreferenceSelect');
 			if (!infoGrid || !select) return;
 
 			const getEntry = (key) => {
@@ -948,22 +925,29 @@
 				return found ? found[1] : null;
 			};
 
-			const connected = getEntry(`output_display_${port}_connected`);
-			if (!connected || connected.value !== 'true') {
+			const port = getEntry('output_display_port');
+			if (!port || !port.value) {
 				infoGrid.innerHTML = '<p class="info-grid-message">No display detected.</p>';
 				select.innerHTML = '';
 				select.disabled = true;
 				return;
 			}
 
-			const current = getEntry(`output_display_${port}_resolution_current`);
-			const manufacturer = getEntry(`output_display_${port}_manufacturer`);
-			const model = getEntry(`output_display_${port}_model`);
-			const modelNumber = getEntry(`output_display_${port}_model_number`);
-			const serialNumber = getEntry(`output_display_${port}_serial_number`);
-			const pref = getEntry(`output_display_${port}_resolution_preference`);
+			const current = getEntry('output_display_resolution_current');
+			const currentFR = getEntry('output_display_framerate_current');
+			const preferred = getEntry('output_display_resolution_preferred');
+			const preferredFR = getEntry('output_display_framerate_preferred');
+			const manufacturer = getEntry('output_display_manufacturer');
+			const model = getEntry('output_display_model');
+			const modelNumber = getEntry('output_display_model_number');
+			const serialNumber = getEntry('output_display_serial_number');
+			const pref = getEntry('output_display_resolution_preference');
 
 			infoGrid.innerHTML = `
+				<div class="info-item">
+					<span class="info-label">Port</span>
+					<span class="info-value mono">${port.value}</span>
+				</div>
 				<div class="info-item">
 					<span class="info-label">Display Mfr</span>
 					<span class="info-value">${(manufacturer && manufacturer.value) || 'Unknown'}</span>
@@ -982,12 +966,30 @@
 				</div>
 				<div class="info-item">
 					<span class="info-label">Resolution</span>
-					<span class="info-value mono">${(current && current.value) || 'Unknown'}</span>
+					<span class="info-value mono">${
+						(current && current.value) || 'Unknown'
+					}
+					${
+						currentFR &&
+						currentFR.value ? `` : ''
+						// currentFR.value ? ` ${currentFR.value}` : ''
+					}
+					</span>
 				</div>
+				<!--div class="info-item">
+					<span class="info-label">Preferred Resolution</span>
+					<span class="info-value mono">${
+						(preferred && preferred.value) || 'Unknown'
+					}${
+						preferredFR &&
+						preferredFR.value ? ` ${preferredFR.value}` : ''
+					}</span>
+				</div-->
 			`;
-			document.querySelector(`label[for="resolutionPreferenceSelect_${port}"]`)
-				.textContent = `${port === 'hdmi1' ? 'HDMI-1' : 'HDMI-2'} Resolution Setting`;
-
+			//resolutionPreferenceSelect
+			document.querySelector(`label[for="resolutionPreferenceSelect"]`)
+				.textContent = `${port.value} Resolution Setting`;
+			
 			if (pref && Array.isArray(pref.options) && pref.options.length > 0) {
 				select.disabled = false;
 				select.innerHTML = pref.options.map(([label, value]) =>
@@ -1002,12 +1004,12 @@
 			}
 		}
 
-		async function saveResolutionPreference(port, value) {
+		async function saveResolutionPreference(value) {
 			try {
 				const res = await fetch('/api/v2/setting', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ name: `output_display_${port}_resolution_preference`, value }),
+					body: JSON.stringify({ name: 'output_display_resolution_preference', value }),
 				});
 				if (res.ok) {
 					toast.info('Applying resolution...');
