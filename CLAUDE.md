@@ -2632,6 +2632,33 @@ all** — this is the largest unverified surface in this pass: the Zaphod
 xorg.conf, the `max_framebuffers` bump, and both uxplay bug fixes all
 need a real deploy + reboot to confirm.
 
+### Real bug found from the dual-HDMI pass: Client's combined xrandr call could take down HDMI-1 too
+
+Follow-up user report after the per-port work above: "did you recently
+change anything on the client side that would require it to show the
+raspberry pi login screen?" — traced to a real regression risk in the
+Client's rewritten `setDisplayResolution()` (`Client__v3_1_0/service/
+functions.js`): it unconditionally built **one atomic `xrandr` command
+referencing both HDMI-1 and HDMI-2**, every boot and every resolution
+setting change, regardless of whether a second monitor is actually
+plugged in — and most Client devices only ever have one (this app's
+entire design is one NDI receiver / one screen). If HDMI-2 is
+disconnected, including it in the same atomic modeset risks the whole
+command failing and taking HDMI-1's already-working configuration down
+with it, which could plausibly present as falling back to a login/desktop
+screen instead of the kiosk. Fixed by reading the new
+`output_display_hdmi2_connected` setting first and leaving HDMI-2 (and
+its `--same-as`/`--scale-from` mirror clause) out of the command
+entirely when it's not `'true'` — verified by extracting the exact
+generated command string with `xrandr`/`exec` mocked: with HDMI-2
+disconnected it's now byte-identical in shape to the original
+single-port-only command from before this feature existed at all; with
+it connected, the mirror clause is included as intended. The Hub's own
+per-port `setDisplayResolution()` was not affected by this same class of
+bug — it already issued one independent `xrandr` call per port from the
+start, so a disconnected HDMI-2 there only ever risks that port's own
+call failing, never HDMI-1's.
+
 ## Priority order for remaining work
 
 1. Fix routing bug (#1 above) — nothing else matters until navigation works.
