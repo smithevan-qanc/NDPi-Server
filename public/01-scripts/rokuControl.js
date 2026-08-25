@@ -57,9 +57,9 @@ async function addRokuTv() {
 		
 		const deviceInfo = {
 			friendlyName: getTagText('friendly-device-name') || getTagText('user-device-name') || 'Roku TV',
-			model: getTagText('model-name'),
-			manufacturer: getTagText('vendor-name') || 'Roku',
-			screenSize: getTagText('screen-size'),
+			model: getTagText('model-name') || '',
+			manufacturer: getTagText('vendor-name') || '',
+			screenSize: getTagText('screen-size') || '',
 			deviceType: getTagText('is-tv') === 'true' ? 'TV' : 'Device'
 		};
 		
@@ -70,7 +70,17 @@ async function addRokuTv() {
 		}
 		
 		const groupOptions = groups.map(g => ({ value: g.id, label: g.name }));
-		const groupId = await modal.select('Select group for this Roku TV:', groupOptions, null, 'Add Roku TV');
+		const groupId = await modal.select(`
+			Found TV:<br>
+			<span style="font-family:monospace; font-size:0.85rem; padding-left:1rem;">
+				${deviceInfo.friendlyName}
+			</span>
+			<br>
+			<span style="font-family:monospace; font-size:0.85rem; padding-left:1rem; font-weight:400;">
+				${deviceInfo.screenSize ? `${deviceInfo.screenSize}" ` : ''}${deviceInfo.manufacturer} ${deviceInfo.model}
+			</span>
+			<br>
+			Select group for this Roku ${deviceInfo.deviceType}:`, groupOptions, null, 'Add Roku TV');
 		
 		if (!groupId) return;
 		
