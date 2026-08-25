@@ -80,7 +80,11 @@ async function addRokuTv() {
 				${deviceInfo.screenSize ? `${deviceInfo.screenSize}" ` : ''}${deviceInfo.manufacturer} ${deviceInfo.model}
 			</span>
 			<br>
-			Select group for this Roku ${deviceInfo.deviceType}:`, groupOptions, null, 'Add Roku TV');
+			Select group for this Roku ${deviceInfo.deviceType}:`,
+			groupOptions,
+			null,
+			'Add Roku TV'
+		);
 		
 		if (!groupId) return;
 		
