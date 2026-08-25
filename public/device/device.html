@@ -346,25 +346,6 @@
 						</div>
 					</div>
 
-					<!-- Display Resolution (HDMI-1 / HDMI-2) -->
-					<div class="card" style="margin-top: var(--main-body-padding);" id="card-display-resolution">
-						<h2 class="section-title">Display Resolution</h2>
-						<div class="card-content" style="display:flex;gap:16px;flex-wrap:wrap;">
-							<div style="flex:1;min-width:220px;">
-								<div class="settings-label">HDMI-1</div>
-								<div id="displayResolutionInfo_hdmi1" class="info-grid"></div>
-								<select id="resolutionPreferenceSelect_hdmi1" class="mono" style="width:100%;margin-top:8px;" disabled
-									onchange="saveSetting('output_display_hdmi1_resolution_preference', this.value)"></select>
-							</div>
-							<div style="flex:1;min-width:220px;">
-								<div class="settings-label">HDMI-2</div>
-								<div id="displayResolutionInfo_hdmi2" class="info-grid"></div>
-								<select id="resolutionPreferenceSelect_hdmi2" class="mono" style="width:100%;margin-top:8px;" disabled
-									onchange="saveSetting('output_display_hdmi2_resolution_preference', this.value)"></select>
-							</div>
-						</div>
-					</div>
-
 					<!-- Overlay Image -->
 					<div class="card" style="margin-top: var(--main-body-padding);" id="card-overlay">
 						<h2 class="section-title">Overlay Image</h2>
@@ -715,8 +696,6 @@
 
 			renderNoSourceDisplayControl();
 			renderSettings();
-			renderDisplayResolutionCard('hdmi1');
-			renderDisplayResolutionCard('hdmi2');
 			renderFullStats();
 			updateOverlayPreview();
 			updateUpdateSection();
@@ -781,15 +760,10 @@
 
 			// Fields already covered by dedicated controls elsewhere on this page.
 			const excluded = ['device_name', 'media_overlay_image', 'ndpi_status_no_source_display_mode'];
-			// output_display_* has its own dedicated HDMI-1/HDMI-2 card
-			// (#card-display-resolution, renderDisplayResolutionCard()) --
-			// same exclusion group.html's generic per-device editor already uses.
-			const excludedPrefixes = ['output_display_'];
 
 			const fieldGroups = new Map(); // group label -> [[key, obj], ...]
 			device.settings.forEach(([key, obj]) => {
 				if (excluded.includes(key)) return;
-				if (excludedPrefixes.some((prefix) => key.startsWith(prefix))) return;
 				const groupKey = obj.group || 'Other';
 				if (!fieldGroups.has(groupKey)) { fieldGroups.set(groupKey, []); }
 				fieldGroups.get(groupKey).push([key, obj]);
@@ -827,62 +801,6 @@
 					${fieldsHtml}
 				`;
 			}).join('');
-		}
-
-		/**
-		 * Display Resolution (HDMI-1 / HDMI-2) -- same pattern as the Hub's
-		 * own settings.html cards (renderDisplayResolutionInfo() there), just
-		 * reading device.settings (this device's relayed fileMap) instead of
-		 * the Hub's own /ws/system, and writing through saveSetting() ->
-		 * POST /api/v2/device/:id/setting instead of the Hub-local route.
-		 */
-		function renderDisplayResolutionCard(port) {
-			const infoGrid = document.getElementById(`displayResolutionInfo_${port}`);
-			const select = document.getElementById(`resolutionPreferenceSelect_${port}`);
-			if (!infoGrid || !select) return;
-			if (!Array.isArray(device.settings)) return;
-
-			const getEntry = (key) => {
-				const found = device.settings.find(([k]) => k === key);
-				return found ? found[1] : null;
-			};
-
-			const connected = getEntry(`output_display_${port}_connected`);
-			if (!connected || connected.value !== 'true') {
-				infoGrid.innerHTML = '<p class="info-grid-message">No display detected.</p>';
-				select.innerHTML = '';
-				select.disabled = true;
-				return;
-			}
-
-			const current = getEntry(`output_display_${port}_resolution_current`);
-			const manufacturer = getEntry(`output_display_${port}_manufacturer`);
-			const model = getEntry(`output_display_${port}_model`);
-			const pref = getEntry(`output_display_${port}_resolution_preference`);
-
-			infoGrid.innerHTML = `
-				<div class="info-item">
-					<span class="info-label">Display</span>
-					<span class="info-value">${(manufacturer && manufacturer.value) || 'Unknown'} ${(model && model.value) || ''}</span>
-				</div>
-				<div class="info-item">
-					<span class="info-label">Resolution</span>
-					<span class="info-value mono">${(current && current.value) || 'Unknown'}</span>
-				</div>
-			`;
-
-			if (pref && Array.isArray(pref.options) && pref.options.length > 0) {
-				select.disabled = !pref.allowEditExternal;
-				select.innerHTML = pref.options.map(([label, value]) =>
-					`<option value="${value}" ${value === pref.value ? 'selected' : ''}>${label}</option>`
-				).join('');
-			} else if (pref) {
-				select.disabled = true;
-				select.innerHTML = `<option value="${pref.value}">${pref.value || 'Unknown'}</option>`;
-			} else {
-				select.disabled = true;
-				select.innerHTML = '';
-			}
 		}
 
 		async function saveSetting(name, value) {
@@ -1450,18 +1368,12 @@
 			if (getValue('ndpi_status_no_source_display_mode') !== undefined) { device.displayMode = getValue('ndpi_status_no_source_display_mode') || 'overlay'; }
 			if (getValue('ndpi_status_ndi_status') !== undefined) { device.streamStatus = getValue('ndpi_status_ndi_status') || 'idle'; }
 
-			// Both HDMI outputs mirror the same content on a Client device --
-			// prefer whichever port is actually connected (HDMI-1 first) as
-			// the representative display info for this summary.
-			const displayPort = getValue('output_display_hdmi1_connected') === 'true' ? 'hdmi1' :
-				getValue('output_display_hdmi2_connected') === 'true' ? 'hdmi2' : 'hdmi1';
-
 			const connectedTime = getValue('ndpi_status_ndi_source_connected_time') || '';
 			device.ndiInfo = {
 				resolution: getValue('ndpi_status_ndi_source_resolution') || '',
 				framerate: parseFloat(getValue('ndpi_status_ndi_source_framerate')) || 0,
-				displayName: getValue(`output_display_${displayPort}_model`) || getValue(`output_display_${displayPort}_manufacturer`) || '',
-				displayResolution: getValue(`output_display_${displayPort}_resolution_current`) || '',
+				displayName: getValue('output_display_model') || getValue('output_display_manufacturer') || '',
+				displayResolution: getValue('output_display_resolution_current') || '',
 				uptime: connectedTime ? Math.max(0, Math.floor((Date.now() - new Date(connectedTime).getTime()) / 1000)) : 0,
 			};
 
