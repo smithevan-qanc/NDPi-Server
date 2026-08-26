@@ -2229,9 +2229,18 @@ class NDPiCommandServer_Client extends EventEmitter {
             if (sourceChanged && updated.devices && updated.devices.length > 0)
             {
                 const sourceName = req.body.currentSource || '';
-                await Promise.allSettled(
-                    updated.devices.map((d) => this.sendCommandToClient(d.id || d.deviceId, { type: 'set-source', data: sourceName }))
-                );
+                if (Array.isArray(updated.devices))
+                {
+                    updated.devices.forEach((dev) => {
+                        this.sendCommandToClient(dev.id || dev.deviceId, { type: 'set-source', data: sourceName })
+                    });
+                }
+                else
+                {
+                    await Promise.allSettled(
+                        updated.devices.map((d) => this.sendCommandToClient(d.id || d.deviceId, { type: 'set-source', data: sourceName }))
+                    );
+                }
             }
 
             res.json({ success: true, message: 'Group updated successfully', group: groupOut(updated) });
