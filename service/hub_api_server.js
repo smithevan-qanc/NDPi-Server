@@ -122,6 +122,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.ws_serv_ndi_streams = null;
         this.ws_conn_ndi_streams = new Map();
         // 'development'
+        this.cacheControlNone = 'no-store, no-cache, must-revalidate, private';
         this.cacheControl = String(process.env.NODE_ENV || 'PRODUCTION') === 'PRODUCTION' ?
             'public, max-age=86400, immutable' :
             'no-store, no-cache, must-revalidate, private';
@@ -269,7 +270,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.App.use(
             express.static(path.join(__dirname, '..', 'public'), {
                 setHeaders: (res, path) => {
-                    res.set('Cache-Control', this.cacheControl);;
+                    res.set('Cache-Control', this.cacheControlNone);;
                 }
             })
         );
@@ -277,7 +278,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             '/assets',
             express.static(path.join(__dirname, '..', 'assets'), {
                 setHeaders: (res, path) => {
-                    res.set('Cache-Control', 'public, max-age=86400, immutable');
+                    res.set('Cache-Control', this.cacheControl);
                 }
             })
         );
@@ -285,7 +286,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             '/scripts',
             express.static(path.join(__dirname, '..', 'public', '01-scripts'), {
                 setHeaders: (res, path) => {
-                    res.set('Cache-Control', this.cacheControl);
+                    res.set('Cache-Control', this.cacheControlNone);
                 }
             })
         );
@@ -293,7 +294,7 @@ class NDPiCommandServer_Client extends EventEmitter {
             '/media',
             express.static(path.join(__dirname, '..', 'assets', 'gui', 'media'), {
                 setHeaders: (res, path) => {
-                    res.set('Cache-Control', 'public, max-age=86400, immutable');
+                    res.set('Cache-Control', this.cacheControl);
                 }
             })
         );
