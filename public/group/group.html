@@ -293,7 +293,7 @@
 			const hasSource = !isNoSource(curSource);
 			const sourceColor = hasSource ? '4ade80' : '#888';
 			let curSourceLabel = `${String(curSource).split('(')[1].split(')')[0]} - ${String(curSource).split('.')[0]}`;
-			const sourceLabel = hasSource ? curSource : '⸻⸻⸻';
+			const sourceLabel = hasSource ? curSourceLabel : '⸻⸻⸻';
 
 			statsHeader.innerHTML = `
 				<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
