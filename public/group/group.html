@@ -292,7 +292,12 @@
 			const curSource = group.currentSource || 'None';
 			const hasSource = !isNoSource(curSource);
 			const sourceColor = hasSource ? '#4ade80' : '#888';
-			let curSourceLabel = `${String(curSource).split('(')[1].split(')')[0]} (${String(curSource).split('.')[0]})`;
+			
+			let curSourceLabel = `⸻⸻⸻`;
+			if (String(curSource).includes('.') && String(curSource).includes('(') && String(curSource).includes(')'))
+			{
+				curSourceLabel = `${String(curSource).split('(')[1].split(')')[0]} (${String(curSource).split('.')[0]})`;
+			}
 			const sourceLabel = hasSource ? curSourceLabel : '⸻⸻⸻';
 
 			statsHeader.innerHTML = `
