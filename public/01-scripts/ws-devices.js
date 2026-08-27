@@ -65,21 +65,17 @@ function getRelayedSetting(tuples, key) {
 function getDeviceCardFields(tuples) {
 	if (!Array.isArray(tuples)) return null;
 
-	// Both of a Client device's HDMI outputs mirror the same content --
-	// prefer whichever port is actually connected (HDMI-1 first) as the
-	// representative display info for the card.
-	const hdmi1Connected = getRelayedSetting(tuples, 'output_display_hdmi1_connected');
-	const displayPort = (hdmi1Connected && hdmi1Connected.value === 'true') ? 'hdmi1' : 'hdmi2';
-
-	const manufacturer = getRelayedSetting(tuples, `output_display_${displayPort}_manufacturer`);
-	const model = getRelayedSetting(tuples, `output_display_${displayPort}_model`);
-	const resolution = getRelayedSetting(tuples, `output_display_${displayPort}_resolution_current`);
+	const manufacturer = getRelayedSetting(tuples, `output_display_manufacturer`);
+	const model = getRelayedSetting(tuples, `output_display_model`);
+	const modelNumber = getRelayedSetting(tuples, 'output_display_model_number');
+	const resolution = getRelayedSetting(tuples, `output_display_resolution_current`);
 	const ndiStatus = getRelayedSetting(tuples, 'ndpi_status_ndi_status');
 	const version = getRelayedSetting(tuples, 'ndpi_version');
 
 	return {
 		manufacturer: (manufacturer && manufacturer.value) || null,
 		model: (model && model.value) || null,
+		modelNumber: (modelNumber && modelNumber.value) || null,
 		resolution: (resolution && resolution.value) || null,
 		ndiStatus: (ndiStatus && ndiStatus.value) || null,
 		version: (version && version.value) || null,

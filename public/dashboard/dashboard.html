@@ -377,11 +377,11 @@
 			refs.source.title = sourceText;
 
 			const cardFields = getDeviceCardFields(getDeviceSettingsTuples(dev.id || dev.deviceId)) || {};
-			refs.displayMfr.textContent = cardFields.manufacturer || 'Unknown';
-			refs.displayModel.textContent = cardFields.model || 'Unknown';
-			refs.resolution.textContent = cardFields.resolution || 'Unknown';
-			refs.ndiStatus.textContent = cardFields.ndiStatus || 'Unknown';
-			refs.version.textContent = cardFields.version || 'Unknown';
+			refs.displayMfr.textContent = cardFields.manufacturer || '⎯';
+			refs.displayModel.textContent = `${cardFields.model || '⎯'} ${cardFields.modelNumber || '⎯'}`;
+			refs.resolution.textContent = cardFields.resolution || '⎯';
+			refs.ndiStatus.textContent = cardFields.ndiStatus || '⎯';
+			refs.version.textContent = cardFields.version || '⎯';
 
 			const showStats = !!(dev.systemStats && dev.status === 'online');
 			refs.stats.style.display = showStats ? '' : 'none';
