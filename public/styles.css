@@ -614,7 +614,7 @@ html.sidebar-collapsed .nav-btn {
 	}
 
 	.nav-btn-label {
-		opacity: 1;
+		opacity: 1 !important;
 	}
 
 	.nav-btn-icon {
