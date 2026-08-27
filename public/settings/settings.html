@@ -875,6 +875,8 @@
 		});
 
 		async function checkForHubUpdate() {
+			const el = document.getElementById('checkUpdateBtn');
+			el.disabled = true;
 			try {
 				const res = await fetch('/api/v2/system/check-for-update', { method: 'POST' });
 				if (res.ok) {
@@ -884,12 +886,16 @@
 				}
 			} catch (e) {
 				toast.error('Error checking for update');
+			} finally {
+				setTimeout(() => { el.disabled = false; }, 5000);
 			}
 		}
 
 		async function installHubUpdate() {
 			const confirmed = await modal.confirm('Install the available update on this Hub? The Hub server will restart its services.', 'Install Update', { confirmText: 'Install' });
 			if (!confirmed) return;
+			const el = document.getElementById('installHubUpdateBtn');
+			el.disabled = true;
 			try {
 				const res = await fetch('/api/v2/system/install-update', { method: 'POST' });
 				if (res.ok) {
@@ -900,6 +906,8 @@
 				}
 			} catch (e) {
 				toast.error('Error installing update');
+			} finally {
+				setTimeout(() => { el.disabled = false; }, 10000);
 			}
 		}
 
