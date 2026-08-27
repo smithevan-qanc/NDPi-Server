@@ -613,6 +613,10 @@ html.sidebar-collapsed .nav-btn {
 		text-align: center;
 	}
 
+	.nav-btn-label {
+		opacity: 1;
+	}
+
 	.nav-btn-icon {
 		margin: 0 auto;
 	}
