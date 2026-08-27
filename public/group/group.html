@@ -472,7 +472,7 @@
 			else
 			{ refs.displayModel.textContent = '⎯'; }
 			refs.resolution.textContent = cardFields.resolution || '⎯';
-			refs.ndiStatus.textContent = cardFields.ndiStatus || '⎯';
+			refs.ndiStatus.textContent = String(cardFields.ndiStatus || '⎯').toUpperCase();
 			refs.version.textContent = cardFields.version || '⎯';
 
 			const showStats = !!(dev.systemStats && dev.status === 'online');
