@@ -378,7 +378,14 @@
 
 			const cardFields = getDeviceCardFields(getDeviceSettingsTuples(dev.id || dev.deviceId)) || {};
 			refs.displayMfr.textContent = cardFields.manufacturer || '⎯';
-			refs.displayModel.textContent = `${cardFields.model || '⎯'} ${cardFields.modelNumber || '⎯'}`;
+			if (cardFields.model && cardFields.modelNumber)
+			{ refs.displayModel.textContent = `${cardFields.model}-${cardFields.modelNumber}`; }
+			else if (cardFields.model)
+			{ refs.displayModel.textContent = cardFields.model; }
+			else if (cardFields.modelNumber)
+			{ refs.displayModel.textContent = cardFields.modelNumber; }
+			else
+			{ refs.displayModel.textContent = '⎯'; }
 			refs.resolution.textContent = cardFields.resolution || '⎯';
 			refs.ndiStatus.textContent = cardFields.ndiStatus || '⎯';
 			refs.version.textContent = cardFields.version || '⎯';
