@@ -2999,8 +2999,8 @@ input[type="number"]::-webkit-outer-spin-button {
 	   single-column auto-fit flow `.dashboard` already uses at every
 	   width on every other page -- "the standard grid format." */
 	.grid-areas {
-		grid-template-columns: repeat(auto-fit, minmax(clamp(18.75rem, 25rem, 100%), 1fr));
-		grid-template-areas: none;
+		display: flex;
+        flex-direction: column;
 	}
 
 	.grid-area-prefs,
