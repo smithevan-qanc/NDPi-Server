@@ -452,12 +452,12 @@
 			const deviceId = dev.id || dev.deviceId;
 
 			refs.root.dataset.status = dev.status === 'online' ? 'online' : 'offline';
-			refs.statusText.textContent = dev.status;
+			refs.statusText.textContent = String(dev.status || '⎯').toUpperCase();
 			refs.nameSpan.textContent = dev.name;
 			refs.nameSpan.title = dev.name;
 			refs.ipValue.textContent = dev.ip;
 
-			const sourceText = isNoSource(dev.currentSource) ? 'No Active Source' : dev.currentSource;
+			const sourceText = isNoSource(dev.currentSource) ? '⎯' : dev.currentSource;
 			refs.sourceValue.textContent = sourceText;
 			refs.sourceValue.title = sourceText;
 

@@ -368,11 +368,11 @@
 			refs.root.dataset.status = dev.status === 'online' ? 'online' : 'offline';
 			refs.name.textContent = dev.name;
 			refs.name.title = dev.name;
-			refs.statusText.textContent = dev.status;
+			refs.statusText.textContent = String(dev.status || '⎯').toUpperCase();
 			refs.id.textContent = dev.id;
-			refs.group.textContent = dev.group || 'Ungrouped';
+			refs.group.textContent = dev.group || '⎯';
 			refs.ip.textContent = dev.ip;
-			const sourceText = (!dev.currentSource || String(dev.currentSource).toLowerCase() === 'none') ? 'None' : dev.currentSource;
+			const sourceText = (!dev.currentSource || String(dev.currentSource).toLowerCase() === 'none') ? '⎯' : dev.currentSource;
 			refs.source.textContent = sourceText;
 			refs.source.title = sourceText;
 
