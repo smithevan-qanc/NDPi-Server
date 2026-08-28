@@ -1563,8 +1563,8 @@ label {
 	font-weight: 400;
 	font-size: 0.8rem;
 	padding: 0 0.3125rem 0 0.3125rem;
-	user-select: auto !important;
-	-webkit-user-select: auto !important;
+	user-select: text !important;
+	-webkit-user-select: text !important;
 	cursor: text;
 	line-height: 130%;
 	align-items: center;
