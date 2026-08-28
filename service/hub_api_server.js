@@ -1734,7 +1734,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         .get((req, res) => {
             res.set('Cache-Control', this.cacheControl);
             const page = req.params.page.toLowerCase() || '';
-            const filePath = path.join(__dirname, '..', 'public', page, `${page}`);
+            const filePath = path.join(__dirname, '..', 'public', '02-custom-overlays', `${page}`);
             this.sendHtmlWithCacheBust(
                 res,
                 filePath,
