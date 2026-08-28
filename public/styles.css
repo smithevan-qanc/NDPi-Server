@@ -1573,12 +1573,11 @@ label {
 }
 
 .console-input {
-	font-family: monospace;
+	font-family: system-ui;
 	border-color: transparent !important;
 	box-shadow: none !important;
 	padding: 0 0 0 0 !important;
 	border-radius: 0 !important;
-	margin: 0.5rem 0;
 	text-decoration-line: none;
 	flex: 2;
 	font-weight: 400;
@@ -1589,13 +1588,10 @@ label {
 	text-align-last: start !important;
 	user-select: auto !important;
 	-webkit-user-select: auto !important;
+	resize: none;
 	
 	/* font-family: 'SF Mono', 'Courier New', Courier, monospace; */
 	/* letter-spacing: 0.0187rem; */
-}
-
-.console-input:focus {
-	margin: 0.375rem 0;
 }
 
 /* ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ END OF USER/ADMIN RELATED css ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ */
