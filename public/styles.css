@@ -1586,6 +1586,7 @@ label {
     color: var(--text-1) !important;
     box-sizing: border-box;
 	text-align: left !important;
+	text-align-last: start !important;
 	user-select: auto !important;
 	-webkit-user-select: auto !important;
 	
@@ -2396,6 +2397,7 @@ input[type="date"],
 input[type="time"],
 input[type="text"],
 input[type="checkbox"],
+textarea,
 input,
 select {
 	padding: 0.5rem 1rem;
@@ -2413,6 +2415,10 @@ select {
 	/* border: 0.0625rem solid var(--border-strong); */
 	/* background: var(--bg-3); */
 	/* border-radius: var(--radius-sm); */
+}
+
+textarea {
+	field-sizing: content;
 }
 
 /**
@@ -2480,6 +2486,7 @@ input[type="number"]:focus,
 input[type="date"]:focus,
 input[type="time"]:focus,
 input[type="text"]:focus,
+textarea:focus,
 input:focus,
 select:focus {
 	outline: none;
