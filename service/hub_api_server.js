@@ -1729,6 +1729,19 @@ class NDPiCommandServer_Client extends EventEmitter {
             else { res.sendFile(filePath); }
         });
 
+        this.Routes
+        .route('/obs/:page/')
+        .get((req, res) => {
+            res.set('Cache-Control', this.cacheControl);
+            const page = req.params.page.toLowerCase() || '';
+            const filePath = path.join(__dirname, '..', 'public', page, `${page}`);
+            this.sendHtmlWithCacheBust(
+                res,
+                filePath,
+                path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')
+            ); 
+        });
+
         /**
          *  Every page in public/ links internally as `/<page>.html`
          *  (e.g. `window.location.href = '/devices.html'`), not the
