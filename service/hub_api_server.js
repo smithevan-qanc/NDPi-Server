@@ -1719,17 +1719,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         this.Routes
-        .route('/:page/:ext/')
-        .get((req, res) => {
-            res.set('Cache-Control', this.cacheControl);
-            const page = req.params.page.toLowerCase() || 'dashboard';
-            const ext = req.params.ext.toLowerCase() || 'html';
-            const filePath = path.join(__dirname, '..', 'public', page, `${page}.${ext}`);
-            if (ext === 'html') { this.sendHtmlWithCacheBust(res, filePath); }
-            else { res.sendFile(filePath); }
-        });
-
-        this.Routes
         .route('/custom-html/:page/')
         .get((req, res) => {
             res.set('Cache-Control', this.cacheControl);
@@ -1740,6 +1729,17 @@ class NDPiCommandServer_Client extends EventEmitter {
                 filePath,
                 path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')
             ); 
+        });
+
+        this.Routes
+        .route('/:page/:ext/')
+        .get((req, res) => {
+            res.set('Cache-Control', this.cacheControl);
+            const page = req.params.page.toLowerCase() || 'dashboard';
+            const ext = req.params.ext.toLowerCase() || 'html';
+            const filePath = path.join(__dirname, '..', 'public', page, `${page}.${ext}`);
+            if (ext === 'html') { this.sendHtmlWithCacheBust(res, filePath); }
+            else { res.sendFile(filePath); }
         });
 
         /**
