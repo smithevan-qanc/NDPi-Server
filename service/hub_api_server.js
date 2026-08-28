@@ -1730,7 +1730,7 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
 
         this.Routes
-        .route('/obs/:page/')
+        .route('/custom-html/:page/')
         .get((req, res) => {
             res.set('Cache-Control', this.cacheControl);
             const page = req.params.page.toLowerCase() || '';
