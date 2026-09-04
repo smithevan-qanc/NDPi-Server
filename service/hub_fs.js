@@ -371,14 +371,6 @@ class FileSystemMonitor extends EventEmitter {
     async start() {
         this.startWatcher();
         this.startDrmMonitor();
-        // updateOutputDisplayFiles() otherwise only ever runs in response to
-        // a live DRM hotplug event from the udevadm monitor started just
-        // above -- if the display was already connected before this process
-        // started (the normal case), no such event ever fires, so the
-        // resolution dropdown's options would stay empty indefinitely. Run
-        // it once up front so a boot with an already-connected display gets
-        // populated immediately instead of waiting on a DRM event that may
-        // never come.
         this.updateOutputDisplayFiles();
         this.pollUpdate();
         this.emit('ready');
@@ -727,13 +719,6 @@ class FileSystemMonitor extends EventEmitter {
                     fileMapCurrRes.options = resolutionOptions;
                     this.fileMap.set('output_display_resolution_preference', fileMapCurrRes);
                     this.emit('drm');
-                    // Unlike a normal setting change, this mutates the fileMap
-                    // in memory only -- __flushQueue() (the only other place
-                    // that emits 'update') never runs for it, since no file on
-                    // disk changed. Without this, /ws/system (and therefore
-                    // the settings page's resolution dropdown) would never
-                    // learn the options changed until some unrelated setting
-                    // happened to change and trigger its own broadcast.
                     this.emit('update', JSON.stringify(Array.from(this.fileMap)));
                 }
             });
@@ -744,10 +729,6 @@ class FileSystemMonitor extends EventEmitter {
     /* =====================================================================
      *  ACCOUNTS
      * ===================================================================== */
-
-    hashPin(pin) {
-        return crypto.createHash('sha256').update(String(pin)).digest('hex');
-    }
 
     loadAccounts() {
         try
@@ -762,23 +743,21 @@ class FileSystemMonitor extends EventEmitter {
         }
 
         if (this.accounts.size === 0)
-        { this.createDefaultAdminAccount(); }
-    }
-
-    createDefaultAdminAccount() {
-        const id = crypto.randomUUID();
-        this.accounts.set(id, {
-            id,
-            firstName: 'Admin',
-            lastName: 'User',
-            username: 'admin',
-            pinHash: this.hashPin('0000'),
-            isAdmin: true,
-            firstTimeLogin: true,
-            createdAt: new Date().toISOString(),
-        });
-        this.saveAccounts();
-        console.info(`[ ${path.basename(__filename).split('.')[0]} ] Default admin account created — Username: admin, PIN: 0000`);
+        {   
+            const id = crypto.randomUUID();
+            this.accounts.set(id, {
+                id,
+                firstName: 'Admin',
+                lastName: 'User',
+                username: 'admin',
+                pinHash: func.hashPin('0000'),
+                isAdmin: true,
+                firstTimeLogin: true,
+                createdAt: new Date().toISOString(),
+            });
+            this.saveAccounts();
+            console.info(`[ ${path.basename(__filename).split('.')[0]} ] Default admin account created — Username: admin, PIN: 0000`);
+        }
     }
 
     saveAccounts() {
@@ -806,7 +785,7 @@ class FileSystemMonitor extends EventEmitter {
             firstName,
             lastName,
             username,
-            pinHash: this.hashPin(pin),
+            pinHash: func.hashPin(pin),
             isAdmin: !!isAdmin,
             firstTimeLogin: true,
             createdAt: new Date().toISOString(),
@@ -828,7 +807,7 @@ class FileSystemMonitor extends EventEmitter {
 
         if (updates.pin)
         {
-            account.pinHash = this.hashPin(updates.pin);
+            account.pinHash = func.hashPin(updates.pin);
             account.firstTimeLogin = false;
         }
 
@@ -854,7 +833,15 @@ class FileSystemMonitor extends EventEmitter {
         try
         {
             if (fs.existsSync(this.clientsFile))
-            { this.clients = new Map(Object.entries(JSON.parse(fs.readFileSync(this.clientsFile, 'utf8')))); }
+            {
+                this.clients = new Map(
+                    Object.entries(
+                        JSON.parse(
+                            fs.readFileSync(this.clientsFile, 'utf8')
+                        )
+                    )
+                );
+            }
         }
         catch (error)
         {
@@ -897,27 +884,6 @@ class FileSystemMonitor extends EventEmitter {
 
     /* ---- mDNS Discovered (not-yet-added) devices — in-memory only ---- */
 
-    upsertDiscoveredClient(deviceId, data = {}) {
-        this.discoveredClients.set(deviceId, { ...(this.discoveredClients.get(deviceId) || {}), ...data, deviceId });
-        this.emit('discovered-clients-update');
-    }
-
-    removeDiscoveredClient(deviceId) {
-        if (this.discoveredClients.delete(deviceId))
-        { this.emit('discovered-clients-update'); }
-    }
-
-    getDiscoveredClients() {
-        return Array.from(this.discoveredClients.values()).filter((d) => !this.clients.has(d.deviceId));
-    }
-
-    // Unfiltered single lookup (unlike getDiscoveredClients(), still
-    // returns a result after the device has been adopted into `clients`)
-    // — used to recover the ip/commandPort mDNS reported for a device at
-    // adopt time, to configure its Hub connection.
-    getDiscoveredClient(deviceId) {
-        return this.discoveredClients.get(deviceId) || null;
-    }
 
     /* =====================================================================
      *  GROUPS

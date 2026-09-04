@@ -118,38 +118,40 @@
 		})();
 
 		async function loadAccounts() {
-			/*
-			// Check if user is admin
 
-			const accountData = localStorage.getItem('ndpi_account');
-			if (!accountData) {
-				window.location.href = '/sign-in.html';
-				return;
-			}
-			
-			const account = JSON.parse(accountData);
-			setNavigationButtons();
-			
-			// Display account name in topbar
-			//document.getElementById('navAccount').textContent = account.firstName;
-			
-			// Initialize UI scale from saved setting
-			const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
-			const scaleDecimal = savedScale / 100;
-			document.body.style.zoom = scaleDecimal;
-			if (!document.body.style.zoom) {
-				document.body.style.transform = `scale(${scaleDecimal})`;
-				document.body.style.transformOrigin = 'top left';
-			}
-			
-			// Redirect to set PIN if first time login
-			if (account.firstTimeLogin) {
-				sessionStorage.setItem('signin_return', '/advanced-account-settings.html');
-				window.location.href = '/set-pin.html';
-				return;
-			}
-
-			*/
+			/**
+			 * 
+			 *	// Check if user is admin
+ 			 *
+			 *	const accountData = localStorage.getItem('ndpi_account');
+			 *	if (!accountData) {
+			 *		window.location.href = '/sign-in.html';
+			 *		return;
+			 *	}
+			 *	
+			 *	const account = JSON.parse(accountData);
+			 *	setNavigationButtons();
+			 *	
+			 *	// Display account name in topbar
+			 *	//document.getElementById('navAccount').textContent = account.firstName;
+			 *	
+			 *	// Initialize UI scale from saved setting
+			 *	const savedScale = localStorage.getItem('ndpi_ui_scale') || '100';
+			 *	const scaleDecimal = savedScale / 100;
+			 *	document.body.style.zoom = scaleDecimal;
+			 *	if (!document.body.style.zoom) {
+			 *		document.body.style.transform = `scale(${scaleDecimal})`;
+			 *		document.body.style.transformOrigin = 'top left';
+			 *	}
+			 *	
+			 *	// Redirect to set PIN if first time login
+			 *	if (account.firstTimeLogin) {
+			 *		sessionStorage.setItem('signin_return', '/advanced-account-settings.html');
+			 *		window.location.href = '/set-pin.html';
+			 *		return;
+			 *	}
+ 			 *
+			 */
 
 			try {
 				const res = await fetch('/api/admin/accounts');

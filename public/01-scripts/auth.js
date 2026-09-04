@@ -9,21 +9,6 @@ let account = null;
     }
 })();
 
-// The Hub's own kiosk browser hits http://localhost:PORT/ (see
-// config/kiosk.service) -- "localhost" only ever resolves to the machine
-// the browser itself is running on, so a page that successfully loaded
-// under this hostname can only be the kiosk browser on the Hub itself.
-// The actual security boundary is server-side (POST /api/account/local-signin
-// re-checks the real TCP peer address, not this) -- this is just what
-// decides whether to attempt it at all.
-function isLocalHost() {
-    return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-}
-
-// Signs in as the 'admin' account with no PIN entry, but only succeeds if
-// the server confirms this request actually came from its own loopback
-// (see hub_api_server.js's isLoopbackAddress()) -- returns true/false
-// rather than throwing, so callers can fall back to a normal sign-in.
 async function tryLocalAutoSignIn() {
     try {
         const res = await fetch('/api/account/local-signin', { method: 'POST' });
@@ -41,7 +26,10 @@ async function tryLocalAutoSignIn() {
 async function loadUserAccount() {
     const token = localStorage.getItem('ndpi_token');
     if (!token) {
-        if (isLocalHost() && await tryLocalAutoSignIn()) { return; }
+        if (
+            window.location.hostname === 'localhost' &&
+            await tryLocalAutoSignIn()
+        ) { return; }
         redirectSignIn();
 		return;
     }
@@ -51,25 +39,28 @@ async function loadUserAccount() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token })
         });
+
         const data = await res.json();
+
         if (res.ok) {
             account = data.account;
-        } else if (isLocalHost() && await tryLocalAutoSignIn()) {
-            // Stale/invalid token (e.g. the admin PIN changed elsewhere) --
-            // still on the Hub's own loopback, so recover instead of
-            // bouncing to the sign-in screen.
-        } else {
-            redirectSignIn();
+            return;
         }
+        if (
+            window.location.hostname === 'localhost' &&
+            await tryLocalAutoSignIn()
+        ) { return; }
+
+        redirectSignIn();
+
     } catch (error) {
         console.error(error);
     }
 }
 
 async function signIn(pin) {
-    if (pin.length !== 4 && pin.length !== 6) {
-        return { success: false, message: 'PIN must be 4 or 6 digits', reset: false };
-    }
+    if (pin.length !== 4 && pin.length !== 6)
+    { return { success: false, message: 'PIN must be 4 or 6 digits', reset: false }; }
     
     try {
         const res = await fetch('/api/account/signin', {
@@ -82,19 +73,15 @@ async function signIn(pin) {
         
         if (res.ok) {
             localStorage.setItem('ndpi_token', data.account.token);
-            
-            if (data.account.firstTimeLogin) {
-                window.location.href = '/set-pin.html';
-                return  { success: true, message: '', reset: true };
-            } else {
-                const returnUrl = sessionStorage.getItem('signin_return') || '/';
-                sessionStorage.removeItem('signin_return');
-                window.location.href = returnUrl;
-                return  { success: true, message: '', reset: true };
-            }
+            const returnUrl = sessionStorage.getItem('signin_return') || '/';
+            sessionStorage.removeItem('signin_return');
+            window.location.href = returnUrl;
+
+            return  { success: true, message: '', reset: true };
         } else {
             return { success: false, message: data.error || 'Invalid PIN', reset: true };
         }
+
     } catch (error) {
         return { success: false, message: 'Network error. Please try again.', reset: false };
     }
@@ -117,14 +104,13 @@ async function updateProfile(firstName, lastName) {
     }
     
     try {
-        const res = await fetch(`/api/account/${account.id}/update`, {
-            method: 'POST',
+        const res = await fetch(`/api/account/${account.id}`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ firstName, lastName })
         });
         
         if (res.ok) {
-            // Update localStorage
             account.firstName = firstName;
             account.lastName = lastName;
             localStorage.setItem('ndpi_account', JSON.stringify(account));
@@ -158,8 +144,8 @@ async function changePIN(newPin, confirmPin) {
     if (!confirmed) return;
     
     try {
-        const res = await fetch(`/api/account/${account.id}/update`, {
-            method: 'POST',
+        const res = await fetch(`/api/account/${account.id}`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pin: newPin })
         });

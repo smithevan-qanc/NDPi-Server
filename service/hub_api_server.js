@@ -13,29 +13,12 @@ const bonjour = require('bonjour')();
 const func = require('./functions.js');
 
 
-// Python NDI server configuration
-const NDI_SERVER_HOST = process.env.NDI_SERVER_HOST || '127.0.0.1';
-const NDI_SERVER_PORT = process.env.NDI_SERVER_PORT || 3081;
-const NDI_SERVER_URL = `http://${NDI_SERVER_HOST}:${NDI_SERVER_PORT}`;
-
 // Network error codes that just mean "the device isn't reachable right now"
 // (powered off, unplugged, sleeping, etc) -- expected/routine on a 5s relay
 // reconnect loop, not worth logging as an error every retry.
 const DEVICE_OFFLINE_ERROR_CODES = new Set(['ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT', 'ECONNRESET']);
 
-/**
- *  Client__v3_1_0 no longer has a clientServer_websocket.js pushing
- *  client-status messages over a persistent /ws/client connection (removed
- *  -- it was both unnecessary, since every field it sent is already
- *  derivable from the device's own /ws/system + /ws/stats, which the Hub
- *  already relays independently, AND the source of a real bug: a leaked
- *  setInterval in Client__v3_1_0/index.js's ndpi_hub_hostname/
- *  ndpi_hub_port reconnect handling that added a new 5s status-send timer
- *  on every reconnect without ever clearing the previous one, compounding
- *  without bound over a device's uptime). These two helpers replace what
- *  that message used to carry, reading from the same relayed data
- *  connectDeviceSystemRelay()/connectDeviceStatsRelay() already receive.
- */
+
 function getSettingValue(tuples, key, fallback = '') {
     if (!Array.isArray(tuples)) return fallback;
     const entry = tuples.find(([k]) => k === key);
@@ -43,23 +26,12 @@ function getSettingValue(tuples, key, fallback = '') {
     return (value === undefined || value === null || value === '') ? fallback : value;
 }
 
-// Used to gate the local-only auto-signin route (POST /api/account/local-signin)
-// -- reads the actual TCP peer address (req.socket.remoteAddress), not
-// anything client-supplied (Host header, request body, etc), since this is
-// what stands between an unauthenticated request and a full admin session.
-// Doesn't consult `trust proxy`/X-Forwarded-For on purpose: this Hub's kiosk
-// browser talks to it directly, and honoring a forwarded-for header here
-// would let anything sending one claim to be loopback.
 function isLoopbackAddress(remoteAddress) {
     if (!remoteAddress) return false;
     const addr = remoteAddress.replace(/^::ffff:/, '');
     return addr === '127.0.0.1' || addr === '::1';
 }
 
-// Mirrors the deleted clientServer_websocket.js's buildStatusMessage() --
-// same keys, same fallbacks, just reading from a relayed settings-tuple
-// array (Array.from(client_fs.js's fileMap), the exact shape /ws/system
-// already sends) instead of that file's own direct fileMap access.
 function deriveStatusFieldsFromSettings(tuples) {
     const connectedTime = getSettingValue(tuples, 'ndpi_status_ndi_source_connected_time', '');
     const uptime = connectedTime ? Math.max(0, Math.floor((Date.now() - new Date(connectedTime).getTime()) / 1000)) : 0;
@@ -67,9 +39,6 @@ function deriveStatusFieldsFromSettings(tuples) {
     return {
         deviceName: getSettingValue(tuples, 'device_name', ''),
         ip: getSettingValue(tuples, 'device_ip', ''),
-        // Not exposed over REST, only used internally to (re)connect the
-        // system/stats relay -- same role this played when it arrived via
-        // client-status.
         apiPort: getSettingValue(tuples, 'local_port_number_api', ''),
         currentSource: getSettingValue(tuples, 'ndpi_status_ndi_source_target', 'None'),
         displayMode: getSettingValue(tuples, 'ndpi_status_no_source_display_mode', 'overlay'),
@@ -84,12 +53,6 @@ function deriveStatusFieldsFromSettings(tuples) {
     };
 }
 
-// Mirrors 01-scripts/ws-devices.js's deriveDeviceStats() (the frontend's
-// own twin of this, used for the live per-device stats relay) and the
-// deleted clientServer_websocket.js's getSystemStats() -- same summarized
-// {cpu, memory, temperature, uptime} shape, derived from a device's raw
-// /ws/stats payload, so this.clients[deviceId].systemStats (used by
-// devices-update / deviceOut() / the REST device list) stays populated.
 function deriveSystemStatsFromRaw(raw) {
     if (!raw || !Array.isArray(raw.loadavg) || !Array.isArray(raw.cpus) || !raw.totalmem) return null;
 
@@ -127,7 +90,6 @@ class NDPiCommandServer_Client extends EventEmitter {
             'public, max-age=86400, immutable' :
             'no-store, no-cache, must-revalidate, private';
 
-        this.pythonBackendUrl = 'http://127.0.0.1:5000';
 
         /**
          *  NDI Source Discovery WebSocket ( /ws/sources )
@@ -254,6 +216,7 @@ class NDPiCommandServer_Client extends EventEmitter {
                 this.broadcastDevices(`hub_fs.js( 'clients-update' )`);
             }, 150);
         });
+        
         fsData.on('groups-update', () => { this.broadcastToGUI({ type: 'groups-update', origin: `hub_fs.js( 'groups-update' )`, groups: this.settings.getGroups() }); });
         fsData.on('discovered-clients-update', () => { this.broadcastToGUI({ type: 'discovered-devices-update', origin: `hub_fs.js( 'discovered-clients-update' )`, devices: this.settings.getDiscoveredClients() }); });
 
@@ -519,22 +482,22 @@ class NDPiCommandServer_Client extends EventEmitter {
 
     deviceOut(client) {
         return {
-            id: client.deviceId,
-            deviceId: client.deviceId,
-            name: client.deviceName,
-            ip: client.ip,
-            status: client.status,
-            currentSource: client.currentSource || 'None',
-            displayMode: client.displayMode || 'overlay',
-            streamStatus: client.streamStatus || 'unknown',
-            ndiInfo: client.ndiInfo || null,
-            systemStats: client.systemStats || null,
-            lastSeen: client.lastSeen,
-            lastStatusUpdate: client.lastStatusUpdate,
-            group: client.groupName || client.group || 'Ungrouped',
-            groupId: client.groupId || null,
-            groupName: client.groupName || null,
-            settings: client.settings || null,
+            id:                 client.deviceId,
+            deviceId:           client.deviceId,
+            name:               client.deviceName,
+            ip:                 client.ip,
+            status:             client.status,
+            currentSource:      client.currentSource || 'None',
+            displayMode:        client.displayMode || 'overlay',
+            streamStatus:       client.streamStatus || 'unknown',
+            ndiInfo:            client.ndiInfo || null,
+            systemStats:        client.systemStats || null,
+            lastSeen:           client.lastSeen,
+            lastStatusUpdate:   client.lastStatusUpdate,
+            group:              client.groupName || client.group || 'Ungrouped',
+            groupId:            client.groupId || null,
+            groupName:          client.groupName || null,
+            settings:           client.settings || null,
         };
     }
 
@@ -669,17 +632,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         }, 1000);
     }
 
-    /**
-     *      Console - WebSocket Connection Handler ( /ws/console )
-     *      Ported logic from server copy.js's `wsConsole` -- see the
-     *      constructor comment above `this.ws_serv_console` for context.
-     *      Message shapes are unchanged from the original so the existing
-     *      01-scripts/ws-console.js frontend needs no changes:
-     *        Client -> Hub:  { type: 'command', command }
-     *                        { type: 'command-kill' }
-     *        Hub -> Client:  { type: 'connected', data, pwd, hostname }
-     *                        { type: 'response', data, keepOpen, pwd }
-     */
     __ws_Console() {
         this.ws_serv_console = new WebSocket.Server({ noServer: true });
 
@@ -850,19 +802,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
     }
 
-    /**
-     *      Aggregated Device System Relay - WebSocket Connection Handler
-     *      ( /ws/devices/system )
-     *      One Hub-side outbound connection per adopted device to that
-     *      device's own /ws/system (see connectDeviceSystemRelay()); every
-     *      message received is cached (deviceSystemCache) and relayed here
-     *      to every connected browser, tagged with the device it came
-     *      from. A browser connecting here gets the full current cache
-     *      immediately (a 'snapshot' message), so pages showing many
-     *      devices' settings aren't blank waiting for the next per-device
-     *      update — and only ever need ONE websocket connection to the Hub
-     *      regardless of how many devices they display.
-     */
     __ws_DevicesSystemRelay() {
         this.ws_serv_devices_system = new WebSocket.Server({ noServer: true });
 
@@ -997,17 +936,6 @@ class NDPiCommandServer_Client extends EventEmitter {
             this.deviceSystemCache.set(deviceId, parsed);
             this.broadcastDeviceSystemRelay(deviceId, parsed);
 
-            // parsed is the device's full settings-tuple array -- the same
-            // shape client-status used to carry directly (Client__v3_1_0's
-            // /ws/system and the old /ws/client both ultimately read from
-            // the same fileMap). Derive the same summarized status fields
-            // that message used to provide and keep this.clients (and
-            // therefore devices-update/deviceOut()) current now that
-            // nothing pushes client-status anymore. This fires on every
-            // settings change on the device (not just a fixed interval),
-            // same cadence class as before -- the debounce on
-            // hub_fs.js's 'clients-update' -> broadcastDevices() (see the
-            // constructor) absorbs any burst before it reaches browsers.
             if (!Array.isArray(parsed)) return;
 
             const derived = deriveStatusFieldsFromSettings(parsed);
@@ -1031,10 +959,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         ws.on('close', () => {
             if (this.closing) return;
             this.markDeviceOfflineIfBothRelaysDown(deviceId);
-            // Only reconnect if this is still the current entry for this
-            // device — a newer call to connectDeviceSystemRelay() (e.g. a
-            // fresh client-status with a changed ip/port) may have already
-            // superseded it.
             if (this.deviceSystemSockets.get(deviceId) === entry)
             { entry.reconnectTimer = setTimeout(() => { this.connectDeviceSystemRelay(deviceId, ip, port); }, 5000); }
         });
@@ -1059,20 +983,11 @@ class NDPiCommandServer_Client extends EventEmitter {
             this.deviceStatsCache.set(deviceId, parsed);
             this.broadcastDeviceStatsRelay(deviceId, parsed);
 
-            // Throttled sync into this.clients (see lastStatsSyncAt's
-            // declaration in the constructor) -- this channel pushes every
-            // ~1s while connected, far more often than devices-update's
-            // systemStats copy needs to be (live per-device stats already
-            // come from this same relay directly via /ws/devices/stats).
             const now = Date.now();
             const lastSync = this.lastStatsSyncAt.get(deviceId) || 0;
             if (now - lastSync < 10000) return;
             this.lastStatsSyncAt.set(deviceId, now);
 
-            // upsertClient() does a shallow merge, so only include
-            // systemStats when it actually parsed -- passing `null` here
-            // would explicitly overwrite the last known-good value instead
-            // of just leaving it alone.
             const derivedStats = deriveSystemStatsFromRaw(parsed);
             this.settings.upsertClient(deviceId, {
                 ...(derivedStats ? { systemStats: derivedStats } : {}),
@@ -1229,120 +1144,8 @@ class NDPiCommandServer_Client extends EventEmitter {
     /**
      *      mDNS Discovery of NDPi Client devices on the network
      */
-    /**
-     *  The `bonjour`/`dns-txt` dependency chain this (and Client__v3_1_0)
-     *  relies on has a known TXT-record decoding bug: instead of splitting
-     *  the DNS TXT RDATA into its separate length-prefixed
-     *  <character-string> entries, it can hand back a single field whose
-     *  key/value still contains every entry concatenated together, with
-     *  each entry's own length byte leaking through as a literal control
-     *  character (0x00-0x1F) in place of the boundary between entries —
-     *  e.g. `{ "deviceid": "F564BD8290C80176deviceName=HV Camp
-     *  Entryway\rip=10.0.1.182..." }` (the leading control byte is 0x19 = 25
-     *  decimal = the exact length of `"deviceId=F564BD8290C80176"`). The field names and `=` delimiters
-     *  always survive intact even when this happens, so a value can be
-     *  recovered by matching "the run of printable characters right after
-     *  `key=`", regardless of which key it landed under.
-     */
-    _extractMdnsTxtField(service, key) {
-        const raw = Object.entries(service.txt || {}).map(([k, v]) => `${k}=${v}`).join('');
-        const match = new RegExp(`(?:^|[\\x00-\\x1f])${key}=([^\\x00-\\x1f]*)`, 'i').exec(raw);
-        return match ? match[1] : null;
-    }
+    
 
-    startMdnsDiscovery() {
-        console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'Starting NDPi Client device discovery (mDNS).');
-
-        this.bonjourBrowser = bonjour.find({ type: 'ndpi-monitor-client' });
-
-        this.bonjourBrowser.on('up', (service) => {
-            const deviceId = service.txt?.deviceId || service.txt?.deviceid || this._extractMdnsTxtField(service, 'deviceid');
-            const deviceName = service.txt?.deviceName || service.txt?.devicename || this._extractMdnsTxtField(service, 'devicename') || 'NDPi Client';
-            const ip = service.txt?.ip || this._extractMdnsTxtField(service, 'ip') || service.addresses?.[0] || service.host;
-            const commandPort = service.txt?.commandPort || service.txt?.commandport || this._extractMdnsTxtField(service, 'commandport') || service.port;
-
-            if (!deviceId)
-            {
-                // Client__v3_1_0/service/client_bonjour.js gates on deviceId
-                // being set before it ever calls bonjour.publish(), and the
-                // TXT-corruption fallback above recovers it even when the
-                // library mangles the record (see _extractMdnsTxtField), so
-                // reaching here means deviceId genuinely isn't in the TXT
-                // data at all. Logged with enough detail to tell which
-                // device it was.
-                console.warn(`⚠️   [ ${path.basename(__filename).split('.')[0]} ] Discovered a service on 'ndpi-monitor-client' with no deviceId recoverable from its TXT record — name: '${service.name}', host: '${service.host}', fqdn: '${service.fqdn}', txt: ${JSON.stringify(service.txt || {})}`);
-                return;
-            }
-
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `Discovered: ${deviceName} (${deviceId}) at ${ip}:${commandPort}`);
-
-            this.settings.upsertDiscoveredClient(deviceId, {
-                deviceName,
-                ip,
-                commandPort,
-                lastSeen: new Date().toISOString(),
-            });
-
-            // Update IP/status of already-saved devices too -- but only when
-            // there's no live relay connection already telling us the
-            // truth. mDNS presence is a much flakier signal (multicast loss,
-            // TTL timing, plus the TXT-record decode corruption
-            // _extractMdnsTxtField works around) than an actual open
-            // connection, and the Client's own mDNS advertisement
-            // re-publishes periodically regardless of any real connectivity
-            // change (Client__v3_1_0/service/client_bonjour.js's 60s
-            // republish cycle does a stop-then-publish, which this browser
-            // sees as a down/up pair every single time) -- so without this
-            // guard, an already-online device's status got flipped to
-            // 'offline' then immediately back to 'online' on every one of
-            // those cycles, each write broadcasting the full device list to
-            // every connected browser (this is what was behind both the
-            // "adopted cards flash offline" and the "excessive
-            // devices-update" reports -- the offline flash and the flood
-            // were the same underlying bug, not two separate ones).
-            const existingClient = this.settings.getClient(deviceId);
-            if (existingClient && !this.isDeviceRelayConnected(deviceId))
-            {
-                this.settings.upsertClient(deviceId, {
-                    ip,
-                    status: 'online',
-                    lastSeen: new Date().toISOString(),
-                });
-            }
-
-            // mDNS is now the only per-device signal that can tell the Hub
-            // "this device exists, here's its current ip/port" without
-            // waiting for a Hub restart or a manual re-adopt (previously
-            // every client-status message did this too). (Re)establishing
-            // relay connections is already a no-op when the current ones
-            // are healthy and unchanged (see ensureDeviceRelayConnections()),
-            // so this is safe to call on every mDNS re-announce, including
-            // the routine ~60s republish cycle mentioned above.
-            if (existingClient && ip && commandPort)
-            { this.ensureDeviceRelayConnections(deviceId, ip, commandPort); }
-        });
-
-        this.bonjourBrowser.on('down', (service) => {
-            const deviceId = service.txt?.deviceId || service.txt?.deviceid || this._extractMdnsTxtField(service, 'deviceid');
-            if (!deviceId) return;
-
-            // Same reasoning as the 'up' handler above: a live relay
-            // connection is definitive and already has its own onclose
-            // handler (markDeviceOfflineIfBothRelaysDown()) to mark the
-            // device offline the moment it actually drops -- a transient
-            // mDNS "down" (e.g. the Client's periodic republish briefly
-            // withdrawing its old advertisement before publishing a new
-            // one) doesn't mean the connection is gone.
-            const existingClient = this.settings.getClient(deviceId);
-            if (existingClient && !this.isDeviceRelayConnected(deviceId))
-            {
-                this.settings.upsertClient(deviceId, {
-                    status: 'offline',
-                    lastSeen: new Date().toISOString(),
-                });
-            }
-        });
-    }
 
     stopMdnsDiscovery() {
         if (this.bonjourBrowser)
@@ -1377,18 +1180,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         }, 20000);
     }
 
-    /**
-     *      Merges a raw discovered-source list with the Hub's
-     *      favorited-sources list, flagging/sorting favorites the same way
-     *      regardless of where the raw list came from -- the /ws/sources
-     *      connect handler (from the persisted discovered-ndi-sources.json)
-     *      and startDiscovery()'s stdout handler (from the live process
-     *      output, before it's even finished being persisted) both call
-     *      this so every consumer of /ws/sources sees the same merged
-     *      shape, exactly what `getNDISources()` (removed -- this replaces
-     *      its only real job) used to hand back over the now-removed
-     *      periodic /ws broadcast and the now-removed GET /api/ndi-sources.
-     */
     mergeFavoritedSources(discoveredSources) {
         const sources = Array.isArray(discoveredSources)
             ? discoveredSources.map((src) => ({ ...src, favorite: false }))
@@ -1432,10 +1223,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         return mergedSources;
     }
 
-    // Recomputes the merged list from the last-persisted discovered-source
-    // snapshot and pushes it to every /ws/sources client immediately --
-    // used after a favorite is toggled (the discovery process itself
-    // hasn't changed anything, so there's no new stdout output to wait on).
     broadcastMergedSources() {
         const merged = this.mergeFavoritedSources(this.settings.getDiscoveredSources());
         this.ws_conn_sources.forEach((ws) => {
@@ -1458,18 +1245,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         return 'localhost';
     }
 
-    /**
-     *  Records this Hub as the one that adopted a just-adopted device, by
-     *  calling the device's own 'POST /api/v1/adopt' endpoint
-     *  (Client__v3_1_0/service/client_api_server.js), via the
-     *  ip/commandPort this Hub already learned from its mDNS TXT record.
-     *  Purely informational bookkeeping on the device now (it used to also
-     *  be what unblocked a persistent /ws/client connection back to this
-     *  Hub, before that mechanism was removed) -- the Hub establishes its
-     *  own /ws/system + /ws/stats relay connections to the device
-     *  independently (see ensureDeviceRelayConnections(), called
-     *  separately at the adopt route below using this same ip/commandPort).
-     */
     async configureDeviceHubConnection(ip, commandPort) {
         if (!ip || !commandPort)
         { return { success: false, message: 'Missing device ip/commandPort' }; }
@@ -1501,20 +1276,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         });
     }
 
-    /**
-     *  Serves an HTML page with every local (root-relative) <script src>/
-     *  <link href> reference cache-busted with a `?v=<app version>` query
-     *  string. `this.cacheControl` only governs how the *next* response for
-     *  a given URL gets cached -- it can't invalidate what a browser has
-     *  already cached under that exact URL, which (thanks to
-     *  `max-age=86400, immutable` whenever NODE_ENV=production) can mean a
-     *  browser keeps serving a stale copy of e.g. 01-scripts/ws-devices.js
-     *  for up to 24h after the file on disk changed, with no way for the
-     *  server to tell it otherwise. Bumping the app version (already done
-     *  on every release, see version/current) changes every busted URL at
-     *  once, so the very next page load fetches everything fresh instead
-     *  of requiring users to know to hard-refresh.
-     */
     sendHtmlWithCacheBust(res, filePath, fallbackPath = null) {
         fs.readFile(filePath, 'utf8', (err, html) => {
             if (err)
@@ -1538,374 +1299,126 @@ class NDPiCommandServer_Client extends EventEmitter {
         this.App.use(this.Routes);
         this.startServer();
 
-        /**
-         *  NDI Stream API (v1)
-         *      WebRTC streaming for NDI sources via Python backend
-         */
-        this.Routes
-        .route('/api/v1/ndi-sources')
-        .get(async (req, res) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GET /api/v1/ndi-sources');
-            try
-            {
-                const sources = await this._getPythonNDISources();
-                res.status(200).json(sources);
-            } 
-            catch (error) 
-            {
-                console.error('Error discovering NDI sources:', error);
-                res.status(500).json({ error: error.message });
-            }
-        });
 
-        this.Routes
-        .route('/api/v1/ndi-streams')
-        .get(async (req, res) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'GET /api/v1/ndi-streams');
-            try
-            {
-                const activeStreams = Array.from(this.ws_conn_ndi_streams.values()).map(s => s.getStats());
-                res.status(200).json(activeStreams);
-            }
-            catch (error)
-            {
-                console.error('Error getting NDI streams:', error);
-                res.status(500).json({ error: error.message });
-            }
-        });
-
-        this.Routes
-        .route('/api/v1/ndi-stream/start')
-        .post(async (req, res) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'POST /api/v1/ndi-stream/start');
-            try
-            {
-                const { ndiSource } = req.body;
-                
-                if (!ndiSource) {
-                    return res.status(400).json({ error: 'NDI source name required' });
-                }
-
-                const streamId = uuidv4().substring(0, 8);
-                const NDIStreamManager = require('./NDIStreamManager');
-                const manager = new NDIStreamManager(streamId, this.pythonBackendUrl);
-                
-                // Start streaming from Python backend
-                await manager.start(ndiSource);
-                
-                // Store manager in map for WebSocket handler to find it
-                this.ws_conn_ndi_streams.set(streamId, manager);
-                
-                console.info(`[ ${path.basename(__filename).split('.')[0]} ] Stream started: ${streamId} (${ndiSource})`);
-                res.status(200).json({ streamId, status: 'started', source: ndiSource });
-            }
-            catch (error)
-            {
-                console.error('Error starting NDI stream:', error);
-                res.status(500).json({ error: error.message });
-            }
-        });
-
-        this.Routes
-        .route('/api/v1/ndi-stream/stop')
-        .post(async (req, res) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, 'POST /api/v1/ndi-stream/stop');
-            try
-            {
-                const { streamId } = req.body;
-                const stream = this.ws_conn_ndi_streams.get(streamId);
-                
-                if (!stream)
-                { return res.status(404).json({ error: 'Stream not found' }); }
-
-                stream.stop();
-                this.ws_conn_ndi_streams.delete(streamId);
-                res.status(200).json({ status: 'stopped' });
-            }
-            catch (error)
-            {
-                console.error('Error stopping NDI stream:', error);
-                res.status(500).json({ error: error.message });
-            }
-        });
-
-        this.Routes
-        .route('/api/v1/ndi-stream/:streamId/mjpeg')
-        .get(async (req, res) => {
-            console.info(`[ ${path.basename(__filename).split('.')[0]} ]`, `GET /api/v1/ndi-stream/${req.params.streamId}/mjpeg`);
-            try
-            {
-                const streamId = req.params.streamId;
-                const stream = this.ws_conn_ndi_streams.get(streamId);
-                
-                if (!stream)
-                { return res.status(404).json({ error: 'Stream not found' }); }
-
-                // Set MJPEG headers
-                res.setHeader('Content-Type', 'multipart/x-mixed-replace; boundary=frame');
-                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-                res.setHeader('Connection', 'keep-alive');
-                res.setHeader('Pragma', 'no-cache');
-
-                // Proxy directly to Python backend MJPEG
-                const http = require('http');
-                const options = {
-                    hostname: 'localhost',
-                    port: 5000,
-                    path: '/mjpeg',
-                    method: 'GET'
-                };
-
-                const backendReq = http.request(options, (backendRes) => {
-                    console.log(`[${streamId}] MJPEG proxy connected: ${backendRes.statusCode}`);
-                    
-                    backendRes.on('data', (chunk) => { res.write(chunk); });
-
-                    backendRes.on('end', () => {
-                        console.log(`[${streamId}] MJPEG proxy ended`);
-                        res.end();
-                    });
-
-                    backendRes.on('error', (error) => {
-                        console.error(`[${streamId}] MJPEG proxy error:`, error);
-                        res.end();
-                    });
-                });
-
-                backendReq.on('error', (error) => {
-                    console.error(`[${streamId}] MJPEG proxy connection failed:`, error);
-                    res.status(500).json({ error: error.message });
-                });
-
-                backendReq.end();
-
-                // Clean up on disconnect
-                req.on('close', () => {
-                    console.log(`[${streamId}] MJPEG client disconnected`);
-                    backendReq.destroy();
-                });
-            }
-            catch (error)
-            {
-                console.error('Error proxying MJPEG stream:', error);
-                res.status(500).json({ error: error.message });
-            }
-        });
-
-        this.__RoutesAccounts();
-        this.__RoutesDevices();
-        this.__RoutesGroups();
-        this.__RoutesRoku();
-        this.__RoutesSystem();
-
-        /**
-         *  Generic page-serving routes. These MUST be registered after every
-         *  specific /api/* route above — Express matches routes in
-         *  registration order, and `/:page/:ext/` (two path segments) would
-         *  otherwise shadow any two-segment API path (e.g. `/api/devices`,
-         *  `/api/groups`, `/api/account`, `/api/roku-tvs`) before it ever
-         *  reaches its real handler.
-         */
-        this.Routes.route('/test-page').get((req, res) => {
-            res.set('Cache-Control', this.cacheControl);
-            this.sendHtmlWithCacheBust(res, path.join(__dirname, '..', 'ndi-webrtc-example.html'));
-        });
-
-        this.Routes
-        .route('/')
-        .get((req, res) => {
-            res.set('Cache-Control', this.cacheControl);
-            this.sendHtmlWithCacheBust(res, path.join(__dirname, '..', 'public', 'dashboard', 'dashboard.html'));
-        });
-
-        this.Routes
-        .route('/custom-html/:page/')
-        .get((req, res) => {
-            res.set('Cache-Control', this.cacheControl);
-            const page = req.params.page.toLowerCase() || '';
-            const filePath = path.join(__dirname, '..', 'public', '02-custom-overlays', `${page}`);
-            this.sendHtmlWithCacheBust(
-                res,
-                filePath,
-                path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')
-            ); 
-        });
-
-        this.Routes
-        .route('/:page/:ext/')
-        .get((req, res) => {
-            res.set('Cache-Control', this.cacheControl);
-            const page = req.params.page.toLowerCase() || 'dashboard';
-            const ext = req.params.ext.toLowerCase() || 'html';
-            const filePath = path.join(__dirname, '..', 'public', page, `${page}.${ext}`);
-            if (ext === 'html') { this.sendHtmlWithCacheBust(res, filePath); }
-            else { res.sendFile(filePath); }
-        });
-
-        /**
-         *  Every page in public/ links internally as `/<page>.html`
-         *  (e.g. `window.location.href = '/devices.html'`), not the
-         *  `/<page>/<ext>/` form above. Serve that shape directly so
-         *  in-app navigation actually resolves.
-         */
-        this.Routes
-        .route('/:page.html')
-        .get((req, res) => {
-            res.set('Cache-Control', this.cacheControl);
-            const page = req.params.page.toLowerCase() || 'dashboard';
-            this.sendHtmlWithCacheBust(
-                res,
-                path.join(__dirname, '..', 'public', page, `${page}.html`),
-                path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')
-            );
-        });
-
-        // Catch-all: anything else unmatched falls here.
-        this.Routes.use((req, res) => {
-            if (req.path.startsWith('/api/'))
-            { return res.status(404).json({ error: 'Not found' }); }
-            this.sendHtmlWithCacheBust(res.status(404), path.join(__dirname, '..', 'public', 'not-found', 'not-found.html'));
-        });
-    }
-
-    /**
-     *  Account (User) Management API
-     */
-    __RoutesAccounts() {
         this.Routes
         .route('/api/account/create')
-        .post((req, res) => {
-            const { firstName, lastName, username, pin, isAdmin } = req.body;
+            .post((req, res) => {
+                const { firstName, lastName, username, pin, isAdmin } = req.body;
 
-            if (!firstName || !lastName || !username || !pin)
-            { return res.status(400).json({ error: 'All fields required' }); }
+                if (!firstName || !lastName || !username || !pin)
+                { return res.status(400).json({ error: 'All fields required' }); }
 
-            if (!/^\d{4}$|^\d{6}$/.test(pin))
-            { return res.status(400).json({ error: 'PIN must be 4 or 6 digits' }); }
+                if (!/^\d{4}$|^\d{6}$/.test(pin))
+                { return res.status(400).json({ error: 'PIN must be 4 or 6 digits' }); }
 
-            if (this.settings.findAccountByUsername(username))
-            { return res.status(400).json({ error: 'Username already exists' }); }
+                if (this.settings.findAccountByUsername(username))
+                { return res.status(400).json({ error: 'Username already exists' }); }
 
-            const account = this.settings.createAccount({ firstName, lastName, username, pin, isAdmin: !!isAdmin });
-            res.json({ success: true, accountId: account.id, message: 'Account created successfully' });
-        });
+                const account = this.settings.createAccount({ firstName, lastName, username, pin, isAdmin: !!isAdmin });
+                res.json({ success: true, accountId: account.id, message: 'Account created successfully' });
+            });
 
         this.Routes
         .route('/api/account/signin')
-        .post((req, res) => {
-            const { pin } = req.body;
-            if (!pin)
-            { return res.status(400).json({ error: 'PIN required' }); }
+            .post((req, res) => {
+                const { pin } = req.body;
+                if (!pin)
+                { return res.status(400).json({ error: 'PIN required' }); }
 
-            const account = this.settings.findAccountByPinHash(this.settings.hashPin(pin));
-            if (!account)
-            { return res.status(401).json({ error: 'Invalid PIN' }); }
-
-            res.json({
-                success: true,
-                account: {
-                    token: account.pinHash,
-                    id: account.id,
-                    firstName: account.firstName,
-                    lastName: account.lastName,
-                    username: account.username,
-                    isAdmin: account.isAdmin || false,
-                    firstTimeLogin: account.firstTimeLogin || false,
-                },
-            });
-        });
-
-        /**
-         *  Local-only auto-signin -- the Hub's own kiosk browser hits
-         *  http://localhost:PORT/ (config/kiosk.service), and since
-         *  "localhost" only ever resolves to the machine the browser is
-         *  actually running on, a browser that successfully loaded this
-         *  page under that hostname can only be running on the Hub itself.
-         *  Gated here (not just client-side) on the actual TCP peer
-         *  address being loopback -- see isLoopbackAddress() -- so this
-         *  route itself refuses to hand out a session to anything that
-         *  isn't really connecting from the Hub's own loopback, regardless
-         *  of what the client claims. Always signs in as the 'admin'
-         *  account specifically (see updateAccount()'s protections for
-         *  that account elsewhere in this file), not just "any admin".
-         */
-        this.Routes
-        .route('/api/account/local-signin')
-        .post((req, res) => {
-            if (!isLoopbackAddress(req.socket.remoteAddress))
-            { return res.status(403).json({ error: 'Forbidden' }); }
-
-            const account = this.settings.findAccountByUsername('admin');
-            if (!account)
-            { return res.status(404).json({ error: 'No admin account' }); }
-
-            res.json({
-                success: true,
-                account: {
-                    token: account.pinHash,
-                    id: account.id,
-                    firstName: account.firstName,
-                    lastName: account.lastName,
-                    username: account.username,
-                    isAdmin: account.isAdmin || false,
-                    firstTimeLogin: account.firstTimeLogin || false,
-                },
-            });
-        });
-
-        this.Routes
-        .route('/api/account')
-        .post((req, res) => {
-            // Verify a token (used by auth.js `loadUserAccount()`)...
-            if (req.body && req.body.token && !req.body.firstName)
-            {
-                const account = this.settings.findAccountByPinHash(req.body.token);
+                const account = this.settings.findAccountByPinHash(this.settings.hashPin(pin));
                 if (!account)
-                { return res.status(401).json({ success: false, message: 'Invalid Token' }); }
+                { return res.status(401).json({ error: 'Invalid PIN' }); }
 
-                return res.json({
+                res.json({
                     success: true,
                     account: {
+                        token: account.pinHash,
                         id: account.id,
                         firstName: account.firstName,
                         lastName: account.lastName,
                         username: account.username,
                         isAdmin: account.isAdmin || false,
                         firstTimeLogin: account.firstTimeLogin || false,
-                        lastLogOn: new Date().toISOString(),
                     },
                 });
-            }
+            });
 
-            // ...otherwise treat as an account creation request (used by users.html).
-            const { firstName, lastName, username, pin, isAdmin } = req.body;
+        this.Routes
+        .route('/api/account/local-signin')
+            .post((req, res) => {
+                if (!isLoopbackAddress(req.socket.remoteAddress))
+                { return res.status(403).json({ error: 'Forbidden' }); }
 
-            if (!firstName || !lastName || !username || !pin)
-            { return res.status(400).json({ error: 'All fields required' }); }
+                const account = this.settings.findAccountByUsername('admin');
+                if (!account)
+                { return res.status(404).json({ error: 'No admin account' }); }
 
-            if (!/^\d{4}$|^\d{6}$/.test(pin))
-            { return res.status(400).json({ error: 'PIN must be 4 or 6 digits' }); }
+                res.json({
+                    success: true,
+                    account: {
+                        token: account.pinHash,
+                        id: account.id,
+                        firstName: account.firstName,
+                        lastName: account.lastName,
+                        username: account.username,
+                        isAdmin: account.isAdmin || false,
+                        firstTimeLogin: account.firstTimeLogin || false,
+                    },
+                });
+            });
 
-            if (this.settings.findAccountByUsername(username))
-            { return res.status(400).json({ error: 'Username already exists' }); }
+        this.Routes
+        .route('/api/account')
+            .post((req, res) => {
+                if (req.body && req.body.token && !req.body.firstName)
+                {
+                    const account = this.settings.findAccountByPinHash(req.body.token);
+                    if (!account)
+                    { return res.status(401).json({ success: false, message: 'Invalid Token' }); }
 
-            const account = this.settings.createAccount({ firstName, lastName, username, pin, isAdmin: !!isAdmin });
-            res.json({ success: true, accountId: account.id, message: 'Account created successfully' });
-        });
+                    return res.json({
+                        success: true,
+                        account: {
+                            id: account.id,
+                            firstName: account.firstName,
+                            lastName: account.lastName,
+                            username: account.username,
+                            isAdmin: account.isAdmin || false,
+                            firstTimeLogin: account.firstTimeLogin || false,
+                            lastLogOn: new Date().toISOString(),
+                        },
+                    });
+                }
+
+                // ...otherwise treat as an account creation request (used by users.html).
+                const { firstName, lastName, username, pin, isAdmin } = req.body;
+
+                if (!firstName || !lastName || !username || !pin)
+                { return res.status(400).json({ error: 'All fields required' }); }
+
+                if (!/^\d{4}$|^\d{6}$/.test(pin))
+                { return res.status(400).json({ error: 'PIN must be 4 or 6 digits' }); }
+
+                if (this.settings.findAccountByUsername(username))
+                { return res.status(400).json({ error: 'Username already exists' }); }
+
+                const account = this.settings.createAccount({ firstName, lastName, username, pin, isAdmin: !!isAdmin });
+                res.json({ success: true, accountId: account.id, message: 'Account created successfully' });
+            });
 
         this.Routes
         .route('/api/admin/accounts')
-        .get((req, res) => {
-            const accountList = this.settings.getAccounts().map((acc) => ({
-                id: acc.id,
-                firstName: acc.firstName,
-                lastName: acc.lastName,
-                username: acc.username,
-                isAdmin: acc.isAdmin || false,
-                createdAt: acc.createdAt,
-            }));
-            res.json({ accounts: accountList });
-        });
+            .get((req, res) => {
+                const accountList = this.settings.getAccounts().map((acc) => ({
+                    id: acc.id,
+                    firstName: acc.firstName,
+                    lastName: acc.lastName,
+                    username: acc.username,
+                    isAdmin: acc.isAdmin || false,
+                    createdAt: acc.createdAt,
+                }));
+                res.json({ accounts: accountList });
+            });
 
         const handleAccountUpdate = (req, res) => {
             const account = this.settings.getAccount(req.params.id);
@@ -1914,12 +1427,6 @@ class NDPiCommandServer_Client extends EventEmitter {
 
             const updates = req.body || {};
 
-            // The 'admin' account (username, not just isAdmin -- there can
-            // be other admins) is the one guaranteed account this Hub can
-            // always be signed into (see createDefaultAdminAccount() and
-            // /api/account/local-signin). Only its PIN is editable; every
-            // other field is locked, regardless of who's asking or whether
-            // they're an admin themselves.
             if (account.username.toLowerCase() === 'admin')
             {
                 const lockedFields = ['firstName', 'lastName', 'username', 'isAdmin'].filter((key) => key in updates);
@@ -1961,45 +1468,37 @@ class NDPiCommandServer_Client extends EventEmitter {
 
         this.Routes
         .route('/api/account/:id')
-        .get((req, res) => {
-            const account = this.settings.getAccount(req.params.id);
-            if (!account)
-            { return res.status(404).json({ error: 'Account not found' }); }
-            res.json({
-                id: account.id,
-                firstName: account.firstName,
-                lastName: account.lastName,
-                username: account.username,
-                isAdmin: account.isAdmin || false,
-                createdAt: account.createdAt,
+            .get((req, res) => {
+                const account = this.settings.getAccount(req.params.id);
+                if (!account)
+                { return res.status(404).json({ error: 'Account not found' }); }
+                res.json({
+                    id: account.id,
+                    firstName: account.firstName,
+                    lastName: account.lastName,
+                    username: account.username,
+                    firstTimeLogin: account.firstTimeLogin,
+                    isAdmin: account.isAdmin || false,
+                    createdAt: account.createdAt,
+                });
+            })
+            .put(handleAccountUpdate)
+            .delete((req, res) => {
+                const account = this.settings.getAccount(req.params.id);
+                if (!account)
+                { return res.status(404).json({ error: 'Account not found' }); }
+
+                if (account.username.toLowerCase() === 'admin')
+                { return res.status(400).json({ error: "The 'admin' account cannot be deleted." }); }
+
+                const adminAccounts = this.settings.getAccounts().filter((acc) => acc.isAdmin);
+                if (account.isAdmin && adminAccounts.length === 1)
+                { return res.status(400).json({ error: 'Cannot delete the last admin account' }); }
+
+                this.settings.deleteAccount(req.params.id);
+                res.json({ success: true });
             });
-        })
-        .put(handleAccountUpdate)
-        .delete((req, res) => {
-            const account = this.settings.getAccount(req.params.id);
-            if (!account)
-            { return res.status(404).json({ error: 'Account not found' }); }
 
-            if (account.username.toLowerCase() === 'admin')
-            { return res.status(400).json({ error: "The 'admin' account cannot be deleted." }); }
-
-            const adminAccounts = this.settings.getAccounts().filter((acc) => acc.isAdmin);
-            if (account.isAdmin && adminAccounts.length === 1)
-            { return res.status(400).json({ error: 'Cannot delete the last admin account' }); }
-
-            this.settings.deleteAccount(req.params.id);
-            res.json({ success: true });
-        });
-
-        this.Routes
-        .route('/api/account/:id/update')
-        .post(handleAccountUpdate);
-    }
-
-    /**
-     *  Device (NDPi Client) Management API
-     */
-    __RoutesDevices() {
         const deviceOut = (client) => this.deviceOut(client);
 
         this.Routes
@@ -2198,7 +1697,82 @@ class NDPiCommandServer_Client extends EventEmitter {
             // reconfiguration over the command channel.
             res.status(501).json({ error: 'Network configuration is not supported by NDPi Client v3 devices.' });
         });
+        
+
+        this.__RoutesGroups();
+        this.__RoutesRoku();
+        this.__RoutesSystem();
+
+        /**
+         *  Generic page-serving routes. These MUST be registered after every
+         *  specific /api/* route above — Express matches routes in
+         *  registration order, and `/:page/:ext/` (two path segments) would
+         *  otherwise shadow any two-segment API path (e.g. `/api/devices`,
+         *  `/api/groups`, `/api/account`, `/api/roku-tvs`) before it ever
+         *  reaches its real handler.
+         */
+        this.Routes.route('/test-page').get((req, res) => {
+            res.set('Cache-Control', this.cacheControl);
+            this.sendHtmlWithCacheBust(res, path.join(__dirname, '..', 'ndi-webrtc-example.html'));
+        });
+
+        this.Routes
+        .route('/')
+        .get((req, res) => {
+            res.set('Cache-Control', this.cacheControl);
+            this.sendHtmlWithCacheBust(res, path.join(__dirname, '..', 'public', 'dashboard', 'dashboard.html'));
+        });
+
+        this.Routes
+        .route('/custom-html/:page/')
+        .get((req, res) => {
+            res.set('Cache-Control', this.cacheControl);
+            const page = req.params.page.toLowerCase() || '';
+            const filePath = path.join(__dirname, '..', 'public', '02-custom-overlays', `${page}`);
+            this.sendHtmlWithCacheBust(
+                res,
+                filePath,
+                path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')
+            ); 
+        });
+
+        this.Routes
+        .route('/:page/:ext/')
+        .get((req, res) => {
+            res.set('Cache-Control', this.cacheControl);
+            const page = req.params.page.toLowerCase() || 'dashboard';
+            const ext = req.params.ext.toLowerCase() || 'html';
+            const filePath = path.join(__dirname, '..', 'public', page, `${page}.${ext}`);
+            if (ext === 'html') { this.sendHtmlWithCacheBust(res, filePath); }
+            else { res.sendFile(filePath); }
+        });
+
+        /**
+         *  Every page in public/ links internally as `/<page>.html`
+         *  (e.g. `window.location.href = '/devices.html'`), not the
+         *  `/<page>/<ext>/` form above. Serve that shape directly so
+         *  in-app navigation actually resolves.
+         */
+        this.Routes
+        .route('/:page.html')
+        .get((req, res) => {
+            res.set('Cache-Control', this.cacheControl);
+            const page = req.params.page.toLowerCase() || 'dashboard';
+            this.sendHtmlWithCacheBust(
+                res,
+                path.join(__dirname, '..', 'public', page, `${page}.html`),
+                path.join(__dirname, '..', 'public', 'not-found', 'not-found.html')
+            );
+        });
+
+        // Catch-all: anything else unmatched falls here.
+        this.Routes.use((req, res) => {
+            if (req.path.startsWith('/api/'))
+            { return res.status(404).json({ error: 'Not found' }); }
+            this.sendHtmlWithCacheBust(res.status(404), path.join(__dirname, '..', 'public', 'not-found', 'not-found.html'));
+        });
     }
+    
 
     /**
      *  Group Management API
@@ -2451,61 +2025,12 @@ class NDPiCommandServer_Client extends EventEmitter {
     __RoutesSystem() {
         const CRLFArray = (string = '') => string.split(/\r?\n/);
 
-        /**
-         *  '/api/v2/*' -- every route in this file added since this Hub's
-         *  own API started diverging from the Client's (i.e. everything
-         *  that isn't a straight carry-over from the original Client
-         *  adaptation this file was cloned from) now lives under this
-         *  prefix, rather than a bare unversioned '/api/...' path. The
-         *  pre-existing routes this file already had (device/group/account/
-         *  roku/etc. management, the older '/api/v1/ndi-*' MJPEG-proxy
-         *  set) mixed unversioned and v1 paths inconsistently with no way
-         *  to tell, just from a URL, whether it was safe to change without
-         *  checking every caller by hand -- which is exactly what made
-         *  auditing "which endpoints did this pass add" require a manual
-         *  git-history dig instead of a glance at the route table. Every
-         *  '/api/v2/*' route below (and the four under
-         *  '/api/v2/device/:deviceId/*' in __RoutesDevices(), and
-         *  '/api/v2/favorite-ndi-sources/toggle' in __RoutesRoku()) is new
-         *  as of this pass and has no prior unversioned path to preserve
-         *  compatibility with -- nothing else in this codebase (Hub or
-         *  Client__v3_1_0) ever called them any other way, confirmed by
-         *  grepping every caller before renaming. Existing routes were
-         *  deliberately left exactly where they are rather than retrofitted
-         *  onto '/api/v2/' too -- renaming something already in active use
-         *  is the actual risky move; only never-before-shipped paths were
-         *  safe to place under the new prefix from day one.
-         */
-
-        // Liveness check for the frontend's offline-recovery loop (see
-        // 01-scripts/ws-client.js) -- polled once/sec after the GUI
-        // WebSocket drops, to detect the moment the Hub is reachable again
-        // (vs. the WebSocket itself, which may take longer to notice).
-        // Deliberately no dependency on any other subsystem: just confirms
-        // the HTTP server itself is up and responding.
         this.Routes
         .route('/api/v2/ping')
         .get((req, res) => {
             res.json({ success: true });
         });
 
-        // Generic write path for the Hub's own settings (hub_fs.js's
-        // fileMap) -- the Hub-side equivalent of Client__v3_1_0's remote
-        // settings editor (`set-setting` command -> this.settings.put()).
-        // Same shape as the per-device settings route
-        // (deviceCommandRoute('setting', ...), body: {name, value}), and
-        // deliberately just as permissive: like the Client's own
-        // updateSetting(), this only checks that the key exists, it doesn't
-        // enforce allowEditExternal server-side (that flag is UI-only).
-        // Currently used for output_display_resolution_preference (Display
-        // Resolution on settings.html) -- writing it triggers the existing
-        // this.settings.on('output_display_resolution_preference', ...)
-        // listener in server.js, which calls func.setDisplayResolution()
-        // (xrandr + openbox restart), exactly mirroring how the Client
-        // applies its own output_display_resolution_preference changes.
-        // Single-setting read, mirroring the write route below. Lets a page
-        // apply a Hub-wide setting (e.g. ui_theme_color) on load with one
-        // small GET instead of opening /ws/system just to read one value.
         this.Routes
         .route('/api/v2/setting/:name')
         .get((req, res) => {
@@ -2529,13 +2054,6 @@ class NDPiCommandServer_Client extends EventEmitter {
             res.json({ success: true });
         });
 
-        // Optional Hub-branding override for the sidebar/login logo
-        // (hub_fs.js's custom-logo.json, uploaded from settings.html).
-        // GET always succeeds -- serves the uploaded image if one exists,
-        // otherwise redirects to the bundled default SVG -- so every page
-        // can point at this single URL (styles.css's .topbar-logo
-        // background-image, the auth-flow pages' <img>) without needing
-        // any JS to pick between "custom" and "default".
         this.Routes
         .route('/api/v2/logo')
         .get((req, res) => {
@@ -2551,8 +2069,6 @@ class NDPiCommandServer_Client extends EventEmitter {
             const { name, type, dataUrl } = req.body;
             if (!dataUrl || !/^data:image\/(png|jpe?g|svg\+xml|webp|gif);base64,/.test(dataUrl))
             { return res.status(400).json({ error: true, message: 'Upload must be a PNG, JPEG, WEBP, GIF, or SVG image' }); }
-            // Base64 text runs ~4/3 the original byte size -- 2MB of
-            // encoded text is a generous cap for a logo image.
             if (dataUrl.length > 2 * 1024 * 1024)
             { return res.status(400).json({ error: true, message: 'Image is too large (2MB max)' }); }
 
@@ -2631,81 +2147,6 @@ class NDPiCommandServer_Client extends EventEmitter {
             func.updateInstall().catch((error) => {
                 console.error(`⚠️   [ ${path.basename(__filename).split('.')[0]} ][ ERROR ]`, 'install-update', error.message);
             });
-        });
-    }
-
-    /**
-     * Helper method to fetch from Python NDI server
-     */
-    async _getPythonNDISources() {
-        return new Promise((resolve, reject) => {
-            const options = {
-                hostname: 'localhost',
-                port: 5000,
-                path: '/api/sources',
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            };
-
-            const req = http.request(options, (res) => {
-                let data = '';
-                res.on('data', (chunk) => { data += chunk; });
-                res.on('end', () => {
-                    try {
-                        resolve(JSON.parse(data));
-                    } catch (e) {
-                        reject(new Error(`Failed to parse response: ${e.message}`));
-                    }
-                });
-            });
-
-            req.on('error', reject);
-            req.end();
-        });
-    }
-
-    _fetchFromPythonServer(endpoint, method = 'GET', body = null) {
-        return new Promise((resolve, reject) => {
-            const url = new URL(endpoint, NDI_SERVER_URL);
-            
-            const options = {
-                hostname: url.hostname,
-                port: url.port,
-                path: url.pathname + url.search,
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            };
-
-            const req = http_lib.request(options, (res) => {
-                let data = '';
-
-                res.on('data', (chunk) => {
-                    data += chunk;
-                });
-
-                res.on('end', () => {
-                    try {
-                        if (res.statusCode >= 200 && res.statusCode < 300) {
-                            const parsed = data ? JSON.parse(data) : {};
-                            resolve(parsed);
-                        } else {
-                            reject(new Error(`Python server returned ${res.statusCode}: ${data}`));
-                        }
-                    } catch (e) {
-                        reject(new Error(`Failed to parse response: ${e.message}`));
-                    }
-                });
-            });
-
-            req.on('error', reject);
-
-            if (body) {
-                req.write(JSON.stringify(body));
-            }
-
-            req.end();
         });
     }
 
@@ -2795,22 +2236,6 @@ class NDPiCommandServer_Client extends EventEmitter {
         try { this.ws_serv_devices_system?.close(); } catch {}
         try { this.ws_serv_devices_stats?.close(); } catch {}
 
-        // The wss.close() calls above only stop each server from accepting
-        // *new* connections -- per the `ws` library (these all run in
-        // `noServer` mode), close() does NOT close already-open client
-        // connections, and it won't emit its own 'close' event until they
-        // disconnect on their own. `this.Server.closeAllConnections()` /
-        // `this.Server.close()` further below don't reach them either,
-        // since ownership of the socket is handed off to `ws` during the
-        // 'upgrade' event and Node's http server stops tracking it.
-        // Confirmed empirically: without this, `this.Server.close()`'s
-        // callback simply never fires while any browser tab or Client
-        // device is still connected -- which is effectively always -- so
-        // every graceful shutdown was silently falling through to the 10s
-        // forced-exit watchdog in server.js's quitNDPi(). terminate() (not
-        // close()) is used deliberately: we're forcing a shutdown, not
-        // negotiating one, and terminate() doesn't wait on a close
-        // handshake the other end may never complete.
         const terminate = (ws) => { try { ws.terminate(); } catch {} };
         this.ws_conn_gui.forEach(terminate);
         this.ws_conn_hub_system.forEach(terminate);
@@ -2833,9 +2258,6 @@ class NDPiCommandServer_Client extends EventEmitter {
             this.hubStatsSendInterval = null;
         }
 
-        // this.closing is already true at this point, so the 'close'
-        // handlers in connectDeviceSystemRelay()/connectDeviceStatsRelay()
-        // won't try to reconnect — clear/close explicitly too as a backstop.
         this.deviceSystemSockets.forEach((entry) => {
             clearTimeout(entry.reconnectTimer);
             try { entry.ws.removeAllListeners(); entry.ws.close(); } catch {}

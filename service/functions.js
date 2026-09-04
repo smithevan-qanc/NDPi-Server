@@ -1,6 +1,7 @@
 const net = require('net');
 const fs = require('node:fs');
 const path = require('path');
+const crypto = require('node:crypto');
 const { exec } = require('node:child_process');
 
 /**
@@ -15,6 +16,15 @@ function stdoutToArray(stdout) {
         a.push(line);
     });
     return a;
+}
+
+/**
+ * GUI Login PIN Hash Algorythm
+ * @param {string|number} pin - PIN Number to hash
+ * @returns {string} - Hashed PIN.
+ */
+function hashPin(pin) {
+    return crypto.createHash('sha256').update(String(pin)).digest('hex');
 }
 
 /**
@@ -170,4 +180,5 @@ module.exports = {
     setDisplayResolution,
     checkForUpdate,
     updateInstall,
+    hashPin,
 };
